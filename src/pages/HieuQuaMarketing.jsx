@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { Link } from "react-router-dom";
-import { useReportData } from "../hooks/useReportData";
-import { MarketEffectivenessTab } from "../components/tabs/MarketEffectivenessTab";
-import FilterPanel from "../components/FilterPanel";
-import ColumnSettingsModal from "../components/ColumnSettingsModal";
 import { ChevronLeft, Settings } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import ColumnSettingsModal from "../components/ColumnSettingsModal";
+import FilterPanel from "../components/FilterPanel";
+import { MarketEffectivenessTab } from "../components/tabs/MarketEffectivenessTab";
+import { useReportData } from "../hooks/useReportData";
+import { isDateInRange } from '../utils/dateParsing';
 
 export default function HieuQuaMarketing() {
   const [userTeam, setUserTeam] = useState("");
@@ -39,7 +40,7 @@ export default function HieuQuaMarketing() {
   const [filteredData, setFilteredData] = useState([]);
   const [enableDateFilter, setEnableDateFilter] = useState(true);
   const [showColumnSettings, setShowColumnSettings] = useState(false);
-  
+
   // Column config
   const columnsConfig = [
     { key: 'name', label: 'Tên' },
@@ -49,27 +50,14 @@ export default function HieuQuaMarketing() {
     { key: 'orders', label: 'Số đơn' },
     { key: 'revenue', label: 'Doanh số' },
   ];
-  
+
   const [visibleColumns, setVisibleColumns] = useState(() => {
     const obj = {};
     columnsConfig.forEach(c => { obj[c.key] = true; });
     return obj;
   });
 
-  // Function to parse date strings in DD/MM/YYYY format
-  const parseDate = (dateStr) => {
-    if (dateStr instanceof Date) return dateStr;
-    if (typeof dateStr === 'string') {
-      const parts = dateStr.split('/');
-      if (parts.length === 3) {
-        const day = parseInt(parts[0]);
-        const month = parseInt(parts[1]) - 1;
-        const year = parseInt(parts[2]);
-        return new Date(year, month, day);
-      }
-    }
-    return new Date(dateStr);
-  };
+
 
   // Update available filters when masterData changes
   useEffect(() => {
@@ -181,16 +169,7 @@ export default function HieuQuaMarketing() {
 
     // Date filter (only if enabled)
     if (enableDateFilter) {
-      if (filters.startDate) {
-        const startDate = new Date(filters.startDate);
-        startDate.setHours(0, 0, 0, 0);
-        filtered = filtered.filter((r) => parseDate(r.date) >= startDate);
-      }
-      if (filters.endDate) {
-        const endDate = new Date(filters.endDate);
-        endDate.setHours(23, 59, 59, 999);
-        filtered = filtered.filter((r) => parseDate(r.date) <= endDate);
-      }
+      filtered = filtered.filter(r => isDateInRange(r.date, filters.startDate, filters.endDate));
     }
 
     if (filters.products.length > 0) {

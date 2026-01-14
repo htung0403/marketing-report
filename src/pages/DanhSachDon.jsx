@@ -1,8 +1,10 @@
-import { ChevronLeft, Download, RefreshCw, Search, Settings, X } from 'lucide-react';
+import { ChevronLeft, Download, RefreshCw, Search, Settings, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { logDataChange } from '../services/logging';
 import { supabase } from '../supabase/config';
 import { COLUMN_MAPPING, PRIMARY_KEY_COLUMN } from '../types';
+import { isDateInRange, parseSmartDate } from '../utils/dateParsing';
 
 function DanhSachDon() {
   const [allData, setAllData] = useState([]);
@@ -12,16 +14,30 @@ function DanhSachDon() {
   const [filterMarket, setFilterMarket] = useState([]);
   const [filterProduct, setFilterProduct] = useState([]);
   const [filterStatus, setFilterStatus] = useState([]);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [enableDateFilter, setEnableDateFilter] = useState(false);
-  const [quickFilter, setQuickFilter] = useState('');
+  // const [searchDate, setSearchDate] = useState(''); // Removed simple date
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+
+
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [syncing, setSyncing] = useState(false); // State for sync process
+
+  const defaultColumns = [
+    'Mã đơn hàng',
+    'Ngày lên đơn',
+    'Name*',
+    'Phone*',
+    'Khu vực',
+    'Mặt hàng',
+    'Mã Tracking',
+    'Trạng thái giao hàng',
+    'Tổng tiền VNĐ',
+  ];
 
   // Debounce search text for better performance
   useEffect(() => {
@@ -35,29 +51,38 @@ function DanhSachDon() {
   // Get all available columns from data
   const allAvailableColumns = useMemo(() => {
     if (allData.length === 0) return [];
-    const columns = new Set();
+
+    // Get all potential keys from data
+    const allKeys = new Set();
     allData.forEach(row => {
       Object.keys(row).forEach(key => {
         if (key !== PRIMARY_KEY_COLUMN) {
-          columns.add(key);
+          allKeys.add(key);
         }
       });
     });
-    return Array.from(columns).sort();
+
+    // Strategy:
+    // 1. Start Defaults: Defaults excluding pinned ones
+    // 2. Other/Dynamic Cols: Alphabetic sort
+    // 3. End Cols: Pinned ones (Status, Total)
+
+    const pinnedEndColumns = ['Trạng thái giao hàng', 'Tổng tiền VNĐ'];
+
+    const startDefaults = defaultColumns
+      .filter(col => !pinnedEndColumns.includes(col) && allKeys.has(col));
+
+    const otherCols = Array.from(allKeys)
+      .filter(key => !defaultColumns.includes(key))
+      .sort();
+
+    const endCols = pinnedEndColumns.filter(col => allKeys.has(col));
+
+    return [...startDefaults, ...otherCols, ...endCols];
   }, [allData]);
 
   // Default columns
-  const defaultColumns = [
-    'Mã đơn hàng',
-    'Ngày lên đơn',
-    'Name*',
-    'Phone*',
-    'Khu vực',
-    'Mặt hàng',
-    'Mã Tracking',
-    'Trạng thái giao hàng',
-    'Tổng tiền VNĐ',
-  ];
+
 
   // Load column visibility from localStorage or use defaults
   const [visibleColumns, setVisibleColumns] = useState(() => {
@@ -89,85 +114,78 @@ function DanhSachDon() {
     }
   }, [visibleColumns]);
 
-  // Load data from Supabase
+  // Helper: Map Supabase DB row to UI format
+  const mapSupabaseToUI = (item) => ({
+    "Mã đơn hàng": item.order_code,
+    "Ngày lên đơn": item.order_date || item.created_at?.split('T')[0],
+    "Name*": item.customer_name,
+    "Phone*": item.customer_phone,
+    "Add": item.customer_address,
+    "City": item.city,
+    "State": item.state,
+    "Khu vực": item.country || item.area, // Fallback to 'area' from new form
+    "Zipcode": item.zipcode,
+    "Mặt hàng": item.product_main || item.product,
+    "Tên mặt hàng 1": item.product_name_1 || item.product_main || item.product,
+    "Tổng tiền VNĐ": item.total_amount_vnd,
+    "Hình thức thanh toán": item.payment_method_text || item.payment_method, // payment_method_text is new
+    "Mã Tracking": item.tracking_code,
+    "Phí ship": item.shipping_fee,
+    "Nhân viên Marketing": item.marketing_staff,
+    "Nhân viên Sale": item.sale_staff,
+    "Team": item.team,
+    "Trạng thái giao hàng": item.delivery_status,
+    "Kết quả Check": item.payment_status,
+    "Ghi chú": item.note,
+    "CSKH": item.cskh,
+    "NV Vận đơn": item.delivery_staff,
+    "Tiền Hàng": item.sale_price || item.goods_amount, // Map sale_price (foreign) or goods_amount
+    "Tiền Việt đã đối soát": item.reconciled_vnd || item.reconciled_amount, // reconciled_vnd new
+    "Phí Chung": item.general_fee,
+    "Phí bay": item.flight_fee,
+    "Thuê TK": item.account_rental_fee,
+    "Phí xử lý đơn đóng hàng-Lưu kho(usd)": item.general_fee,
+    "Thời gian cutoff": item.cutoff_time,
+    "Đơn vị vận chuyển": item.shipping_unit || item.shipping_carrier, // shipping_carrier might be new?
+    "Kế toán xác nhận thu tiền về": item.accountant_confirm,
+    "Trạng thái thu tiền": item.payment_status_detail,
+    "Lý do": item.reason,
+    "Page": item.page_name, // Map Page Name
+    "_id": item.id,
+    "_source": 'supabase'
+  });
+
+  // Load data from Supabase only
   const loadData = async () => {
     setLoading(true);
     try {
-      console.log('Loading orders from Supabase...');
+      console.log('Loading data from Supabase...');
 
-      let allOrders = [];
-      const pageSize = 1000;
-      let page = 0;
-      let hasMore = true;
+      // 1. Fetch Supabase Data
+      let query = supabase.from('orders').select('*');
 
-      while (hasMore) {
-        const from = page * pageSize;
-        const to = from + pageSize - 1;
+      // Removed SQL date filtering to rely on robust JS filtering
+      // if (searchDate) { ... }
 
-        const { data, error } = await supabase
-          .from('orders')
-          .select('*')
-          .range(from, to)
-          .order('created_at', { ascending: false });
+      const { data: supaData, error: supaError } = await query.order('order_date', { ascending: false });
 
-        if (error) throw error;
+      if (supaError) throw supaError;
 
-        if (data && data.length > 0) {
-          allOrders = [...allOrders, ...data];
-          if (data.length < pageSize) {
-            hasMore = false;
-          } else {
-            page++;
-          }
-        } else {
-          hasMore = false;
-        }
-      }
 
-      // Map Supabase columns to existing UI format
-      const mappedData = allOrders.map(item => ({
-        "Mã đơn hàng": item.order_code,
-        "Ngày lên đơn": item.order_date || item.created_at,
-        "Name*": item.customer_name,
-        "Phone*": item.customer_phone,
-        "Add": item.customer_address,
-        "City": item.city,
-        "State": item.state,
-        "Khu vực": item.country, // Assuming 'country' maps to 'Khu vực' or similar
-        "Zipcode": item.zipcode,
-        "Mặt hàng": item.product,
-        "Tên mặt hàng 1": item.product, // Mapping to legacy fields
-        "Tổng tiền VNĐ": item.total_amount_vnd,
-        "Hình thức thanh toán": item.payment_method,
-        "Mã Tracking": item.tracking_code,
-        "Phí ship": item.shipping_fee,
-        "Nhân viên Marketing": item.marketing_staff,
-        "Nhân viên Sale": item.sale_staff,
-        "Team": item.team,
-        "Trạng thái giao hàng": item.delivery_status,
-        "Kết quả Check": item.payment_status,
-        "Ghi chú": item.note,
 
-        // Extended columns (kept data available even if hidden by default)
-        "CSKH": item.cskh,
-        "NV Vận đơn": item.delivery_staff,
-        "Tiền Hàng": item.goods_amount,
-        "Tiền Việt đã đối soát": item.reconciled_amount,
-        "Phí Chung": item.general_fee,
-        "Phí bay": item.flight_fee,
-        "Thuê TK": item.account_rental_fee,
-        "Phí xử lý đơn đóng hàng-Lưu kho(usd)": item.general_fee,
-        "Thời gian cutoff": item.cutoff_time,
-        "Đơn vị vận chuyển": item.shipping_unit,
-        "Kế toán xác nhận thu tiền về": item.accountant_confirm,
-        "Trạng thái thu tiền": item.payment_status_detail,
-        "Lý do": item.reason,
+      // 2. Process Supabase Data
+      const supaMapped = (supaData || []).map(mapSupabaseToUI);
 
-        // Preserve original ID for updates if needed
-        "_id": item.id
-      }));
+      // 3. Sort by Date Descending (Client side sort for display)
+      supaMapped.sort((a, b) => {
+        const dateA = parseSmartDate(a["Ngày lên đơn"]);
+        const dateB = parseSmartDate(b["Ngày lên đơn"]);
+        return (dateB || 0) - (dateA || 0);
+      });
 
-      setAllData(mappedData);
+      console.log(`Loaded: ${supaMapped.length} Supabase orders.`);
+      setAllData(supaMapped);
+
     } catch (error) {
       console.error('Load data error:', error);
       alert(`❌ Lỗi tải dữ liệu: ${error.message}`);
@@ -178,7 +196,7 @@ function DanhSachDon() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, []); // Only load once on mount, filtering is client side now
 
   // Get unique values for filters
   const uniqueMarkets = useMemo(() => {
@@ -333,6 +351,98 @@ function DanhSachDon() {
           errorCount += batch.length;
         } else {
           successCount += batch.length;
+
+          // Log changes asynchronously
+          const userEmail = localStorage.getItem('userEmail') || 'system_sync';
+          const validLogEntries = [];
+
+          // Create a lookup map for current data to find old values
+          const currentDataMap = new Map();
+          if (Array.isArray(allData)) {
+            allData.forEach(row => {
+              if (row["Mã đơn hàng"]) currentDataMap.set(String(row["Mã đơn hàng"]), row);
+            });
+          }
+
+          transformedBatch.forEach(newItem => {
+            const oldItem = currentDataMap.get(String(newItem.order_code));
+            let oldStatus = oldItem ? (oldItem["Trạng thái giao hàng"] || '') : '';
+            let newStatus = newItem.delivery_status || '';
+            let changeMessage = '';
+            let isChange = false;
+
+            // Define fields to track changes for
+            const compareFields = [
+              { key: 'delivery_status', oldKey: 'Trạng thái giao hàng', label: 'Trạng thái' },
+              { key: 'total_amount_vnd', oldKey: 'Tổng tiền VNĐ', label: 'Tổng tiền' },
+              { key: 'payment_status', oldKey: 'Kết quả Check', label: 'Thanh toán' },
+              { key: 'note', oldKey: 'Ghi chú', label: 'Ghi chú' },
+              { key: 'marketing_staff', oldKey: 'Nhân viên Marketing', label: 'MKT' },
+              { key: 'sale_staff', oldKey: 'Nhân viên Sale', label: 'Sale' },
+              { key: 'customer_name', oldKey: 'Name*', label: 'Tên KH' },
+              { key: 'customer_phone', oldKey: 'Phone*', label: 'SĐT' },
+              { key: 'customer_address', oldKey: 'Add', label: 'Địa chỉ' }
+            ];
+
+            const changes = [];
+            const oldObj = {};
+            const newObj = {};
+
+            if (!oldItem) {
+              changes.push(`Đồng bộ đơn mới: Trạng thái "${newStatus}"`);
+              isChange = true;
+              // For new items, old is null/empty, new is the relevant fields
+              newObj['delivery_status'] = newStatus;
+            } else {
+              compareFields.forEach(field => {
+                let oldVal = String(oldItem[field.oldKey] || '').trim();
+                let newVal = String(newItem[field.key] || '').trim();
+
+                // Handle numeric comparisons for total amount (remove non-numeric chars for loose comparison or just trim)
+                if (field.key === 'total_amount_vnd') {
+                  oldVal = parseFloat(oldVal.replace(/[^0-9.-]+/g, "")) || 0;
+                  newVal = parseFloat(newVal) || 0;
+                  if (oldVal !== newVal) {
+                    changes.push(`${field.label}: "${new Intl.NumberFormat('vi-VN').format(oldVal)}" ➔ "${new Intl.NumberFormat('vi-VN').format(newVal)}"`);
+                    isChange = true;
+                    oldObj[field.label] = oldVal;
+                    newObj[field.label] = newVal;
+                  }
+                } else {
+                  if (oldVal !== newVal) {
+                    changes.push(`${field.label}: "${oldVal}" ➔ "${newVal}"`);
+                    isChange = true;
+                    oldObj[field.label] = oldVal;
+                    newObj[field.label] = newVal;
+                  }
+                }
+              });
+            }
+
+            if (isChange) {
+              changeMessage = changes.join('; ');
+            }
+
+            // Only log if there are actual changes
+            if (isChange) {
+              validLogEntries.push({
+                action: 'SYNC_F3',
+                table_name: 'orders',
+                record_id: newItem.order_code,
+                user_email: userEmail,
+                // Store structured diffs as JSON strings
+                old_value: !oldItem ? null : JSON.stringify(oldObj),
+                new_value: JSON.stringify(newObj),
+                details: {
+                  note: changeMessage,
+                  orderCode: newItem.order_code
+                }
+              });
+            }
+          });
+
+          Promise.all(validLogEntries.map(entry => logDataChange(entry)))
+            .catch(err => console.error("Logging sync error", err));
         }
       }
 
@@ -348,6 +458,44 @@ function DanhSachDon() {
       alert("Lỗi quá trình đồng bộ: " + error.message);
     } finally {
       setSyncing(false);
+    }
+  };
+
+  // Handle Delete
+  const handleDelete = async (orderCode, rowId) => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa đơn hàng này? Hành động này không thể hoàn tác.")) return;
+
+    try {
+      setLoading(true);
+      let error = null;
+
+      if (orderCode && !orderCode.startsWith('UNK-') && !orderCode.startsWith('NO_CODE_')) {
+        // Delete by order_code
+        const res = await supabase.from('orders').delete().eq('order_code', orderCode);
+        error = res.error;
+      } else if (rowId) {
+        // Delete by ID (fallback for orders without code)
+        const res = await supabase.from('orders').delete().eq('id', rowId);
+        error = res.error;
+      } else {
+        throw new Error("Không tìm thấy thông tin định danh để xóa (Mã đơn hoặc ID).");
+      }
+
+      if (error) throw error;
+
+      alert("✅ Đã xóa đơn hàng thành công!");
+
+      // Update local state directly instead of reloading
+      setAllData(prev => prev.filter(item => {
+        if (orderCode && item['Mã đơn hàng'] === orderCode) return false;
+        if (rowId && item._id === rowId) return false;
+        return true;
+      }));
+      setLoading(false);
+    } catch (err) {
+      console.error("Delete error:", err);
+      alert(`❌ Lỗi xóa đơn hàng: ${err.message}`);
+      setLoading(false);
     }
   };
 
@@ -369,66 +517,7 @@ function DanhSachDon() {
     return Array.from(statuses).sort();
   }, [allData]);
 
-  // Handle quick filter
-  const handleQuickFilter = (value) => {
-    setQuickFilter(value);
-    if (!value) {
-      setDateFrom('');
-      setDateTo('');
-      setEnableDateFilter(false);
-      return;
-    }
 
-    const today = new Date();
-    let startDate = new Date();
-    let endDate = new Date();
-
-    switch (value) {
-      case 'today':
-        startDate = new Date(today);
-        endDate = new Date(today);
-        break;
-      case 'yesterday':
-        startDate = new Date(today);
-        startDate.setDate(today.getDate() - 1);
-        endDate = new Date(startDate);
-        break;
-      case 'this-week': {
-        const dayOfWeek = today.getDay();
-        const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Monday
-        startDate = new Date(today.getFullYear(), today.getMonth(), diff);
-        endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 6);
-        break;
-      }
-      case 'last-week': {
-        const dayOfWeek = today.getDay();
-        const diff = today.getDate() - dayOfWeek - 6 + (dayOfWeek === 0 ? -6 : 1); // Last Monday
-        startDate = new Date(today.getFullYear(), today.getMonth(), diff);
-        endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 6);
-        break;
-      }
-      case 'this-month':
-        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
-        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        break;
-      case 'last-month':
-        startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        endDate = new Date(today.getFullYear(), today.getMonth(), 0);
-        break;
-      case 'this-year':
-        startDate = new Date(today.getFullYear(), 0, 1);
-        endDate = new Date(today.getFullYear(), 11, 31);
-        break;
-      default:
-        return;
-    }
-
-    setDateFrom(startDate.toISOString().split('T')[0]);
-    setDateTo(endDate.toISOString().split('T')[0]);
-    setEnableDateFilter(true);
-  };
 
   // Filter and sort data
   const filteredData = useMemo(() => {
@@ -445,6 +534,11 @@ function DanhSachDon() {
           String(row["Mã Tracking"] || '').toLowerCase().includes(searchLower)
         );
       });
+    }
+
+    // Date Range Filter
+    if (startDate || endDate) {
+      data = data.filter(row => isDateInRange(row["Ngày lên đơn"], startDate, endDate));
     }
 
     // Market filter
@@ -471,38 +565,34 @@ function DanhSachDon() {
       });
     }
 
-    // Date filter (only if enabled)
-    if (enableDateFilter) {
-      if (dateFrom) {
-        const from = new Date(dateFrom).getTime();
-        data = data.filter(row => {
-          const date = new Date(row["Ngày lên đơn"] || row["Ngày đóng hàng"] || 0).getTime();
-          return date >= from;
-        });
-      }
-      if (dateTo) {
-        const to = new Date(dateTo);
-        to.setHours(23, 59, 59, 999);
-        const toTime = to.getTime();
-        data = data.filter(row => {
-          const date = new Date(row["Ngày lên đơn"] || row["Ngày đóng hàng"] || 0).getTime();
-          return date <= toTime;
-        });
-      }
-    }
+
+
+
+
+
 
     // Sort
     if (sortColumn) {
       data.sort((a, b) => {
-        const aVal = a[sortColumn] || '';
-        const bVal = b[sortColumn] || '';
-        const comparison = String(aVal).localeCompare(String(bVal), 'vi', { numeric: true });
+        const aVal = a[sortColumn];
+        const bVal = b[sortColumn];
+
+        // Specific handling for Date column sorting
+        if (sortColumn === 'Ngày lên đơn') {
+          const dA = parseSmartDate(aVal);
+          const dB = parseSmartDate(bVal);
+          if (!dA) return 1;
+          if (!dB) return -1;
+          return sortDirection === 'asc' ? dA - dB : dB - dA;
+        }
+
+        const comparison = String(aVal || '').localeCompare(String(bVal || ''), 'vi', { numeric: true });
         return sortDirection === 'asc' ? comparison : -comparison;
       });
     }
 
     return data;
-  }, [allData, debouncedSearchText, filterMarket, filterProduct, filterStatus, dateFrom, dateTo, enableDateFilter, sortColumn, sortDirection]);
+  }, [allData, debouncedSearchText, filterMarket, filterProduct, filterStatus, searchDate, sortColumn, sortDirection]);
 
   // Pagination
   const totalPages = Math.ceil(filteredData.length / rowsPerPage);
@@ -665,6 +755,28 @@ function DanhSachDon() {
               </div>
             </div>
 
+            {/* Date Range Filter */}
+            <div className="flex gap-2">
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Từ ngày</label>
+                <input
+                  type="date"
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F37021]"
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Đến ngày</label>
+                <input
+                  type="date"
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F37021]"
+                  value={endDate}
+                  onChange={e => setEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+
             {/* Market Filter */}
             <div className="min-w-[150px]">
               <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Khu vực</label>
@@ -710,59 +822,19 @@ function DanhSachDon() {
               </select>
             </div>
 
-            {/* Quick Filter */}
-            <div className="min-w-[180px]">
-              <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Lọc nhanh</label>
-              <select
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F37021] bg-white"
-                value={quickFilter}
-                onChange={(e) => handleQuickFilter(e.target.value)}
-              >
-                <option value="">-- Chọn --</option>
-                <option value="today">Hôm nay</option>
-                <option value="yesterday">Hôm qua</option>
-                <option value="this-week">Tuần này</option>
-                <option value="last-week">Tuần trước</option>
-                <option value="this-month">Tháng này</option>
-                <option value="last-month">Tháng trước</option>
-                <option value="this-year">Năm nay</option>
-              </select>
-            </div>
 
-            {/* Date Range Filter with Checkbox */}
-            <div className="min-w-[200px]">
-              <label className="text-xs font-semibold text-gray-600 mb-1.5 block flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={enableDateFilter}
-                  onChange={(e) => {
-                    setEnableDateFilter(e.target.checked);
-                    if (!e.target.checked) {
-                      setDateFrom('');
-                      setDateTo('');
-                      setQuickFilter('');
-                    }
-                  }}
-                  className="w-4 h-4 text-[#F37021] border-gray-300 rounded focus:ring-[#F37021]"
-                />
-                <span>Thời gian (Từ - Đến)</span>
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="date"
-                  disabled={!enableDateFilter}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F37021] disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                />
-                <input
-                  type="date"
-                  disabled={!enableDateFilter}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F37021] disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                />
-              </div>
+
+
+
+            {/* Date Search Filter */}
+            <div className="min-w-[150px]">
+              <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Lọc theo ngày</label>
+              <input
+                type="date"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F37021]"
+                value={searchDate}
+                onChange={(e) => setSearchDate(e.target.value)}
+              />
             </div>
 
             {/* Settings Button */}
@@ -806,13 +878,17 @@ function DanhSachDon() {
                         )}
                       </div>
                     </th>
+
                   ))}
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Hành động
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={displayColumns.length} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={displayColumns.length + 1} className="px-4 py-8 text-center text-gray-500">
                       <div className="flex items-center justify-center gap-2">
                         <div className="animate-spin h-5 w-5 border-2 border-[#F37021] border-t-transparent rounded-full"></div>
                         Đang tải dữ liệu...
@@ -849,6 +925,15 @@ function DanhSachDon() {
                           </td>
                         );
                       })}
+                      <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap text-center">
+                        <button
+                          onClick={() => handleDelete(row['Mã đơn hàng'], row._id)}
+                          className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                          title="Xóa đơn hàng"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -903,90 +988,92 @@ function DanhSachDon() {
       </div>
 
       {/* Column Settings Modal */}
-      {showColumnSettings && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowColumnSettings(false)}>
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-800">Cài đặt hiển thị cột</h2>
-              <button
-                onClick={() => setShowColumnSettings(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {/* Action Buttons */}
-              <div className="flex gap-2 mb-4 pb-4 border-b border-gray-200">
+      {
+        showColumnSettings && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowColumnSettings(false)}>
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                <h2 className="text-xl font-bold text-gray-800">Cài đặt hiển thị cột</h2>
                 <button
-                  onClick={selectAllColumns}
-                  className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm font-medium transition-colors"
+                  onClick={() => setShowColumnSettings(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
                 >
-                  Chọn tất cả
-                </button>
-                <button
-                  onClick={deselectAllColumns}
-                  className="px-3 py-1.5 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm font-medium transition-colors"
-                >
-                  Bỏ chọn tất cả
-                </button>
-                <button
-                  onClick={resetToDefault}
-                  className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-medium transition-colors"
-                >
-                  Mặc định
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Column List */}
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-gray-700 mb-3">
-                  Chọn các cột để hiển thị trong bảng ({displayColumns.length} / {allAvailableColumns.length} đã chọn):
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {allAvailableColumns.map((column) => (
-                    <label
-                      key={column}
-                      className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer border border-transparent hover:border-gray-200"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={visibleColumns[column] === true}
-                        onChange={() => toggleColumn(column)}
-                        className="w-4 h-4 text-[#F37021] border-gray-300 rounded focus:ring-[#F37021] focus:ring-2"
-                      />
-                      <span className="text-sm text-gray-700 flex-1">{column}</span>
-                      {defaultColumns.includes(column) && (
-                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">Mặc định</span>
-                      )}
-                    </label>
-                  ))}
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {/* Action Buttons */}
+                <div className="flex gap-2 mb-4 pb-4 border-b border-gray-200">
+                  <button
+                    onClick={selectAllColumns}
+                    className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm font-medium transition-colors"
+                  >
+                    Chọn tất cả
+                  </button>
+                  <button
+                    onClick={deselectAllColumns}
+                    className="px-3 py-1.5 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm font-medium transition-colors"
+                  >
+                    Bỏ chọn tất cả
+                  </button>
+                  <button
+                    onClick={resetToDefault}
+                    className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-medium transition-colors"
+                  >
+                    Mặc định
+                  </button>
+                </div>
+
+                {/* Column List */}
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-gray-700 mb-3">
+                    Chọn các cột để hiển thị trong bảng ({displayColumns.length} / {allAvailableColumns.length} đã chọn):
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {allAvailableColumns.map((column) => (
+                      <label
+                        key={column}
+                        className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer border border-transparent hover:border-gray-200"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={visibleColumns[column] === true}
+                          onChange={() => toggleColumn(column)}
+                          className="w-4 h-4 text-[#F37021] border-gray-300 rounded focus:ring-[#F37021] focus:ring-2"
+                        />
+                        <span className="text-sm text-gray-700 flex-1">{column}</span>
+                        {defaultColumns.includes(column) && (
+                          <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">Mặc định</span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
-              <button
-                onClick={() => setShowColumnSettings(false)}
-                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium transition-colors"
-              >
-                Đóng
-              </button>
-              <button
-                onClick={() => setShowColumnSettings(false)}
-                className="px-4 py-2 bg-[#F37021] hover:bg-[#e55f1a] text-white rounded-lg text-sm font-medium transition-colors"
-              >
-                Áp dụng
-              </button>
+              {/* Modal Footer */}
+              <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
+                <button
+                  onClick={() => setShowColumnSettings(false)}
+                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Đóng
+                </button>
+                <button
+                  onClick={() => setShowColumnSettings(false)}
+                  className="px-4 py-2 bg-[#F37021] hover:bg-[#e55f1a] text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Áp dụng
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }
 

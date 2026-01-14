@@ -1,8 +1,83 @@
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 // Use REST calls to Firebase Realtime Database; avoid using the Firebase SDK here
-import { toast } from "react-toastify";
 import { ChevronLeft } from 'lucide-react';
+import { toast } from "react-toastify";
+import { logDataChange as logDataChangeService } from '../services/logging';
+import { supabase } from '../supabase/config';
+
+const getChangeTypeColor = (type) => {
+  switch (type) {
+    case 'status_change':
+      return 'bg-blue-100 text-blue-800';
+    case 'full_update':
+      return 'bg-purple-100 text-purple-800';
+    case 'SYNC_F3':
+      return 'bg-indigo-100 text-indigo-800';
+    case 'UPDATE':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'INSERT':
+      return 'bg-green-100 text-green-800';
+    case 'reverted':
+    case 'revert_status':
+    case 'revert_full_update':
+      return 'bg-red-100 text-red-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+};
+
+const renderValue = (val) => {
+  if (val === null || val === undefined) return 'N/A';
+  if (typeof val === 'object') return JSON.stringify(val);
+  return String(val);
+};
+
+const formatChangeValue = (val) => renderValue(val);
+
+const OrderDataView = ({ orderData, newValue }) => {
+  if (!orderData) return null;
+  // Combine keys from both objects
+  const allKeys = new Set([...Object.keys(orderData), ...(newValue ? Object.keys(newValue) : [])]);
+
+  return (
+    <div className="overflow-x-auto border rounded-lg">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trường thông tin</th>
+            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Giá trị cũ</th>
+            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Giá trị mới</th>
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {Array.from(allKeys).map(key => {
+            const oldVal = orderData[key];
+            const newVal = newValue ? newValue[key] : undefined;
+            const isDiff = String(oldVal) !== String(newVal) && newVal !== undefined;
+
+            // Skip internal fields if needed, or show all
+            if (key === 'id' || key === 'timestamp') return null;
+
+            return (
+              <tr key={key} className={isDiff ? "bg-yellow-50" : "hover:bg-gray-50"}>
+                <td className="px-4 py-2 text-sm font-medium text-gray-900">{key}</td>
+                <td className="px-4 py-2 text-sm text-gray-500 break-words max-w-xs">{renderValue(oldVal)}</td>
+                <td className="px-4 py-2 text-sm text-gray-900 break-words max-w-xs">
+                  {newVal !== undefined ? (
+                    <span className={isDiff ? "text-green-700 font-medium" : ""}>{renderValue(newVal)}</span>
+                  ) : (
+                    <span className="text-gray-400">-</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
 export default function ChangeLogViewer() {
   const [changeLogs, setChangeLogs] = useState([]);
@@ -36,11 +111,11 @@ export default function ChangeLogViewer() {
     if (userRole === "admin") return true;
     if (userRole === "leader") {
       // Leader can revert logs of their team members
-      const userRecord = humanResources.find((hr) => hr["email"] === userEmail);
+      const userRecord = humanResources.find((hr) => hr && hr["email"] === userEmail);
       if (userRecord) {
         const leaderTeam = userRecord["Team"];
         const teamMemberEmails = humanResources
-          .filter((hr) => hr["Team"] === leaderTeam)
+          .filter((hr) => hr && hr["Team"] === leaderTeam)
           .map((hr) => hr["email"]);
         return teamMemberEmails.includes(log.userEmail);
       }
@@ -62,56 +137,56 @@ export default function ChangeLogViewer() {
     orderData = null
   ) => {
     try {
-      const changeLogsUrl =
-        "https://lumi-6dff7-default-rtdb.asia-southeast1.firebasedatabase.app/ChangeLog.json";
-
-      const logData = {
-        orderId,
-        changeType, // 'status_change', 'full_update', 'revert_status', 'revert_full_update'
-        oldValue,
-        newValue,
-        userEmail,
-        userRole,
-        timestamp: new Date().toISOString(),
-        orderCode: orderData ? orderData["Mã đơn hàng"] : null,
-        customerName: orderData
-          ? orderData["Name*"] || orderData["Tên lên đơn"]
-          : null,
-        reverted: false, // Thêm trường để track trạng thái hoàn tác
-      };
-
-      await fetch(changeLogsUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(logData),
+      await logDataChangeService({
+        action: changeType,
+        table_name: 'F3', // Assuming Revert affects F3
+        record_id: orderId,
+        old_value: oldValue,
+        new_value: newValue,
+        user_email: userEmail,
+        details: {
+          userRole,
+          orderCode: orderData ? (orderData["Mã đơn hàng"] || orderData.orderCode) : null,
+          customerName: orderData
+            ? orderData["Name*"] || orderData["Tên lên đơn"] || orderData.customerName
+            : null,
+          reverted: false
+        }
       });
     } catch (error) {
       console.error("Error logging change:", error);
-      // Don't throw error to avoid breaking the main update flow
     }
   };
 
   useEffect(() => {
     const fetchChangeLogs = async () => {
       try {
-        const changeLogsUrl =
-          "https://lumi-6dff7-default-rtdb.asia-southeast1.firebasedatabase.app/ChangeLog.json";
-        const response = await fetch(changeLogsUrl);
-        if (!response.ok) {
-          throw new Error("Failed to fetch change logs");
-        }
-        const data = await response.json();
-        if (data) {
-          const logsArray = Object.entries(data).map(([key, value]) => ({
-            id: key,
-            ...value,
-            timestamp: new Date(value.timestamp),
-          }));
+        const { data, error } = await supabase
+          .from('change_logs')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-          // Sort by timestamp descending (newest first)
-          logsArray.sort((a, b) => b.timestamp - a.timestamp);
+        if (error) {
+          throw error;
+        }
+
+        if (data) {
+          const logsArray = data.map((log) => ({
+            id: log.id,
+            orderId: log.record_id,
+            changeType: log.action,
+            oldValue: log.old_value,
+            newValue: log.new_value,
+            userEmail: log.user_email,
+            userRole: log.details?.userRole || 'unknown',
+            timestamp: new Date(log.created_at),
+            orderCode: log.details?.orderCode || '',
+            customerName: log.details?.customerName || '',
+            reverted: log.details?.reverted || false,
+            // Keep original log object properties mapped if needed
+            details: log.details, // Explicitly keep details
+            ...log.details
+          }));
 
           setChangeLogs(logsArray);
           setLastLogCount(logsArray.length);
@@ -121,9 +196,9 @@ export default function ChangeLogViewer() {
         }
       } catch (error) {
         console.error("Error fetching change logs:", error);
-        toast.error("Lỗi khi tải lịch sử thay đổi", {
+        toast.error("Lỗi Supabase: " + (error.message || JSON.stringify(error)), {
           position: "top-right",
-          autoClose: 5000,
+          autoClose: 10000, // Longer duration to read
         });
       } finally {
         setLoading(false);
@@ -144,7 +219,7 @@ export default function ChangeLogViewer() {
           throw new Error("Failed to fetch HR data");
         }
         const hrData = await response.json();
-        setHumanResources(hrData);
+        setHumanResources(Array.isArray(hrData) ? hrData : []);
       } catch (error) {
         console.error("Error fetching HR data:", error);
         // Don't show error toast for HR data, as it's not critical for basic functionality
@@ -170,7 +245,7 @@ export default function ChangeLogViewer() {
         humanResources.slice(0, 5).map((hr) => hr["email"])
       );
 
-      const userRecord = humanResources.find((hr) => hr["email"] === userEmail);
+      const userRecord = humanResources.find((hr) => hr && hr["email"] === userEmail);
       console.log("User record found:", userRecord);
 
       if (userRecord) {
@@ -178,7 +253,7 @@ export default function ChangeLogViewer() {
         console.log("Leader team:", leaderTeam);
 
         const teamMemberEmails = humanResources
-          .filter((hr) => hr["Team"] === leaderTeam)
+          .filter((hr) => hr && hr["Team"] === leaderTeam)
           .map((hr) => hr["email"]);
         console.log(
           "Team members found:",
@@ -354,6 +429,31 @@ export default function ChangeLogViewer() {
     if (!oldValue || !newValue)
       return { old: oldValue || "N/A", new: newValue || "N/A" };
 
+    const fieldLabels = {
+      'order_code': 'Mã đơn hàng',
+      'customer_name': 'Tên khách hàng',
+      'customer_phone': 'Số điện thoại',
+      'customer_address': 'Địa chỉ',
+      'total_amount_vnd': 'Tổng tiền',
+      'payment_status': 'Thanh toán',
+      'delivery_status': 'Trạng thái giao hàng',
+      'note': 'Ghi chú',
+      'marketing_staff': 'Nhân viên MKT',
+      'sale_staff': 'Nhân viên Sale',
+      'product': 'Sản phẩm',
+      'shipping_fee': 'Phí ship',
+      'created_at': 'Ngày tạo',
+      'updated_at': 'Cập nhật lần cuối',
+      'order_date': 'Ngày lên đơn',
+      'city': 'Thành phố',
+      'state': 'Quận/Huyện',
+      'goods_amount': 'Tiền hàng',
+      'reconciled_amount': 'Đã đối soát',
+      'status': 'Trạng thái đơn',
+      'total': 'Tổng tiền',
+      'Trạng thái đơn': 'Trạng thái đơn'
+    };
+
     let oldParsed = oldValue;
     let newParsed = newValue;
 
@@ -391,7 +491,7 @@ export default function ChangeLogViewer() {
           // Status field changed
           if (String(oldVal || "") !== String(newStatus || "")) {
             differences.push({
-              field: key,
+              field: fieldLabels[key] || key,
               oldValue:
                 typeof oldVal === "object"
                   ? JSON.stringify(oldVal, null, 2)
@@ -401,7 +501,7 @@ export default function ChangeLogViewer() {
             });
           } else if (showAll) {
             differences.push({
-              field: key,
+              field: fieldLabels[key] || key,
               oldValue:
                 typeof oldVal === "object"
                   ? JSON.stringify(oldVal, null, 2)
@@ -414,7 +514,7 @@ export default function ChangeLogViewer() {
           // include other fields as unchanged when showAll is requested
           const otherOld = oldParsed[key];
           differences.push({
-            field: key,
+            field: fieldLabels[key] || key,
             oldValue:
               typeof otherOld === "object"
                 ? JSON.stringify(otherOld, null, 2)
@@ -450,7 +550,7 @@ export default function ChangeLogViewer() {
 
         if (oldVal !== newVal) {
           differences.push({
-            field: key,
+            field: fieldLabels[key] || key,
             oldValue:
               typeof oldVal === "object"
                 ? JSON.stringify(oldVal, null, 2)
@@ -463,7 +563,7 @@ export default function ChangeLogViewer() {
           });
         } else if (showAll) {
           differences.push({
-            field: key,
+            field: fieldLabels[key] || key,
             oldValue:
               typeof oldVal === "object"
                 ? JSON.stringify(oldVal, null, 2)
@@ -722,16 +822,30 @@ export default function ChangeLogViewer() {
         toast.success("Đã hoàn tác cập nhật đầy đủ");
       }
 
-      // Mark the original log as reverted
-      const changeLogsUrl =
-        "https://lumi-6dff7-default-rtdb.asia-southeast1.firebasedatabase.app/ChangeLog.json";
-      await fetch(`${changeLogsUrl}/${logToRevert.id}.json`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ reverted: true }),
-      });
+      // Mark the original log as reverted in Supabase
+      // We need to fetch the current details first to avoid overwriting other detail fields
+      // Optimization: use the 'logToRevert' object which contains the details from the list view (mapped)
+      // but 'logToRevert' in state has flattened props. We need to construct the new details object.
+
+      const newDetails = {
+        ...logToRevert, // This has flattened props like userRole, orderCode, etc.
+        reverted: true
+      };
+      // Clean up top-level props that are not in details (id, timestamp, etc are top level in state, but were flattened from details?)
+      // Actually, my fetchChangeLogs mapped: userRole: details.userRole.
+      // So I should reconstruct 'details' from the flattened object OR just patch the 'details' column if possible.
+      // Safest way: Just update the specific key in the JSONB column if Supabase supported it easily via JS client, 
+      // but standard update replaces the column.
+
+      // Since I don't want to break other details, I'll assume logToRevert has all I need or I can just set reverted: true in details if I don't care about others?
+      // No, better to get the current row.
+
+      const { data: currentLog } = await supabase.from('change_logs').select('details').eq('id', logToRevert.id).single();
+      if (currentLog) {
+        await supabase.from('change_logs').update({
+          details: { ...currentLog.details, reverted: true }
+        }).eq('id', logToRevert.id);
+      }
 
       // Update local state to reflect the change immediately
       setChangeLogs((prevLogs) =>
@@ -745,8 +859,7 @@ export default function ChangeLogViewer() {
       closeModal();
 
       toast.success(
-        `Hoàn tác thành công! Đơn ${
-          logToRevert.orderCode || "N/A"
+        `Hoàn tác thành công! Đơn ${logToRevert.orderCode || "N/A"
         } đã được khôi phục.`,
         {
           position: "top-right",
@@ -803,11 +916,23 @@ export default function ChangeLogViewer() {
       // For status changes (usually just one field)
       if (entries.length === 1) {
         const [key, val] = entries[0];
-        return `${key}: ${val || "N/A"}`;
+        return (
+          <div className="text-sm">
+            <span className="font-semibold">{key}:</span> {val || "N/A"}
+          </div>
+        );
       }
 
       // For full updates, show key-value pairs
-      return entries.map(([key, val]) => `${key}: ${val || "N/A"}`).join("\n");
+      return (
+        <ul className="list-disc list-inside text-sm space-y-1">
+          {entries.map(([key, val]) => (
+            <li key={key} className="break-words">
+              <span className="font-semibold">{key}:</span> {String(val || "N/A")}
+            </li>
+          ))}
+        </ul>
+      );
     }
 
     // Ensure we always return a string, never an object
@@ -826,6 +951,31 @@ export default function ChangeLogViewer() {
   // and showing side-by-side old vs new when newValue is an object (full_update)
   const OrderDataView = ({ orderData, newValue }) => {
     if (!orderData) return null;
+
+    const fieldLabels = {
+      'order_code': 'Mã đơn hàng',
+      'customer_name': 'Tên khách hàng',
+      'customer_phone': 'Số điện thoại',
+      'customer_address': 'Địa chỉ',
+      'total_amount_vnd': 'Tổng tiền',
+      'payment_status': 'Thanh toán',
+      'delivery_status': 'Trạng thái giao hàng',
+      'note': 'Ghi chú',
+      'marketing_staff': 'Nhân viên MKT',
+      'sale_staff': 'Nhân viên Sale',
+      'product': 'Sản phẩm',
+      'shipping_fee': 'Phí ship',
+      'created_at': 'Ngày tạo',
+      'updated_at': 'Cập nhật lần cuối',
+      'order_date': 'Ngày lên đơn',
+      'city': 'Thành phố',
+      'state': 'Quận/Huyện',
+      'goods_amount': 'Tiền hàng',
+      'reconciled_amount': 'Đã đối soát',
+      'status': 'Trạng thái đơn',
+      'total': 'Tổng tiền',
+      'Trạng thái đơn': 'Trạng thái đơn'
+    };
 
     // Try to normalize newValue into an object when possible
     let newOrderData = null;
@@ -866,13 +1016,12 @@ export default function ChangeLogViewer() {
             return (
               <div
                 key={index}
-                className={`p-3 rounded border ${
-                  changed
-                    ? "border-orange-400 bg-orange-50"
-                    : "border-gray-200 bg-gray-50"
-                }`}
+                className={`p-3 rounded border ${changed
+                  ? "border-orange-400 bg-orange-50"
+                  : "border-gray-200 bg-gray-50"
+                  }`}
               >
-                <div className="font-medium text-gray-700 mb-1">{key}</div>
+                <div className="font-medium text-gray-700 mb-1">{fieldLabels[key] || key}</div>
                 {newOrderData ? (
                   <div className="grid grid-cols-1 gap-2">
                     <div>
@@ -1009,6 +1158,7 @@ export default function ChangeLogViewer() {
               <option value="reverted">Đã hoàn tác</option>
             </select>
           </div>
+
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1210,7 +1360,7 @@ export default function ChangeLogViewer() {
                   Người thực hiện
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
-                  Chi tiết
+                  Nội dung
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                   Tên khách hàng
@@ -1224,7 +1374,7 @@ export default function ChangeLogViewer() {
               {filteredLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {log.timestamp.toLocaleString("vi-VN")}
+                    {log.timestamp && !isNaN(log.timestamp) ? log.timestamp.toLocaleString("vi-VN") : "N/A"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {log.orderCode || "N/A"}
@@ -1238,12 +1388,18 @@ export default function ChangeLogViewer() {
                       {log.changeType === "status_change"
                         ? "Thay đổi trạng thái"
                         : log.changeType === "full_update"
-                        ? "Cập nhật đầy đủ"
-                        : log.changeType === "revert_status"
-                        ? "Hoàn tác trạng thái"
-                        : log.changeType === "revert_full_update"
-                        ? "Hoàn tác cập nhật"
-                        : log.changeType}
+                          ? "Cập nhật đầy đủ"
+                          : log.changeType === "SYNC_F3"
+                            ? "Đồng bộ F3"
+                            : log.changeType === "UPDATE"
+                              ? "Cập nhật"
+                              : log.changeType === "INSERT"
+                                ? "Thêm mới"
+                                : log.changeType === "revert_status"
+                                  ? "Hoàn tác trạng thái"
+                                  : log.changeType === "revert_full_update"
+                                    ? "Hoàn tác cập nhật"
+                                    : log.changeType}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -1254,26 +1410,36 @@ export default function ChangeLogViewer() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <button
-                      onClick={() => openModal(log)}
-                      className="px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-all duration-200 transform hover:scale-105"
-                      title="Xem chi tiết thay đổi"
-                    >
-                      <svg
-                        className="w-4 h-4 inline mr-1"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
+                  <td className="px-6 py-4 text-sm text-gray-900 max-w-xs break-words">
+                    {log.details?.note ? (
+                      <div className="space-y-1">
+                        {log.details.note.split(';').map((part, idx) => (
+                          <div key={idx} className="font-medium text-blue-800 text-xs">
+                            - {part.trim()}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => openModal(log)}
+                        className="px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-all duration-200 transform hover:scale-105"
+                        title="Xem chi tiết thay đổi"
                       >
-                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"></path>
-                        <path
-                          fillRule="evenodd"
-                          d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
-                          clipRule="evenodd"
-                        ></path>
-                      </svg>
-                      Xem chi tiết
-                    </button>
+                        <svg
+                          className="w-4 h-4 inline mr-1"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"></path>
+                          <path
+                            fillRule="evenodd"
+                            d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                            clipRule="evenodd"
+                          ></path>
+                        </svg>
+                        Xem chi tiết
+                      </button>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {log.customerName || "N/A"}
@@ -1382,12 +1548,12 @@ export default function ChangeLogViewer() {
                         {selectedLog.changeType === "status_change"
                           ? "Thay đổi trạng thái"
                           : selectedLog.changeType === "full_update"
-                          ? "Cập nhật đầy đủ"
-                          : selectedLog.changeType === "revert_status"
-                          ? "Hoàn tác trạng thái"
-                          : selectedLog.changeType === "revert_full_update"
-                          ? "Hoàn tác cập nhật"
-                          : selectedLog.changeType}
+                            ? "Cập nhật đầy đủ"
+                            : selectedLog.changeType === "revert_status"
+                              ? "Hoàn tác trạng thái"
+                              : selectedLog.changeType === "revert_full_update"
+                                ? "Hoàn tác cập nhật"
+                                : selectedLog.changeType}
                       </span>
                     </div>
                     <div>
@@ -1421,15 +1587,15 @@ export default function ChangeLogViewer() {
                           <div>
                             <div className="mb-1">
                               <span className="font-medium">Giá trị cũ:</span>{" "}
-                              <span className="text-gray-700">
-                                {renderValue(summary.old)}
-                              </span>
+                              <div className="text-gray-700 mt-1">
+                                {formatChangeValue(summary.old)}
+                              </div>
                             </div>
-                            <div>
+                            <div className="mt-2">
                               <span className="font-medium">Giá trị mới:</span>{" "}
-                              <span className="text-gray-700">
-                                {renderValue(summary.new)}
-                              </span>
+                              <div className="text-gray-700 mt-1">
+                                {formatChangeValue(summary.new)}
+                              </div>
                             </div>
                           </div>
                         );
@@ -1626,9 +1792,9 @@ export default function ChangeLogViewer() {
                       const newValueForView =
                         selectedLog.changeType === "status_change"
                           ? {
-                              ...orderDataToShow,
-                              "Trạng thái đơn": selectedLog.newValue,
-                            }
+                            ...orderDataToShow,
+                            "Trạng thái đơn": selectedLog.newValue,
+                          }
                           : selectedLog.newValue;
 
                       return (
@@ -1686,8 +1852,7 @@ export default function ChangeLogViewer() {
                       onClick={() => {
                         openConfirmRevert(selectedLog);
                         toast.info(
-                          `Chuẩn bị hoàn tác thay đổi của đơn ${
-                            selectedLog.orderCode || "N/A"
+                          `Chuẩn bị hoàn tác thay đổi của đơn ${selectedLog.orderCode || "N/A"
                           }`,
                           {
                             position: "top-right",
@@ -1779,12 +1944,12 @@ export default function ChangeLogViewer() {
                       {logToRevert.changeType === "status_change"
                         ? "Thay đổi trạng thái"
                         : logToRevert.changeType === "full_update"
-                        ? "Cập nhật đầy đủ"
-                        : logToRevert.changeType === "revert_status"
-                        ? "Hoàn tác trạng thái"
-                        : logToRevert.changeType === "revert_full_update"
-                        ? "Hoàn tác cập nhật"
-                        : logToRevert.changeType}
+                          ? "Cập nhật đầy đủ"
+                          : logToRevert.changeType === "revert_status"
+                            ? "Hoàn tác trạng thái"
+                            : logToRevert.changeType === "revert_full_update"
+                              ? "Hoàn tác cập nhật"
+                              : logToRevert.changeType}
                     </span>
                   </div>
                   <div>
@@ -1846,9 +2011,9 @@ export default function ChangeLogViewer() {
                   const newValueForView =
                     logToRevert.changeType === "status_change"
                       ? {
-                          ...orderDataToShow,
-                          "Trạng thái đơn": logToRevert.newValue,
-                        }
+                        ...orderDataToShow,
+                        "Trạng thái đơn": logToRevert.newValue,
+                      }
                       : logToRevert.newValue;
 
                   return (

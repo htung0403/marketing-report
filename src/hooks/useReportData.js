@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../supabase/config';
 
-export function useReportData(userRole, userTeam, userEmail) {
+// Add useSnapshot parameter, default to true for safety/performance as requested
+export function useReportData(userRole, userTeam, userEmail, useSnapshot = true) {
   const [masterData, setMasterData] = useState([]);
   const [firebaseReports, setFirebaseReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12,16 +13,20 @@ export function useReportData(userRole, userTeam, userEmail) {
     const fetchMasterData = async () => {
       try {
         setLoading(true);
-        
-        // Query from detail_reports table
+
+        // Determine table name: detail_reports (Live) or detail_reports_view_copy (Snapshot)
+        const tableName = useSnapshot ? 'detail_reports_view_copy' : 'detail_reports';
+        console.log(`Fetching report data from ${tableName}...`);
+
+        // Query from table
         const { data, error: fetchError } = await supabase
-          .from('detail_reports')
+          .from(tableName)
           .select('*')
           .not('Tên', 'is', null)
           .neq('Tên', '');
-        
+
         if (fetchError) throw fetchError;
-        
+
         if (data) {
           // Process data from Supabase (matching the structure from API)
           const processedData = data
@@ -58,7 +63,7 @@ export function useReportData(userRole, userTeam, userEmail) {
                 dsThanhCongThucTe: Number(r["Doanh số đi thực tế"]) || 0,
               };
             });
-          
+
           setMasterData(processedData);
         } else {
           setMasterData([]);
@@ -72,7 +77,7 @@ export function useReportData(userRole, userTeam, userEmail) {
     };
 
     fetchMasterData();
-  }, []);
+  }, [useSnapshot]);
 
   // Fetch Supabase reports
   useEffect(() => {
@@ -82,9 +87,9 @@ export function useReportData(userRole, userTeam, userEmail) {
           .from('reports')
           .select('*')
           .order('created_at', { ascending: false });
-        
+
         if (fetchError) throw fetchError;
-        
+
         if (data) {
           const reportsArray = data.map((row) => ({
             id: row.id,
@@ -108,7 +113,7 @@ export function useReportData(userRole, userTeam, userEmail) {
   // Apply access control filtering
   const filteredMasterData = useMemo(() => {
     let filtered = [...masterData];
-    
+
     if (userRole === 'admin') {
       // Admin sees all
       return filtered;
@@ -119,13 +124,13 @@ export function useReportData(userRole, userTeam, userEmail) {
       // User sees only their own data
       return filtered.filter(r => r.email === userEmail);
     }
-    
+
     return filtered;
   }, [masterData, userRole, userTeam, userEmail]);
 
   const filteredFirebaseReports = useMemo(() => {
     let filtered = [...firebaseReports];
-    
+
     if (userRole === 'admin') {
       return filtered;
     } else if (userRole === 'leader' && userTeam) {
@@ -133,7 +138,7 @@ export function useReportData(userRole, userTeam, userEmail) {
     } else if (userEmail) {
       return filtered.filter(r => r.email === userEmail);
     }
-    
+
     return filtered;
   }, [firebaseReports, userRole, userTeam, userEmail]);
 

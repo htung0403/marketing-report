@@ -1,522 +1,667 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { isDateInRange } from '../utils/dateParsing';
+import './BaoCaoSale.css';
+
+const API_HOST = 'https://n-api-gamma.vercel.app';
+
+// Helpers
+const formatCurrency = (value) => Number(value || 0).toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
+const formatNumber = (value) => Number(value || 0).toLocaleString('vi-VN');
+const formatPercent = (value) => {
+    if (value === null || value === undefined || !Number.isFinite(+value)) return '0.00%';
+    return `${(Number(value || 0) * 100).toFixed(2)}%`;
+};
+const formatDate = (dateValue) => {
+    const d = new Date(dateValue);
+    if (isNaN(d.getTime())) return dateValue;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+};
 
 export default function BaoCaoSale() {
-  const [appData, setAppData] = useState({
-    employeeDetails: [],
-    shiftList: ['Hết ca', 'Giữa ca'],
-    productList: [
-      'Gel Dạ Dày',
-      'Gel Trĩ',
-      'ComboGold24k',
-      'Fitgum CAFE 20X',
-      'Bonavita Coffee',
-      'Dragon Blood Cream',
-      'Kem Body',
-      'Bakuchiol Retinol',
-      'Serum sâm',
-      'DG',
-      'Kẹo Táo',
-      'Glutathione Collagen',
-      'Glutathione Collagen NEW',
-      'Gel trị ngứa',
-      'Nám DR Hancy',
-      'Gel Xương Khớp',
-      'Gel XK Thái',
-      'Gel XK Phi',
-      'Dán Kinoki',
-      'Sữa tắm CUISHIFAN',
-    ],
-    marketList: ['Nhật Bản', 'Hàn Quốc', 'Canada', 'US', 'Úc', 'Anh', 'CĐ Nhật Bản'],
-  });
+    // --- State ---
+    const [loading, setLoading] = useState(true);
+    const [rawData, setRawData] = useState([]);
+    const [currentUserInfo, setCurrentUserInfo] = useState(null);
+    const [isRestrictedView, setIsRestrictedView] = useState(false);
 
-  const [tableHeaders, setTableHeaders] = useState([]);
-  const [tableRows, setTableRows] = useState([]);
-  const [userEmail, setUserEmail] = useState('');
-  const [currentTableName, setCurrentTableName] = useState('Báo cáo Sale');
-  const [employeeNameFromUrl, setEmployeeNameFromUrl] = useState('');
-  const [status, setStatus] = useState('Đang khởi tạo ứng dụng...');
-  const [responseMsg, setResponseMsg] = useState({ text: '', isSuccess: true, visible: false });
-  const [loading, setLoading] = useState(false);
-  const employeeDatalistRef = useRef(null);
-
-  const EMPLOYEE_API_URL =
-    'https://n-api-rouge.vercel.app/sheet/getSheets?rangeSheet=A:K&sheetName=Nh%C3%A2n%20s%E1%BB%B1&spreadsheetId=1Cl-56By1eYFB4G7ITuG0IQhH39ITwo0AkZPFvsLfo54';
-  const SCRIPT_URL = 'https://n-api-gamma.vercel.app/bulk-insert';
-  const SPREADSHEET_ID = '1ylYT0UAcahij5UtDikKyJFWT3gIyRZsuFsYQ5aUTi2Y';
-  const headerSale = [
-    'id',
-    'Tên',
-    'Email',
-    'Ngày',
-    'ca',
-    'Sản_phẩm',
-    'Thị_trường',
-    'TKQC',
-    'CPQC',
-    'Số_Mess_Cmt',
-    'Số đơn',
-    'Doanh số',
-    'Team',
-    'id_NS',
-    'Doanh số đi',
-    'Số đơn hoàn hủy',
-    'DS chốt',
-    'DS sau hoàn hủy',
-    'Doanh số sau ship',
-    'Doanh số TC',
-    'KPIs',
-    'CPQC theo TKQC',
-    'Báo cáo theo Page',
-    'Trạng thái',
-    'Cảnh báo',
-  ];
-
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const email = urlParams.get('email') || localStorage.getItem('userEmail') || '';
-    const hoten = urlParams.get('hoten') || localStorage.getItem('userName') || '';
-
-    setUserEmail(email);
-    setEmployeeNameFromUrl(hoten);
-
-    initializeApp(email, hoten);
-  }, []);
-
-  const fetchEmployeeList = async () => {
-    updateStatus('Đang tải danh sách nhân viên...');
-    try {
-      const response = await fetch(EMPLOYEE_API_URL);
-      if (!response.ok) throw new Error(`Lỗi HTTP! status: ${response.status}`);
-      const result = await response.json();
-
-      let headers, rowObjects;
-      if (result.headers && result.rows) {
-        headers = result.headers;
-        rowObjects = result.rows;
-      } else if (Array.isArray(result)) {
-        rowObjects = result;
-        headers = rowObjects.length > 0 ? Object.keys(rowObjects[0]) : [];
-      } else {
-        throw new Error('Cấu trúc dữ liệu API không được hỗ trợ');
-      }
-
-      const findHeader = (keywords) => headers.find((h) => keywords.every((kw) => h.toLowerCase().includes(kw))) || null;
-
-      const nameCol = findHeader(['họ', 'tên']) || 'Họ và Tên';
-      const deptCol = findHeader(['bộ', 'phận']) || 'Bộ phận';
-      const emailCol = findHeader(['email']) || 'email';
-      const teamCol = findHeader(['team']) || 'Team';
-      const idCol = findHeader(['id']) || 'id';
-      const branchCol = findHeader(['chi nhánh']) || 'chi nhánh';
-
-      const targetDepts = ['Sale'];
-
-      const filteredEmployees = rowObjects
-        .filter((row) => {
-          const dept = row[deptCol];
-          const name = row[nameCol];
-          const deptMatch = dept && targetDepts.some((target) => dept.toString().toUpperCase().includes(target.toUpperCase()));
-          return deptMatch && name && name.toString().trim() !== '';
-        })
-        .map((row) => ({
-          name: row[nameCol]?.toString().trim(),
-          email: row[emailCol]?.toString().trim() || '',
-          team: row[teamCol]?.toString().trim() || '',
-          id_ns: row[idCol]?.toString().trim() || '',
-          branch: row[branchCol]?.toString().trim() || '',
-        }))
-        .filter((emp, idx, arr) => arr.findIndex((e) => e.name === emp.name) === idx);
-
-      updateStatus(`Đã tải thành công ${filteredEmployees.length} nhân viên Sale.`);
-      return filteredEmployees;
-    } catch (error) {
-      console.error('Lỗi chi tiết:', error);
-      updateStatus(`Lỗi khi tải danh sách nhân viên: ${error.message}`, true);
-      return [];
-    }
-  };
-
-  const updateStatus = (message, isError = false) => {
-    setStatus(new Date().toLocaleTimeString() + ': ' + message);
-  };
-
-  const formatNumberInput = (value) => {
-    const cleanValue = String(value).replace(/[^0-9]/g, '');
-    return cleanValue ? new Intl.NumberFormat('de-DE').format(cleanValue) : '';
-  };
-
-  const getToday = () => {
-    const today = new Date();
-    return today.toLocaleDateString('en-CA');
-  };
-
-  const initializeApp = async (email, hoten) => {
-    const employees = await fetchEmployeeList();
-    setAppData((prev) => ({ ...prev, employeeDetails: employees }));
-    setTableHeaders(headerSale);
-    
-    let employee = null;
-    if (email) {
-      employee = employees?.find((emp) => emp.email?.toLowerCase() === email.toLowerCase());
-    }
-    if (!employee && hoten) {
-      employee = employees?.find((emp) => emp.name?.toLowerCase() === hoten.toLowerCase());
-    }
-    
-    const employeeName = employee?.name || hoten || '';
-    
-    setTableRows([createRowData({ Tên: employeeName, Email: email }, employees)]);
-    updateStatus('Ứng dụng đã sẵn sàng.');
-  };
-
-  const createRowData = (data = {}, employees = appData.employeeDetails) => {
-    let employeeToUse = null;
-
-    if (data['Tên']) {
-      employeeToUse = employees?.find((emp) => emp.name?.toLowerCase() === data['Tên'].toLowerCase());
-    }
-
-    if (!employeeToUse && data['Email']) {
-      employeeToUse = employees?.find((emp) => emp.email?.toLowerCase() === data['Email'].toLowerCase());
-    }
-
-    if (!employeeToUse && userEmail) {
-      employeeToUse = employees?.find((emp) => emp.email?.toLowerCase() === userEmail.toLowerCase());
-    }
-
-    if (employeeToUse) {
-      data['Tên'] = data['Tên'] || employeeToUse.name;
-      data['Email'] = data['Email'] || employeeToUse.email;
-      data['Team'] = data['Team'] || employeeToUse.team;
-      data['id_NS'] = data['id_NS'] || employeeToUse.id_ns;
-      data['Chi nhánh'] = data['Chi nhánh'] || employeeToUse.branch;
-    } else {
-      data['Email'] = data['Email'] || userEmail;
-      if (employeeNameFromUrl) {
-        data['Tên'] = data['Tên'] || employeeNameFromUrl;
-      }
-    }
-
-    return {
-      id: crypto.randomUUID(),
-      data,
-    };
-  };
-
-  const handleAddRow = (rowIndexToCopy = 0) => {
-    const sourceRow = tableRows[rowIndexToCopy];
-    const newRowData = {};
-    
-    const fieldsToKeep = ['Tên', 'Email', 'ca', 'Sản_phẩm', 'Thị_trường'];
-    
-    fieldsToKeep.forEach((field) => {
-      if (sourceRow?.data?.[field]) {
-        newRowData[field] = sourceRow.data[field];
-      }
+    // Filters State
+    const [filters, setFilters] = useState({
+        startDate: '',
+        endDate: '',
+        products: [], // active selected
+        shifts: [],
+        teams: [],
+        markets: []
     });
 
-    setTableRows([...tableRows, createRowData(newRowData, appData.employeeDetails)]);
-  };
-
-  const handleRemoveRow = (index) => {
-    if (tableRows.length <= 1) {
-      alert('Bạn không thể xóa dòng cuối cùng.');
-      return;
-    }
-    setTableRows(tableRows.filter((_, i) => i !== index));
-  };
-
-  const handleRowChange = (index, field, value) => {
-    const newRows = [...tableRows];
-    newRows[index].data[field] = value;
-
-    if (field === 'Tên') {
-      const employee = appData.employeeDetails?.find((emp) => emp.name === value);
-      if (employee) {
-        newRows[index].data['Email'] = employee.email || '';
-        newRows[index].data['Team'] = employee.team || '';
-        newRows[index].data['id_NS'] = employee.id_ns || '';
-        newRows[index].data['Chi nhánh'] = employee.branch || '';
-      }
-    }
-
-    if (field === 'Email') {
-      const employee = appData.employeeDetails?.find((emp) => emp.email?.toLowerCase() === value.toLowerCase());
-      if (employee) {
-        newRows[index].data['Tên'] = employee.name || '';
-        newRows[index].data['Team'] = employee.team || '';
-        newRows[index].data['id_NS'] = employee.id_ns || '';
-        newRows[index].data['Chi nhánh'] = employee.branch || '';
-      }
-    }
-
-    setTableRows(newRows);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (tableRows.length === 0) {
-      setResponseMsg({ text: 'Không có dữ liệu để gửi.', isSuccess: false, visible: true });
-      return;
-    }
-
-    setLoading(true);
-    updateStatus('Bắt đầu quá trình gửi dữ liệu...');
-
-    const rowsData = tableRows.map((row) => {
-      const rowObject = {};
-      Object.keys(row.data).forEach((key) => {
-        let value = row.data[key];
-        const numberFields = ['Số Mess', 'Phản hồi', 'Đơn Mess', 'Doanh số Mess', 'CPQC', 'Số_Mess_Cmt', 'Số đơn', 'Doanh số'];
-        if (numberFields.includes(key)) {
-          value = String(value).replace(/[^0-9]/g, '');
-        }
-        rowObject[key] = value;
-      });
-
-      if (!rowObject['Email']) {
-        rowObject['Email'] = userEmail;
-      }
-      return rowObject;
+    // Options for filters (derived from data)
+    const [options, setOptions] = useState({
+        products: [],
+        shifts: [],
+        teams: [],
+        markets: []
     });
 
-    const payload = {
-      sheetName: currentTableName,
-      spreadsheetId: SPREADSHEET_ID,
-      fields: headerSale,
-      rows: rowsData,
-      settings: {
-        checkDuplicates: true,
-        validateData: true,
-        returnDetails: true,
-      },
+    // Validations for Restricted View
+    const [permissions, setPermissions] = useState({
+        allowedNames: [],
+        allowedTeam: null,
+        allowedBranch: null,
+        title: 'DỮ LIỆU TỔNG HỢP'
+    });
+
+    // Active Tab
+    const [activeTab, setActiveTab] = useState('sau-huy'); // 'sau-huy', 'chot', 'kpi-sale', 'van-don-sale', 'thu-cong'
+
+    // --- Effects ---
+
+    // 1. Initialize Dates
+    useEffect(() => {
+        const today = new Date();
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+        const formatDateForInput = (date) => date.toISOString().split('T')[0];
+
+        setFilters(prev => ({
+            ...prev,
+            startDate: formatDateForInput(firstDay),
+            endDate: formatDateForInput(lastDay)
+        }));
+    }, []);
+
+    // 2. Fetch Data
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                const res = await fetch(`${API_HOST}/report/generate?tableName=Báo cáo sale`);
+                const result = await res.json();
+                const apiData = result.data;
+                const employeeData = result.employeeData;
+
+                // --- Permissions Logic based on URL Param 'id' ---
+                const params = new URLSearchParams(window.location.search);
+                const idFromUrl = params.get('id');
+
+                let newPermissions = { ...permissions };
+                let userInfo = null;
+
+                if (idFromUrl) {
+                    const currentUserRecord = employeeData.find(record => record['id'] === idFromUrl && record['Email']);
+                    if (currentUserRecord) {
+                        setIsRestrictedView(true);
+                        const cleanName = (currentUserRecord['Họ Và Tên'] || '').trim();
+                        const userRole = (currentUserRecord['Chức vụ'] || currentUserRecord['Vị trí'] || '').trim();
+                        const userBranch = (currentUserRecord['chi nhánh'] || currentUserRecord['Chi nhánh'] || '').trim() || 'Không xác định';
+                        const userTeam = (currentUserRecord['Team'] || '').trim();
+
+                        userInfo = { ten: cleanName, email: (currentUserRecord['Email'] || '').trim() };
+                        setCurrentUserInfo(userInfo);
+
+                        if (userRole === 'Sale Leader') {
+                            newPermissions = {
+                                allowedBranch: userBranch,
+                                allowedTeam: null,
+                                allowedNames: [],
+                                title: `DỮ LIỆU CHI NHÁNH - ${userBranch}`
+                            };
+                        } else if (userRole === 'Leader') {
+                            newPermissions = {
+                                allowedBranch: null,
+                                allowedTeam: userTeam ? userTeam.trim() : null,
+                                allowedNames: [],
+                                title: `DỮ LIỆU TEAM - ${userTeam}`
+                            };
+                        } else {
+                            // NV or others
+                            newPermissions = {
+                                allowedBranch: null,
+                                allowedTeam: null,
+                                allowedNames: [cleanName],
+                                title: `DỮ LIỆU CÁ NHÂN - ${cleanName}`
+                            };
+                        }
+                    } else {
+                        newPermissions.title = 'KHÔNG TÌM THẤY DỮ LIỆU NGƯỜI DÙNG';
+                    }
+                } else {
+                    setIsRestrictedView(false);
+                    newPermissions.title = 'DỮ LIỆU TỔNG HỢP';
+                }
+                setPermissions(newPermissions);
+
+                // --- Process Data ---
+                const processed = apiData
+                    .filter(r => r['Tên'] && String(r['Tên']).trim() !== '' && r['Team'] && String(r['Team']).trim() !== '')
+                    .map(r => ({
+                        chucVu: (r['Chức vụ'] || '').trim(),
+                        ten: (r['Tên'] || '').trim(),
+                        email: (r['Email'] || '').trim(),
+                        team: (r['Team'] || '').trim(),
+                        chiNhanh: (r['Chi nhánh'] || r['chi nhánh'] || '').trim() || 'Không xác định',
+                        ngay: r['Ngày'],
+                        ca: r['Ca'],
+                        sanPham: r['Sản phẩm'],
+                        thiTruong: r['Thị trường'],
+                        soMessCmt: Number(r['Số Mess']) || 0,
+                        soDon: Number(r['Đơn Mess']) || 0,
+                        dsChot: Number(r['Doanh số Mess']) || 0,
+                        phanHoi: Number(r['Phản hồi']) || 0,
+                        doanhSoDi: Number(r['Doanh số đi']) || 0,
+                        soDonHuy: Number(r['Số đơn Hoàn huỷ']) || 0,
+                        doanhSoHuy: Number(r['Doanh số hoàn huỷ']) || 0,
+                        soDonThanhCong: Number(r['Số đơn thành công']) || 0,
+                        doanhSoThanhCong: Number(r['Doanh số thành công']) || 0,
+                        soDonThucTe: Number(r['Số đơn thực tế']) || 0,
+                        doanhThuChotThucTe: Number(r['Doanh thu chốt thực tế']) || 0,
+                        doanhSoDiThucTe: Number(r['Doanh số đi thực tế']) || 0,
+                        soDonHoanHuyThucTe: Number(r['Số đơn hoàn hủy thực tế']) || 0,
+                        doanhSoHoanHuyThucTe: Number(r['Doanh số hoàn hủy thực tế']) || 0,
+                        doanhSoSauHoanHuyThucTe: Number(r['Doanh số sau hoàn hủy thực tế']) || 0,
+                        originalRecord: r // Keep ref if needed
+                    }));
+
+                // Pre-filter stats based on permission strictness? 
+                // The requirements say populate filters first.
+
+                // Extract unique options for filters
+                // Filter data primarily by Permissions FIRST before extracting options?
+                // The provided code populates options based on 'dataForFilters' 
+
+                let visibleData = processed;
+                if (isRestrictedView || idFromUrl) { // Logic from code: use isRestrictedView flag derived earlier
+                    visibleData = processed.filter(r => {
+                        if (newPermissions.allowedBranch && r.chiNhanh.toLowerCase() !== newPermissions.allowedBranch.toLowerCase()) return false;
+                        if (newPermissions.allowedTeam && r.team !== newPermissions.allowedTeam) return false;
+                        if (newPermissions.allowedNames.length > 0 && !newPermissions.allowedNames.includes(r.ten)) return false;
+                        return true;
+                    });
+                }
+
+                setRawData(visibleData);
+
+                // Populate Options
+                const unique = (key) => [...new Set(visibleData.map(d => d[key]).filter(Boolean))].sort();
+                setOptions({
+                    products: unique('sanPham'),
+                    markets: unique('thiTruong'),
+                    shifts: unique('ca'),
+                    teams: unique('team')
+                });
+
+                // Initial Select All
+                setFilters(prev => ({
+                    ...prev,
+                    products: unique('sanPham'),
+                    markets: unique('thiTruong'),
+                    shifts: unique('ca'),
+                    teams: unique('team')
+                }));
+
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, []);
+
+    // --- Filtering Logic ---
+    const filteredData = useMemo(() => {
+        if (loading) return [];
+        return rawData.filter(r => {
+            // Date Filter
+            if (!isDateInRange(r.ngay, filters.startDate, filters.endDate)) return false;
+
+            // Checkboxes
+            if (!filters.products.includes(r.sanPham)) return false;
+            if (!filters.markets.includes(r.thiTruong)) return false;
+            if (!filters.shifts.includes(String(r.ca))) return false;
+            if (!filters.teams.includes(String(r.team))) return false;
+
+            return true;
+        });
+    }, [rawData, filters, loading]);
+
+    // --- Handlers ---
+    const handleFilterChange = (type, value, checked) => {
+        setFilters(prev => {
+            const list = prev[type];
+            if (checked) return { ...prev, [type]: [...list, value] };
+            return { ...prev, [type]: list.filter(item => item !== value) };
+        });
     };
 
-    try {
-      const response = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+    const handleSelectAll = (type, checked) => {
+        setFilters(prev => ({
+            ...prev,
+            [type]: checked ? options[type] : []
+        }));
+    };
 
-      const result = await response.json();
+    // --- Summarization Logic ---
+    const summarizeData = (data) => {
+        const summary = {};
+        const initial = {
+            mess: 0, don: 0, chot: 0, phanHoi: 0,
+            doanhSoDi: 0, soDonHuy: 0, doanhSoHuy: 0,
+            soDonThanhCong: 0, doanhSoThanhCong: 0,
+            soDonThucTe: 0, doanhThuChotThucTe: 0, doanhSoDiThucTe: 0,
+            soDonHoanHuyThucTe: 0, doanhSoHoanHuyThucTe: 0, doanhSoSauHoanHuyThucTe: 0
+        };
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || `Lỗi HTTP: ${response.status}`);
-      }
+        data.forEach(r => {
+            if (!summary[r.ten]) {
+                summary[r.ten] = {
+                    name: r.ten, chiNhanh: r.chiNhanh, team: r.team, ...initial
+                };
+            }
+            const s = summary[r.ten];
+            s.mess += r.soMessCmt;
+            s.don += r.soDon;
+            s.chot += r.dsChot;
+            s.phanHoi += r.phanHoi;
+            s.soDonThucTe += r.soDonThucTe;
+            s.doanhThuChotThucTe += r.doanhThuChotThucTe;
+            s.soDonHoanHuyThucTe += r.soDonHoanHuyThucTe;
+            s.doanhSoHoanHuyThucTe += r.doanhSoHoanHuyThucTe;
+            s.doanhSoDi += r.doanhSoDi;
+            s.soDonHuy += r.soDonHuy;
+            s.doanhSoHuy += r.doanhSoHuy;
+            s.soDonThanhCong += r.soDonThanhCong;
+            s.doanhSoThanhCong += r.doanhSoThanhCong;
+        });
 
-      const summary = result.summary;
-      setResponseMsg({
-        text: `Thành công! Đã thêm ${summary.added} dòng. Trùng lặp: ${summary.duplicates}. Lỗi: ${summary.validationErrors}.`,
-        isSuccess: true,
-        visible: true,
-      });
-      updateStatus('Gửi báo cáo thành công.');
+        const flatList = Object.values(summary).sort((a, b) => a.team.localeCompare(b.team) || b.chot - a.chot || a.name.localeCompare(b.name));
 
-      setTableRows([createRowData({ Tên: employeeNameFromUrl, Email: userEmail }, appData.employeeDetails)]);
-    } catch (error) {
-      console.error('Lỗi khi gửi dữ liệu:', error);
-      setResponseMsg({ text: 'Lỗi khi gửi dữ liệu: ' + error.message, isSuccess: false, visible: true });
-      updateStatus('Gửi báo cáo thất bại: ' + error.message, true);
-    } finally {
-      setLoading(false);
-    }
-  };
+        const total = flatList.reduce((acc, item) => {
+            Object.keys(initial).forEach(k => acc[k] += item[k]);
+            return acc;
+        }, { ...initial });
 
-  const numberFields = ['Số Mess', 'Phản hồi', 'Đơn Mess', 'Doanh số Mess', 'CPQC', 'Số_Mess_Cmt', 'Số đơn', 'Doanh số'];
-  const hiddenFields = ['id', 'id phản hồi', 'id số mess', 'team', 'id_ns', 'trạng thái', 'chi nhánh', 'doanh số đi', 'số đơn hoàn huỷ', 'số đơn hoàn hủy', 'doanh số hoàn huỷ', 'số đơn thành công', 'doanh số thành công', 'khách mới', 'khách cũ', 'bán chéo', 'bán chéo team', 'ds chốt', 'ds sau hoàn hủy', 'số đơn sau hoàn hủy', 'doanh số sau ship', 'doanh số tc', 'kpis', 'cpqc theo tkqc', 'báo cáo theo page', 'cảnh báo'];
+        return { flatList, total };
+    };
 
-  return (
-    <div className="min-h-screen bg-gray-100 p-3">
-      <div className="bg-white rounded-lg shadow-lg p-4">
-        {/* Header */}
-        <div className="flex items-center mb-4 pb-3 border-b-2 border-green-600">
-          <h1 className="text-2xl font-bold text-green-600">Báo Cáo Sale</h1>
-        </div>
+    // --- Derived Data for Rendering ---
+    const { flatList: summaryList, total: summaryTotal } = useMemo(() => summarizeData(filteredData), [filteredData]);
 
-        {/* Status */}
-        <div className="mb-3 p-2 rounded bg-gray-100 text-gray-700 text-sm">{status}</div>
+    // Group by Date for Breakdowns
+    const dailyBreakdown = useMemo(() => {
+        const groups = {};
+        filteredData.forEach(r => {
+            const d = formatDate(r.ngay); // dd/mm/yyyy
+            if (!groups[d]) groups[d] = [];
+            groups[d].push(r);
+        });
 
-        {/* Add Row Button */}
-        <button
-          type="button"
-          onClick={() => handleAddRow(0)}
-          className="mb-3 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-semibold transition"
-        >
-          ➕ Thêm dòng
-        </button>
+        // Sort keys by date descending
+        const sortedKeys = Object.keys(groups).sort((a, b) => {
+            const [d1, m1, y1] = a.split('/').map(Number);
+            const [d2, m2, y2] = b.split('/').map(Number);
+            return new Date(y2, m2 - 1, d2) - new Date(y1, m1 - 1, d1);
+        });
 
-        {/* Table */}
-        <form onSubmit={handleSubmit}>
-          <div className="overflow-x-auto mb-4 border border-gray-300 rounded-lg">
-            <table className="w-full border-collapse bg-white text-xs">
-              <thead>
-                <tr className="bg-green-600 text-white sticky top-0">
-                  <th className="border px-2 py-1 text-left font-semibold whitespace-nowrap">Hành động</th>
-                  {headerSale.map(
-                    (header) =>
-                      !hiddenFields.includes(header.toLowerCase()) && (
-                        <th key={header} className="border px-2 py-1 text-left font-semibold whitespace-nowrap">
-                          {header}
-                        </th>
-                      )
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {tableRows.map((row, rowIndex) => (
-                  <tr key={row.id} className="hover:bg-gray-50 even:bg-gray-50">
-                    <td className="border px-2 py-1 flex gap-1">
-                      <button
-                        type="button"
-                        onClick={() => handleAddRow(rowIndex)}
-                        className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded transition text-xs font-semibold"
-                        title="Copy dòng này"
-                      >
-                        ➕
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveRow(rowIndex)}
-                        className="px-2 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded transition text-xs font-semibold"
-                      >
-                        ❌
-                      </button>
-                    </td>
-                    {headerSale.map(
-                      (header) =>
-                        !hiddenFields.includes(header.toLowerCase()) && (
-                          <td key={`${row.id}-${header}`} className="border px-2 py-1">
-                            {header === 'Ngày' ? (
-                              <input
-                                type="date"
-                                value={row.data[header] || getToday()}
-                                onChange={(e) => handleRowChange(rowIndex, header, e.target.value)}
-                                className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-green-600"
-                              />
-                            ) : header === 'ca' ? (
-                              <select
-                                value={row.data[header] || ''}
-                                onChange={(e) => handleRowChange(rowIndex, header, e.target.value)}
-                                className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-green-600"
-                              >
-                                <option value="">--</option>
-                                {appData.shiftList.map((shift) => (
-                                  <option key={shift} value={shift}>
-                                    {shift}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : header === 'Sản_phẩm' ? (
-                              <select
-                                value={row.data[header] || ''}
-                                onChange={(e) => handleRowChange(rowIndex, header, e.target.value)}
-                                className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-green-600"
-                              >
-                                <option value="">--</option>
-                                {appData.productList.map((product) => (
-                                  <option key={product} value={product}>
-                                    {product}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : header === 'Thị_trường' ? (
-                              <select
-                                value={row.data[header] || ''}
-                                onChange={(e) => handleRowChange(rowIndex, header, e.target.value)}
-                                className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-green-600"
-                              >
-                                <option value="">--</option>
-                                {appData.marketList.map((market) => (
-                                  <option key={market} value={market}>
-                                    {market}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : header === 'Email' ? (
-                              <input
-                                type="email"
-                                list="email-datalist"
-                                placeholder="--"
-                                value={row.data[header] || ''}
-                                onChange={(e) => handleRowChange(rowIndex, header, e.target.value)}
-                                className="w-32 px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-green-600"
-                              />
-                            ) : header === 'Tên' ? (
-                              <input
-                                type="text"
-                                list="employee-datalist"
-                                placeholder="--"
-                                value={row.data[header] || ''}
-                                onChange={(e) => handleRowChange(rowIndex, header, e.target.value)}
-                                className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-green-600"
-                              />
-                            ) : numberFields.includes(header) ? (
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                placeholder="Số"
-                                value={row.data[header] ? formatNumberInput(row.data[header]) : ''}
-                                onChange={(e) => handleRowChange(rowIndex, header, e.target.value)}
-                                className="w-12 px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-green-600"
-                              />
-                            ) : (
-                              <input
-                                type="text"
-                                value={row.data[header] || ''}
-                                onChange={(e) => handleRowChange(rowIndex, header, e.target.value)}
-                                className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-green-600"
-                              />
-                            )}
-                          </td>
-                        )
+        return sortedKeys.map(date => ({
+            date,
+            data: summarizeData(groups[date])
+        }));
+    }, [filteredData]);
+
+
+    // --- Render Helpers ---
+    const getRateClass = (rate) => rate >= 0.1 ? 'bg-green' : (rate > 0.05 ? 'bg-yellow' : '');
+
+    return (
+        <div className="bao-cao-sale-container">
+            {loading && <div className="loading-overlay">Đang tải dữ liệu...</div>}
+
+            <div className="report-container">
+                {/* SIDEBAR FILTERS */}
+                <div className="sidebar">
+                    <h3>Bộ lọc</h3>
+                    <label>
+                        Từ ngày:
+                        <input type="date" value={filters.startDate} onChange={e => setFilters(prev => ({ ...prev, startDate: e.target.value }))} />
+                    </label>
+                    <label>
+                        Đến ngày:
+                        <input type="date" value={filters.endDate} onChange={e => setFilters(prev => ({ ...prev, endDate: e.target.value }))} />
+                    </label>
+
+                    {/* Product Filter */}
+                    <h3>Sản phẩm</h3>
+                    <label>
+                        <input type="checkbox"
+                            checked={filters.products.length === options.products.length}
+                            onChange={(e) => handleSelectAll('products', e.target.checked)}
+                        /> Tất cả
+                    </label>
+                    <div className="indent">
+                        {options.products.map(opt => (
+                            <label key={opt}>
+                                <input type="checkbox" checked={filters.products.includes(opt)} onChange={(e) => handleFilterChange('products', opt, e.target.checked)} />
+                                {opt}
+                            </label>
+                        ))}
+                    </div>
+
+                    {/* Shift Filter */}
+                    <h3>Ca</h3>
+                    <label>
+                        <input type="checkbox"
+                            checked={filters.shifts.length === options.shifts.length}
+                            onChange={(e) => handleSelectAll('shifts', e.target.checked)}
+                        /> Tất cả
+                    </label>
+                    <div className="indent">
+                        {options.shifts.map(opt => (
+                            <label key={opt}>
+                                <input type="checkbox" checked={filters.shifts.includes(opt)} onChange={(e) => handleFilterChange('shifts', opt, e.target.checked)} />
+                                {opt}
+                            </label>
+                        ))}
+                    </div>
+
+                    {/* Team Filter */}
+                    <h3>Team</h3>
+                    <label>
+                        <input type="checkbox"
+                            checked={filters.teams.length === options.teams.length}
+                            onChange={(e) => handleSelectAll('teams', e.target.checked)}
+                        /> Tất cả
+                    </label>
+                    <div className="indent">
+                        {options.teams.map(opt => (
+                            <label key={opt}>
+                                <input type="checkbox" checked={filters.teams.includes(opt)} onChange={(e) => handleFilterChange('teams', opt, e.target.checked)} />
+                                {opt}
+                            </label>
+                        ))}
+                    </div>
+
+                    {/* Market Filter */}
+                    <h3>Thị trường</h3>
+                    <label>
+                        <input type="checkbox"
+                            checked={filters.markets.length === options.markets.length}
+                            onChange={(e) => handleSelectAll('markets', e.target.checked)}
+                        /> Tất cả
+                    </label>
+                    <div className="indent">
+                        {options.markets.map(opt => (
+                            <label key={opt}>
+                                <input type="checkbox" checked={filters.markets.includes(opt)} onChange={(e) => handleFilterChange('markets', opt, e.target.checked)} />
+                                {opt}
+                            </label>
+                        ))}
+                    </div>
+                </div>
+
+                {/* MAIN CONTENT */}
+                <div className="main-detailed">
+                    <div className="header">
+                        <img src="https://www.appsheet.com/template/gettablefileurl?appName=Appsheet-325045268&tableName=Kho%20%E1%BA%A3nh&fileName=Kho%20%E1%BA%A3nh_Images%2Ff930e667.%E1%BA%A2nh.025539.jpg" alt="Logo" />
+                        <h2>{permissions.title}</h2>
+                    </div>
+
+                    <div className="tabs-container">
+                        <button className={`tab-button ${activeTab === 'sau-huy' ? 'active' : ''}`} onClick={() => setActiveTab('sau-huy')}>Sale đã trừ hủy</button>
+                        <button className={`tab-button ${activeTab === 'chot' ? 'active' : ''}`} onClick={() => setActiveTab('chot')}>Dữ liệu báo cáo tay</button>
+                        <button className={`tab-button ${activeTab === 'kpi-sale' ? 'active' : ''}`} onClick={() => setActiveTab('kpi-sale')}>KPIs Sale</button>
+                        <button className={`tab-button ${activeTab === 'van-don-sale' ? 'active' : ''}`} onClick={() => setActiveTab('van-don-sale')}>Vận đơn Sale</button>
+                        {currentUserInfo && (
+                            <button className={`tab-button ${activeTab === 'thu-cong' ? 'active' : ''}`} onClick={() => setActiveTab('thu-cong')}>Báo cáo thủ công</button>
+                        )}
+                    </div>
+
+                    {/* Tab 1: Sau Huy */}
+                    <div className={`tab-content ${activeTab === 'sau-huy' ? 'active' : ''}`}>
+                        <div className="table-responsive-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>STT</th><th>Chi nhánh</th><th>Team</th><th>Sale</th>
+                                        <th>Số Mess</th><th>Phản hồi</th><th>Số đơn sau huỷ</th>
+                                        <th>DS Sau Hủy TT</th><th>Tỉ lệ chốt</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {/* Total Row */}
+                                    {(() => {
+                                        const totalSoDon = summaryTotal.soDonThucTe - summaryTotal.soDonHoanHuyThucTe;
+                                        const totalDS = summaryTotal.doanhThuChotThucTe - summaryTotal.doanhSoHoanHuyThucTe;
+                                        const totalRate = summaryTotal.mess ? totalSoDon / summaryTotal.mess : 0;
+                                        return (
+                                            <tr className="total-row">
+                                                <td className="total-label" colSpan={4}>TỔNG CỘNG</td>
+                                                <td className="total-value">{formatNumber(summaryTotal.mess)}</td>
+                                                <td className="total-value">{formatNumber(summaryTotal.phanHoi)}</td>
+                                                <td className="total-value">{formatNumber(totalSoDon)}</td>
+                                                <td className="total-value">{formatCurrency(totalDS)}</td>
+                                                <td className="total-value">{formatPercent(totalRate)}</td>
+                                            </tr>
+                                        )
+                                    })()}
+                                    {/* Rows */}
+                                    {summaryList.map((item, index) => {
+                                        const soDon = item.soDonThucTe - item.soDonHoanHuyThucTe;
+                                        const ds = item.doanhThuChotThucTe - item.doanhSoHoanHuyThucTe;
+                                        const rate = item.mess ? soDon / item.mess : 0;
+                                        return (
+                                            <tr key={index} style={{ '--row-index': index }}>
+                                                <td className="text-center">{index + 1}</td>
+                                                <td className="text-left">{item.chiNhanh}</td>
+                                                <td className="text-left">{item.team}</td>
+                                                <td className="text-left">{item.name}</td>
+                                                <td>{formatNumber(item.mess)}</td>
+                                                <td>{formatNumber(item.phanHoi)}</td>
+                                                <td>{formatNumber(soDon)}</td>
+                                                <td>{formatCurrency(ds)}</td>
+                                                <td className={getRateClass(rate)}>{formatPercent(rate)}</td>
+                                            </tr>
+                                        )
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Daily Breakdown for Tab 1 */}
+                        <div className="daily-breakdown">
+                            {dailyBreakdown.map((dayItem) => {
+                                const { total, flatList } = dayItem.data;
+                                const totalSoDon = total.soDonThucTe - total.soDonHoanHuyThucTe;
+                                const totalDS = total.doanhThuChotThucTe - total.doanhSoHoanHuyThucTe;
+                                const totalRate = total.mess ? totalSoDon / total.mess : 0;
+
+                                return (
+                                    <div key={dayItem.date}>
+                                        <h3>Chi tiết ngày: {dayItem.date}</h3>
+                                        <div className="table-responsive-container">
+                                            <table>
+                                                <thead>
+                                                    <tr>
+                                                        <th>STT</th><th>Chi nhánh</th><th>Team</th><th>Sale</th>
+                                                        <th>Số Mess</th><th>Phản hồi</th><th>Số đơn sau huỷ</th>
+                                                        <th>DS Sau Hủy TT</th><th>Tỉ lệ chốt</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr className="total-row">
+                                                        <td className="total-label" colSpan={4}>TỔNG NGÀY {dayItem.date}</td>
+                                                        <td className="total-value">{formatNumber(total.mess)}</td>
+                                                        <td className="total-value">{formatNumber(total.phanHoi)}</td>
+                                                        <td className="total-value">{formatNumber(totalSoDon)}</td>
+                                                        <td className="total-value">{formatCurrency(totalDS)}</td>
+                                                        <td className="total-value">{formatPercent(totalRate)}</td>
+                                                    </tr>
+                                                    {flatList.map((item, index) => {
+                                                        const soDon = item.soDonThucTe - item.soDonHoanHuyThucTe;
+                                                        const ds = item.doanhThuChotThucTe - item.doanhSoHoanHuyThucTe;
+                                                        const rate = item.mess ? soDon / item.mess : 0;
+                                                        return (
+                                                            <tr key={index}>
+                                                                <td className="text-center">{index + 1}</td>
+                                                                <td className="text-left">{item.chiNhanh}</td>
+                                                                <td className="text-left">{item.team}</td>
+                                                                <td className="text-left">{item.name}</td>
+                                                                <td>{formatNumber(item.mess)}</td>
+                                                                <td>{formatNumber(item.phanHoi)}</td>
+                                                                <td>{formatNumber(soDon)}</td>
+                                                                <td>{formatCurrency(ds)}</td>
+                                                                <td className={getRateClass(rate)}>{formatPercent(rate)}</td>
+                                                            </tr>
+                                                        )
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Tab 2: Chot (Manual Report) */}
+                    <div className={`tab-content ${activeTab === 'chot' ? 'active' : ''}`}>
+                        <div className="table-responsive-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>STT</th><th>Chi nhánh</th><th>Team</th><th>Sale</th>
+                                        <th>Số Mess</th><th>Phản hồi</th><th>Số Đơn</th><th>Số Đơn TT</th>
+                                        <th>DS Chốt</th><th>DS Chốt TT</th><th>Tỉ lệ chốt</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {/* Total Row */}
+                                    {(() => {
+                                        const totalRate = summaryTotal.mess ? summaryTotal.soDonThucTe / summaryTotal.mess : 0;
+                                        return (
+                                            <tr className="total-row">
+                                                <td className="total-label" colSpan={4}>TỔNG CỘNG</td>
+                                                <td className="total-value">{formatNumber(summaryTotal.mess)}</td>
+                                                <td className="total-value">{formatNumber(summaryTotal.phanHoi)}</td>
+                                                <td className="total-value">{formatNumber(summaryTotal.don)}</td>
+                                                <td className="total-value">{formatNumber(summaryTotal.soDonThucTe)}</td>
+                                                <td className="total-value">{formatCurrency(summaryTotal.chot)}</td>
+                                                <td className="total-value">{formatCurrency(summaryTotal.doanhThuChotThucTe)}</td>
+                                                <td className="total-value">{formatPercent(totalRate)}</td>
+                                            </tr>
+                                        )
+                                    })()}
+                                    {/* Rows */}
+                                    {summaryList.map((item, index) => {
+                                        const rate = item.mess ? item.soDonThucTe / item.mess : 0;
+                                        return (
+                                            <tr key={index} style={{ '--row-index': index }}>
+                                                <td className="text-center">{index + 1}</td>
+                                                <td className="text-left">{item.chiNhanh}</td>
+                                                <td className="text-left">{item.team}</td>
+                                                <td className="text-left">{item.name}</td>
+                                                <td>{formatNumber(item.mess)}</td>
+                                                <td>{formatNumber(item.phanHoi)}</td>
+                                                <td>{formatNumber(item.don)}</td>
+                                                <td>{formatNumber(item.soDonThucTe)}</td>
+                                                <td>{formatCurrency(item.chot)}</td>
+                                                <td>{formatCurrency(item.doanhThuChotThucTe)}</td>
+                                                <td className={getRateClass(rate)}>{formatPercent(rate)}</td>
+                                            </tr>
+                                        )
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Daily Breakdown for Tab 2 */}
+                        <div className="daily-breakdown">
+                            {dailyBreakdown.map((dayItem) => {
+                                const { total, flatList } = dayItem.data;
+                                const totalRate = total.mess ? total.soDonThucTe / total.mess : 0;
+
+                                return (
+                                    <div key={dayItem.date}>
+                                        <h3>Chi tiết ngày: {dayItem.date}</h3>
+                                        <div className="table-responsive-container">
+                                            <table>
+                                                <thead>
+                                                    <tr>
+                                                        <th>STT</th><th>Chi nhánh</th><th>Team</th><th>Sale</th>
+                                                        <th>Số Mess</th><th>Phản hồi</th><th>Số Đơn</th><th>Số Đơn TT</th>
+                                                        <th>DS Chốt</th><th>DS Chốt TT</th><th>Tỉ lệ chốt</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr className="total-row">
+                                                        <td className="total-label" colSpan={4}>TỔNG NGÀY {dayItem.date}</td>
+                                                        <td className="total-value">{formatNumber(total.mess)}</td>
+                                                        <td className="total-value">{formatNumber(total.phanHoi)}</td>
+                                                        <td className="total-value">{formatNumber(total.don)}</td>
+                                                        <td className="total-value">{formatNumber(total.soDonThucTe)}</td>
+                                                        <td className="total-value">{formatCurrency(total.chot)}</td>
+                                                        <td className="total-value">{formatCurrency(total.doanhThuChotThucTe)}</td>
+                                                        <td className="total-value">{formatPercent(totalRate)}</td>
+                                                    </tr>
+                                                    {flatList.map((item, index) => {
+                                                        const rate = item.mess ? item.soDonThucTe / item.mess : 0;
+                                                        return (
+                                                            <tr key={index}>
+                                                                <td className="text-center">{index + 1}</td>
+                                                                <td className="text-left">{item.chiNhanh}</td>
+                                                                <td className="text-left">{item.team}</td>
+                                                                <td className="text-left">{item.name}</td>
+                                                                <td>{formatNumber(item.mess)}</td>
+                                                                <td>{formatNumber(item.phanHoi)}</td>
+                                                                <td>{formatNumber(item.don)}</td>
+                                                                <td>{formatNumber(item.soDonThucTe)}</td>
+                                                                <td>{formatCurrency(item.chot)}</td>
+                                                                <td>{formatCurrency(item.doanhThuChotThucTe)}</td>
+                                                                <td className={getRateClass(rate)}>{formatPercent(rate)}</td>
+                                                            </tr>
+                                                        )
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Tab 3: KPI Sale */}
+                    <div className={`tab-content ${activeTab === 'kpi-sale' ? 'active' : ''}`}>
+                        <iframe
+                            src={`https://nguyenbatyads37.github.io/static-html-show-data/KPisale.html${window.location.search}`}
+                            title="KPIs Sale"
+                        />
+                    </div>
+
+                    {/* Tab 4: Van Don Sale */}
+                    <div className={`tab-content ${activeTab === 'van-don-sale' ? 'active' : ''}`}>
+                        <iframe
+                            src={`https://nguyenbatyads37.github.io/static-html-show-data/Vandonsale.html${window.location.search}`}
+                            title="Vận đơn Sale"
+                        />
+                    </div>
+
+                    {/* Tab 5: Thu Cong */}
+                    {activeTab === 'thu-cong' && currentUserInfo && (
+                        <div className={`tab-content active`}>
+                            <iframe
+                                src={`https://nguyenbatyads37.github.io/static-html-show-data/baoCaoThuCong.html?hoten=${encodeURIComponent(currentUserInfo.ten)}&email=${encodeURIComponent(currentUserInfo.email)}&tableName=Báo cáo sale`}
+                                title="Báo cáo thủ công"
+                            />
+                        </div>
                     )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded text-sm font-semibold transition"
-          >
-            {loading ? '⏳ Đang gửi...' : '🚀 Gửi báo cáo'}
-          </button>
-        </form>
-
-        {/* Response Message */}
-        {responseMsg.visible && (
-          <div
-            className={`mt-4 p-2 rounded text-sm text-center ${
-              responseMsg.isSuccess ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-            }`}
-          >
-            {responseMsg.text}
-          </div>
-        )}
-
-        {/* Employee Datalist */}
-        <datalist id="employee-datalist" ref={employeeDatalistRef}>
-          {appData.employeeDetails
-            ?.sort((a, b) => a.name.localeCompare(b.name, 'vi', { sensitivity: 'base' }))
-            .map((emp) => (
-              <option key={emp.name} value={emp.name} />
-            ))}
-        </datalist>
-
-        {/* Email Datalist */}
-        <datalist id="email-datalist">
-          {appData.employeeDetails
-            ?.sort((a, b) => a.email.localeCompare(b.email))
-            .map((emp) => (
-              <option key={emp.email} value={emp.email} />
-            ))}
-        </datalist>
-      </div>
-    </div>
-  );
+                </div>
+            </div>
+        </div>
+    );
 }

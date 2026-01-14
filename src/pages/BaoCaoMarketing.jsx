@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+// If xlsx is not available, processExcelFile will fail. Assuming environment setup.
+// I will keep imports minimal.
+
 
 export default function BaoCaoMarketing() {
   const [appData, setAppData] = useState({
@@ -154,7 +157,7 @@ export default function BaoCaoMarketing() {
     const employees = await fetchEmployeeList();
     setAppData((prev) => ({ ...prev, employeeDetails: employees }));
     setTableHeaders(headerMkt);
-    
+
     // Find employee by email first, then by name
     let employee = null;
     if (email) {
@@ -163,9 +166,9 @@ export default function BaoCaoMarketing() {
     if (!employee && hoten) {
       employee = employees?.find((emp) => emp.name?.toLowerCase() === hoten.toLowerCase());
     }
-    
+
     const employeeName = employee?.name || hoten || '';
-    
+
     setTableRows([createRowData({ Tên: employeeName, Email: email }, employees)]);
     updateStatus('Ứng dụng đã sẵn sàng.');
   };
@@ -208,10 +211,10 @@ export default function BaoCaoMarketing() {
   const handleAddRow = (rowIndexToCopy = 0) => {
     const sourceRow = tableRows[rowIndexToCopy];
     const newRowData = {};
-    
+
     // Fields to copy up to and including "Thị_trường"
     const fieldsToKeep = ['Tên', 'Email', 'ca', 'Sản_phẩm', 'Thị_trường'];
-    
+
     fieldsToKeep.forEach((field) => {
       if (sourceRow?.data?.[field]) {
         newRowData[field] = sourceRow.data[field];
@@ -494,9 +497,8 @@ export default function BaoCaoMarketing() {
         {/* Response Message */}
         {responseMsg.visible && (
           <div
-            className={`mt-4 p-2 rounded text-sm text-center ${
-              responseMsg.isSuccess ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-            }`}
+            className={`mt-4 p-2 rounded text-sm text-center ${responseMsg.isSuccess ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              }`}
           >
             {responseMsg.text}
           </div>

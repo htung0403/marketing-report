@@ -62,9 +62,24 @@ CREATE TABLE IF NOT EXISTS public.detail_reports (
   "Số đơn hoàn hủy thực tế" INTEGER DEFAULT 0,
   "Doanh số sau hoàn hủy thực tế" NUMERIC DEFAULT 0,
   "Doanh số đi thực tế" NUMERIC DEFAULT 0,
+  -- Các cột mới bổ sung cho Báo Cáo Marketing
+  "TKQC" TEXT,
+  "id_NS" TEXT,
+  "CPQC theo TKQC" NUMERIC DEFAULT 0,
+  "Báo cáo theo Page" TEXT,
+  "Trạng thái" TEXT,
+  "Cảnh báo" TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Bổ sung cột nếu bảng đã tồn tại (Migration)
+ALTER TABLE public.detail_reports ADD COLUMN IF NOT EXISTS "TKQC" TEXT;
+ALTER TABLE public.detail_reports ADD COLUMN IF NOT EXISTS "id_NS" TEXT;
+ALTER TABLE public.detail_reports ADD COLUMN IF NOT EXISTS "CPQC theo TKQC" NUMERIC DEFAULT 0;
+ALTER TABLE public.detail_reports ADD COLUMN IF NOT EXISTS "Báo cáo theo Page" TEXT;
+ALTER TABLE public.detail_reports ADD COLUMN IF NOT EXISTS "Trạng thái" TEXT;
+ALTER TABLE public.detail_reports ADD COLUMN IF NOT EXISTS "Cảnh báo" TEXT;
 
 -- 4. Bảng reports - Báo cáo tổng hợp
 CREATE TABLE IF NOT EXISTS public.reports (

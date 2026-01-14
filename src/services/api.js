@@ -89,8 +89,12 @@ export const fetchOrders = async () => {
     }
 };
 
+import { logDataChange } from './logging';
+
 export const updateSingleCell = async (orderId, columnKey, newValue) => {
     const payload = { [PRIMARY_KEY_COLUMN]: orderId, [columnKey]: newValue };
+
+    // Log before or after? After success is better.
     const response = await fetch(SINGLE_UPDATE_API_URL, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -100,6 +104,17 @@ export const updateSingleCell = async (orderId, columnKey, newValue) => {
         const err = await response.json();
         throw new Error(err.message || `HTTP error! status: ${response.status}`);
     }
+
+    // Log the change
+    logDataChange({
+        action: 'UPDATE',
+        table_name: SHEET_NAME, // 'F3'
+        record_id: orderId,
+        field: columnKey,
+        new_value: newValue,
+        details: { method: 'updateSingleCell' }
+    });
+
     return await response.json();
 };
 
@@ -232,7 +247,7 @@ export const fetchVanDon = async (options = {}) => {
         // Use backend API endpoint
         const API_URL = '/api/van-don';
         const url = `${API_URL}?${params.toString()}`;
-        
+
         console.log('Fetching Van Don from backend:', url);
 
         // Add timeout and abort controller
@@ -247,7 +262,7 @@ export const fetchVanDon = async (options = {}) => {
             },
             signal: controller.signal
         });
-        
+
         clearTimeout(timeoutId);
 
         if (!response.ok) {
@@ -257,21 +272,21 @@ export const fetchVanDon = async (options = {}) => {
         }
 
         const json = await response.json();
-        
+
         if (json.error) {
             throw new Error(json.error);
         }
 
         // Backend trả về: { success, data, total, page, limit, totalPages, rows }
         const data = json.data || json.rows || [];
-        
+
         // Apply date filters on client side (nếu backend chưa support)
         let filteredData = data;
         if (dateFrom || dateTo) {
             filteredData = data.filter(item => {
                 const orderDate = item['Ngày lên đơn'] || item['Ngày đóng hàng'] || '';
                 if (!orderDate) return true;
-                
+
                 // Parse date (format: DD/MM/YYYY or YYYY-MM-DD)
                 let dateValue;
                 if (orderDate.includes('/')) {
@@ -280,7 +295,7 @@ export const fetchVanDon = async (options = {}) => {
                 } else {
                     dateValue = new Date(orderDate);
                 }
-                
+
                 if (dateFrom) {
                     const fromDate = new Date(dateFrom);
                     if (dateValue < fromDate) return false;
@@ -304,7 +319,7 @@ export const fetchVanDon = async (options = {}) => {
 
     } catch (error) {
         console.error('fetchVanDon error:', error);
-        
+
         // Check if it's a timeout error
         if (error.name === 'AbortError') {
             console.error('⏱️ Request timeout - backend took too long');
@@ -317,7 +332,7 @@ export const fetchVanDon = async (options = {}) => {
                 error: 'Request timeout. Vui lòng thử lại.'
             };
         }
-        
+
         // Fallback to old API if backend fails (only for non-timeout errors)
         console.log('Falling back to direct API...');
         try {
@@ -330,14 +345,14 @@ export const fetchVanDon = async (options = {}) => {
             if (status) {
                 filtered = filtered.filter(item => item["Trạng thái giao hàng"] === status);
             }
-            
+
             // Paginate
             const pageNum = parseInt(page);
             const limitNum = parseInt(limit);
             const startIndex = (pageNum - 1) * limitNum;
             const endIndex = startIndex + limitNum;
             const paginated = filtered.slice(startIndex, endIndex);
-            
+
             return {
                 data: paginated,
                 total: filtered.length,

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { ChevronLeft, Download, RefreshCw, Search, Settings, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import * as API from '../services/api';
-import { PRIMARY_KEY_COLUMN, ORDER_MGMT_COLUMNS, COLUMN_MAPPING } from '../types';
-import { ChevronLeft, RefreshCw, Search, Filter, Download, Settings, X } from 'lucide-react';
+import { supabase } from '../supabase/config';
+import { COLUMN_MAPPING, PRIMARY_KEY_COLUMN } from '../types';
 
 function QuanLyCSKH() {
   const [allData, setAllData] = useState([]);
@@ -12,40 +12,18 @@ function QuanLyCSKH() {
   const [filterMarket, setFilterMarket] = useState([]);
   const [filterProduct, setFilterProduct] = useState([]);
   const [filterStatus, setFilterStatus] = useState([]);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [enableDateFilter, setEnableDateFilter] = useState(false);
-  const [quickFilter, setQuickFilter] = useState('');
+
+  // Date state - default to today
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  const [quickFilter, setQuickFilter] = useState('today');
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
   const [showColumnSettings, setShowColumnSettings] = useState(false);
 
-  // Debounce search text for better performance
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchText(searchText);
-      setCurrentPage(1); // Reset to first page when search changes
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchText]);
-  
-  // Get all available columns from data
-  const allAvailableColumns = useMemo(() => {
-    if (allData.length === 0) return [];
-    const columns = new Set();
-    allData.forEach(row => {
-      Object.keys(row).forEach(key => {
-        if (key !== PRIMARY_KEY_COLUMN) {
-          columns.add(key);
-        }
-      });
-    });
-    return Array.from(columns).sort();
-  }, [allData]);
-
-  // Default columns
   const defaultColumns = [
     'Mã đơn hàng',
     'Ngày lên đơn',
@@ -57,6 +35,51 @@ function QuanLyCSKH() {
     'Trạng thái giao hàng',
     'Tổng tiền VNĐ',
   ];
+
+  // Debounce search text for better performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchText(searchText);
+      setCurrentPage(1); // Reset to first page when search changes
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchText]);
+
+  // Get all available columns from data
+  const allAvailableColumns = useMemo(() => {
+    if (allData.length === 0) return [];
+
+    // Get all potential keys from data
+    const allKeys = new Set();
+    allData.forEach(row => {
+      Object.keys(row).forEach(key => {
+        if (key !== PRIMARY_KEY_COLUMN) {
+          allKeys.add(key);
+        }
+      });
+    });
+
+    // Strategy:
+    // 1. Start Defaults: Defaults excluding pinned ones
+    // 2. Other/Dynamic Cols: Alphabetic sort
+    // 3. End Cols: Pinned ones (Status, Total)
+
+    const pinnedEndColumns = ['Trạng thái giao hàng', 'Tổng tiền VNĐ'];
+
+    const startDefaults = defaultColumns
+      .filter(col => !pinnedEndColumns.includes(col) && allKeys.has(col));
+
+    const otherCols = Array.from(allKeys)
+      .filter(key => !defaultColumns.includes(key))
+      .sort();
+
+    const endCols = pinnedEndColumns.filter(col => allKeys.has(col));
+
+    return [...startDefaults, ...otherCols, ...endCols];
+  }, [allData]);
+
+  // Default columns
+
 
   // Load column visibility from localStorage or use defaults
   const [visibleColumns, setVisibleColumns] = useState(() => {
@@ -88,19 +111,87 @@ function QuanLyCSKH() {
     }
   }, [visibleColumns]);
 
-  // Load data from F3
+  // Load data from Supabase with date filter
   const loadData = async () => {
+    if (!startDate || !endDate) return;
+
     setLoading(true);
     try {
-      console.log('Loading orders from F3...');
-      const data = await API.fetchOrders();
-      setAllData(data);
-      if (data.length === 2 && data[0]["Mã đơn hàng"] === "DEMO001") {
-        alert('⚠️ Đang sử dụng dữ liệu demo do API lỗi. Kiểm tra kết nối mạng.');
+      console.log('Loading orders from Supabase (Date Range)...');
+
+      // Get user info for permission
+      const userJson = localStorage.getItem("user");
+      const user = userJson ? JSON.parse(userJson) : null;
+      const userEmail = (user?.Email || user?.email || "").toString().toLowerCase().trim();
+      const userName = (user?.['Họ_và_tên'] || user?.['Họ và tên'] || user?.['Tên'] || "").toString().trim();
+      const boPhan = (user?.['Bộ_phận'] || user?.['Bộ phận'] || "").toString().trim().toLowerCase();
+      const viTri = (user?.['Vị_trí'] || user?.['Vị trí'] || "").toString().trim().toLowerCase();
+
+      const ADMIN_MAIL = "admin@marketing.com";
+      const isAdmin = userEmail === ADMIN_MAIL || boPhan === 'admin';
+      const isLeader = viTri.includes('leader') || viTri.includes('quản lý') || boPhan.includes('manager');
+
+      let query = supabase.from('orders').select('*');
+
+      // Date Filter Logic
+      if (startDate === endDate) {
+        // Single Day -> Use Robust "Swap" Logic
+        const [y, m, d] = startDate.split('-');
+        let queryCondition = `order_date.eq.${startDate}`;
+
+        // Handle swapped Day/Month ambiguity (e.g. 2026-01-11 stored as 2026-11-01)
+        if (parseInt(d) <= 12 && m !== d) {
+          const swappedDate = `${y}-${d}-${m}`;
+          queryCondition += `,order_date.eq.${swappedDate}`;
+        }
+        query = query.or(queryCondition);
+      } else {
+        // Date Range -> Use Standard Range
+        query = query
+          .gte('order_date', `${startDate}T00:00:00`)
+          .lte('order_date', `${endDate}T23:59:59`);
       }
+
+      query = query.order('order_date', { ascending: false });
+
+      if (!isAdmin && !isLeader) {
+        if (userName) {
+          query = query.eq('cskh', userName);
+        } else {
+          console.warn("Restricted view but no UserName found. Showing empty.");
+          // Use a nil UUID which is syntactically valid but won't match any real record
+          query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+        }
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      const mappedData = (data || []).map(item => ({
+        "Mã đơn hàng": item.order_code,
+        "Ngày lên đơn": item.order_date || item.created_at?.split('T')[0],
+        "Name*": item.customer_name,
+        "Phone*": item.customer_phone,
+        "Khu vực": item.country || item.area,
+        "Loại tiền": item.payment_type,
+        "Hình thức thanh toán": item.payment_method_text || item.payment_method,
+        "Mặt hàng": item.product_main || item.product,
+        "Tên mặt hàng 1": item.product_name_1 || item.product_main || item.product,
+        "Mã Tracking": item.tracking_code,
+        "Trạng thái giao hàng": item.delivery_status,
+        "Tổng tiền VNĐ": item.total_amount_vnd,
+        "CSKH": item.cskh,
+        "Team": item.team,
+        ...item
+      }));
+
+      setAllData(mappedData);
+
     } catch (error) {
       console.error('Load data error:', error);
       alert(`❌ Lỗi tải dữ liệu: ${error.message}`);
+      setAllData([]);
     } finally {
       setLoading(false);
     }
@@ -108,7 +199,7 @@ function QuanLyCSKH() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [startDate, endDate]);
 
   // Get unique values for filters
   const uniqueMarkets = useMemo(() => {
@@ -141,62 +232,56 @@ function QuanLyCSKH() {
   // Handle quick filter
   const handleQuickFilter = (value) => {
     setQuickFilter(value);
-    if (!value) {
-      setDateFrom('');
-      setDateTo('');
-      setEnableDateFilter(false);
-      return;
-    }
+    if (!value) return;
 
     const today = new Date();
-    let startDate = new Date();
-    let endDate = new Date();
+    let start = new Date();
+    let end = new Date();
 
     switch (value) {
       case 'today':
-        startDate = new Date(today);
-        endDate = new Date(today);
+        start = new Date(today);
+        end = new Date(today);
         break;
       case 'yesterday':
-        startDate = new Date(today);
-        startDate.setDate(today.getDate() - 1);
-        endDate = new Date(startDate);
+        start = new Date(today);
+        start.setDate(today.getDate() - 1);
+        end = new Date(start);
         break;
       case 'this-week': {
         const dayOfWeek = today.getDay();
         const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Monday
-        startDate = new Date(today.getFullYear(), today.getMonth(), diff);
-        endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 6);
+        start = new Date(today.getFullYear(), today.getMonth(), diff);
+        end = new Date(start);
+        end.setDate(start.getDate() + 6);
         break;
       }
       case 'last-week': {
         const dayOfWeek = today.getDay();
         const diff = today.getDate() - dayOfWeek - 6 + (dayOfWeek === 0 ? -6 : 1); // Last Monday
-        startDate = new Date(today.getFullYear(), today.getMonth(), diff);
-        endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 6);
+        start = new Date(today.getFullYear(), today.getMonth(), diff);
+        end = new Date(start);
+        end.setDate(start.getDate() + 6);
         break;
       }
       case 'this-month':
-        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
-        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
         break;
       case 'last-month':
-        startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        end = new Date(today.getFullYear(), today.getMonth(), 0);
         break;
       case 'this-year':
-        startDate = new Date(today.getFullYear(), 0, 1);
-        endDate = new Date(today.getFullYear(), 11, 31);
+        start = new Date(today.getFullYear(), 0, 1);
+        end = new Date(today.getFullYear(), 11, 31);
         break;
       default:
         return;
     }
 
-    setDateFrom(startDate.toISOString().split('T')[0]);
-    setDateTo(endDate.toISOString().split('T')[0]);
-    setEnableDateFilter(true);
+    setStartDate(start.toISOString().split('T')[0]);
+    setEndDate(end.toISOString().split('T')[0]);
   };
 
   // Filter and sort data
@@ -240,25 +325,10 @@ function QuanLyCSKH() {
       });
     }
 
-    // Date filter (only if enabled)
-    if (enableDateFilter) {
-      if (dateFrom) {
-        const from = new Date(dateFrom).getTime();
-        data = data.filter(row => {
-          const date = new Date(row["Ngày lên đơn"] || row["Ngày đóng hàng"] || 0).getTime();
-          return date >= from;
-        });
-      }
-      if (dateTo) {
-        const to = new Date(dateTo);
-        to.setHours(23, 59, 59, 999);
-        const toTime = to.getTime();
-        data = data.filter(row => {
-          const date = new Date(row["Ngày lên đơn"] || row["Ngày đóng hàng"] || 0).getTime();
-          return date <= toTime;
-        });
-      }
-    }
+    // Date filter (already applied on server-side, but double check if needed or just skip)
+    // Since allData is already filtered by date from server, we might not need strict filtering here 
+    // BUT if the user changes local state `startDate` it triggers fetch. 
+    // We can skip client-side date filter or keep it for safety if `allData` contains out-of-range rows (unlikely with this logic)
 
     // Sort
     if (sortColumn) {
@@ -271,7 +341,7 @@ function QuanLyCSKH() {
     }
 
     return data;
-  }, [allData, debouncedSearchText, filterMarket, filterProduct, filterStatus, dateFrom, dateTo, enableDateFilter, sortColumn, sortDirection]);
+  }, [allData, debouncedSearchText, filterMarket, filterProduct, filterStatus, sortColumn, sortDirection]);
 
   // Pagination
   const totalPages = Math.ceil(filteredData.length / rowsPerPage);
@@ -377,7 +447,7 @@ function QuanLyCSKH() {
                 <p className="text-xs text-gray-500">Dữ liệu từ F3</p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg">
                 <span className={`h-2 w-2 rounded-full ${allData.length > 0 ? 'bg-green-500' : 'bg-red-500'}`}></span>
@@ -486,38 +556,23 @@ function QuanLyCSKH() {
               </select>
             </div>
 
-            {/* Date Range Filter with Checkbox */}
+            {/* Date Range Filter */}
             <div className="min-w-[200px]">
-              <label className="text-xs font-semibold text-gray-600 mb-1.5 block flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={enableDateFilter}
-                  onChange={(e) => {
-                    setEnableDateFilter(e.target.checked);
-                    if (!e.target.checked) {
-                      setDateFrom('');
-                      setDateTo('');
-                      setQuickFilter('');
-                    }
-                  }}
-                  className="w-4 h-4 text-[#F37021] border-gray-300 rounded focus:ring-[#F37021]"
-                />
-                <span>Thời gian (Từ - Đến)</span>
+              <label className="text-xs font-semibold text-gray-600 mb-1.5 block">
+                Thời gian (Từ - Đến)
               </label>
               <div className="flex gap-2">
                 <input
                   type="date"
-                  disabled={!enableDateFilter}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F37021] disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F37021]"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
                 />
                 <input
                   type="date"
-                  disabled={!enableDateFilter}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F37021] disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F37021]"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
                 />
               </div>
             </div>
@@ -586,25 +641,37 @@ function QuanLyCSKH() {
                   paginatedData.map((row, index) => (
                     <tr key={row[PRIMARY_KEY_COLUMN] || index} className="hover:bg-gray-50 transition-colors">
                       {displayColumns.map((col) => {
-                        const key = COLUMN_MAPPING[col] || col;
-                        let value = row[key] ?? row[col] ?? '';
-                        
-                        // Format date
-                        if (col.includes('Ngày')) {
-                          value = formatDate(value);
-                        }
-                        
-                        // Format money
-                        if (col === 'Tổng tiền VNĐ') {
-                          const num = parseFloat(String(value).replace(/[^\d.-]/g, '')) || 0;
-                          value = num.toLocaleString('vi-VN') + ' ₫';
-                        }
+                        {
+                          displayColumns.map((col) => {
+                            // Priority: Check if row has exact key 'col'. If not, try COLUMN_MAPPING.
+                            // This prevents COLUMN_MAPPING from overriding our manually mapped friendly keys.
+                            let value = row[col];
 
-                        return (
-                          <td key={col} className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
-                            {value || '-'}
-                          </td>
-                        );
+                            if (value === undefined || value === null) {
+                              const key = COLUMN_MAPPING[col];
+                              if (key) value = row[key];
+                            }
+
+                            value = value ?? '';
+
+                            // Format date
+                            if (col.includes('Ngày') || col.includes('Time') || col === 'order_date') {
+                              value = formatDate(value);
+                            }
+
+                            // Format money
+                            if (['Tổng tiền VNĐ', 'Tiền Hàng', 'Phí ship', 'Phí Chung'].includes(col)) {
+                              const num = parseFloat(String(value).replace(/[^\d.-]/g, '')) || 0;
+                              value = num.toLocaleString('vi-VN') + ' ₫';
+                            }
+
+                            return (
+                              <td key={col} className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                                {value || '-'}
+                              </td>
+                            );
+                          })
+                        }
                       })}
                     </tr>
                   ))
