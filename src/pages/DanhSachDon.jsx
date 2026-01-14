@@ -14,7 +14,7 @@ function DanhSachDon() {
   const [filterMarket, setFilterMarket] = useState([]);
   const [filterProduct, setFilterProduct] = useState([]);
   const [filterStatus, setFilterStatus] = useState([]);
-  // const [searchDate, setSearchDate] = useState(''); // Removed simple date
+  const [searchDate, setSearchDate] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 

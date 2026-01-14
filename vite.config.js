@@ -15,7 +15,7 @@ export default defineConfig({
     open: true,
     proxy: {
       '/api/van-don': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
         configure: (proxy, _options) => {
