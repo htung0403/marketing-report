@@ -14,7 +14,8 @@ const DEFAULT_SETTINGS = {
     },
     rndProducts: ["Glutathione Collagen NEW", "Dragon Blood Cream", "Gel XK Thái", "Gel XK Phi"],
     keyProducts: ["Glutathione Collagen", "Kem Body", "DG", "Kẹo Táo"],
-    keyMarkets: ["US", "Nhật Bản", "Hàn Quốc"]
+    keyMarkets: ["US", "Nhật Bản", "Hàn Quốc"],
+    dataSource: 'prod' // 'prod' | 'test'
 };
 
 // Helper to get settings
@@ -31,7 +32,7 @@ const GLOBAL_SETTINGS_ID = 'global_config';
 
 const AdminTools = () => {
     // --- TABS STATE ---
-    const [activeTab, setActiveTab] = useState('maintenance'); // 'maintenance' | 'settings'
+    const [activeTab, setActiveTab] = useState('maintenance'); // 'maintenance' | 'settings' | 'verification'
 
     // --- MAINTENANCE STATE ---
     const [loading, setLoading] = useState(false);
@@ -46,6 +47,10 @@ const AdminTools = () => {
     const [availableMarkets, setAvailableMarkets] = useState([]);
     const [loadingData, setLoadingData] = useState(false);
     const [loadingSettings, setLoadingSettings] = useState(false);
+
+    // --- VERIFICATION STATE ---
+    const [verifyResult, setVerifyResult] = useState(null);
+    const [verifying, setVerifying] = useState(false);
 
     useEffect(() => {
         // Load settings on mount
@@ -247,6 +252,34 @@ const AdminTools = () => {
         }
     };
 
+    // --- VERIFICATION ACTIONS ---
+    const compareTables = async () => {
+        setVerifying(true);
+        setVerifyResult(null);
+        try {
+            // Compare ORDERS (F3) vs DETAIL REPORTS (Snapshot)
+
+            // 1. Get Counts
+            const { count: countOrders, error: errOrders } = await supabase.from('orders').select('*', { count: 'exact', head: true });
+            const { count: countReports, error: errReports } = await supabase.from('detail_reports').select('*', { count: 'exact', head: true });
+
+            if (errOrders) throw errOrders;
+            if (errReports) throw errReports;
+
+            setVerifyResult({
+                orders: countOrders,
+                reports: countReports,
+                diff: countOrders - countReports
+            });
+            toast.success("Đối soát hoàn tất!");
+        } catch (e) {
+            console.error(e);
+            toast.error("Lỗi đối soát: " + e.message);
+        } finally {
+            setVerifying(false);
+        }
+    };
+
     return (
         <div className="p-6 max-w-6xl mx-auto min-h-screen bg-gray-50">
             <h1 className="text-3xl font-bold mb-8 text-gray-800 flex items-center gap-3">
@@ -411,11 +444,65 @@ const AdminTools = () => {
                 </div>
             )}
 
+            {/* TAB CONTENT: VERIFICATION */}
+            {activeTab === 'verification' && (
+                <div className="bg-white rounded-xl shadow-md border border-gray-100 animate-fadeIn p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-3 bg-teal-100 text-teal-600 rounded-lg">
+                            <GitCompare size={24} />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-gray-800">Đối soát Dữ liệu (Beta)</h2>
+                            <p className="text-sm text-gray-500">So sánh chênh lệch giữa các bảng dữ liệu gốc và báo cáo.</p>
+                        </div>
+                    </div>
+
+                    <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <h3 className="font-semibold text-gray-700 mb-2">So sánh Orders (F3) vs Detail Reports (Snapshot)</h3>
+                        <p className="text-sm text-gray-600 mb-4">Kiểm tra xem số lượng đơn hàng có khớp giữa dữ liệu nhập (Orders) và dữ liệu báo cáo (Reports) hay không.</p>
+
+                        <button
+                            onClick={compareTables}
+                            disabled={verifying}
+                            className="bg-teal-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-teal-700 transition"
+                        >
+                            {verifying ? <RefreshCw className="animate-spin w-4 h-4" /> : <GitCompare className="w-4 h-4" />}
+                            Thực hiện Đối soát
+                        </button>
+
+                        {verifyResult && (
+                            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="p-4 bg-white border rounded shadow-sm">
+                                    <div className="text-sm text-gray-500">Tổng Orders</div>
+                                    <div className="text-2xl font-bold text-blue-600">{verifyResult.orders}</div>
+                                </div>
+                                <div className="p-4 bg-white border rounded shadow-sm">
+                                    <div className="text-sm text-gray-500">Tổng Reports</div>
+                                    <div className="text-2xl font-bold text-indigo-600">{verifyResult.reports}</div>
+                                </div>
+                                <div className={`p-4 bg-white border rounded shadow-sm ${verifyResult.diff === 0 ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                                    <div className="text-sm text-gray-500">Chênh lệch</div>
+                                    <div className={`text-2xl font-bold ${verifyResult.diff === 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        {verifyResult.diff > 0 ? `+${verifyResult.diff}` : verifyResult.diff}
+                                    </div>
+                                    <div className="text-xs mt-1">
+                                        {verifyResult.diff === 0 ? '✅ Dữ liệu khớp hoàn toàn' : '⚠️ Có sự chênh lệch dữ liệu'}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* TAB CONTENT: SETTINGS */}
             {activeTab === 'settings' && (
                 <div className="bg-white rounded-xl shadow-md border border-gray-100 animate-fadeIn overflow-hidden">
-                    <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                        <h2 className="text-xl font-bold text-gray-800">Cấu hình tham số hệ thống</h2>
+                    <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-800">Cấu hình tham số hệ thống</h2>
+                            <p className="text-sm text-gray-500 mt-1">Quản lý các thông số vận hành toàn hệ thống</p>
+                        </div>
                         <button
                             onClick={handleSaveSettings}
                             className="bg-[#2d7c2d] text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-[#256625] transition-colors shadow-sm"
@@ -425,6 +512,40 @@ const AdminTools = () => {
                     </div>
 
                     <div className="p-6 space-y-8">
+                        {/* 0. DATA SOURCE MODE */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <h3 className="text-lg font-semibold text-blue-800 flex items-center gap-2 mb-2">
+                                <Database className="w-5 h-5" />
+                                0. Chế độ Dữ liệu (Environment)
+                            </h3>
+                            <div className="flex items-center gap-4">
+                                <label className="inline-flex items-center">
+                                    <input
+                                        type="radio"
+                                        className="form-radio text-blue-600 w-5 h-5"
+                                        name="dataSource"
+                                        value="prod"
+                                        checked={settings.dataSource !== 'test'}
+                                        onChange={() => setSettings({ ...settings, dataSource: 'prod' })}
+                                    />
+                                    <span className="ml-2 font-medium">Production (Dữ liệu Thật)</span>
+                                </label>
+                                <label className="inline-flex items-center">
+                                    <input
+                                        type="radio"
+                                        className="form-radio text-orange-500 w-5 h-5 "
+                                        name="dataSource"
+                                        value="test"
+                                        checked={settings.dataSource === 'test'}
+                                        onChange={() => setSettings({ ...settings, dataSource: 'test' })}
+                                    />
+                                    <span className="ml-2 font-medium text-orange-600">Testing (Dữ liệu Thử nghiệm)</span>
+                                </label>
+                            </div>
+                            <p className="text-xs text-blue-600 mt-2">
+                                <strong>Lưu ý:</strong> Chế độ Testing sẽ sử dụng nguồn dữ liệu riêng để không ảnh hưởng đến báo cáo thật.
+                            </p>
+                        </div>
                         {/* 1. Thresholds */}
                         <div className="space-y-4">
                             <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
