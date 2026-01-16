@@ -13,8 +13,14 @@ function BaoCaoChiTiet() {
     const [filterMarket, setFilterMarket] = useState([]);
     const [filterProduct, setFilterProduct] = useState([]);
     const [filterStatus, setFilterStatus] = useState([]);
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    const [startDate, setStartDate] = useState(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 3);
+        return d.toISOString().split('T')[0];
+    });
+    const [endDate, setEndDate] = useState(() => {
+        return new Date().toISOString().split('T')[0];
+    });
 
     const [currentPage, setCurrentPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(50);
@@ -153,19 +159,21 @@ function BaoCaoChiTiet() {
             // 1. Fetch Supabase Data
             let query = supabase.from('orders').select('*');
 
+            if (startDate && endDate) {
+                query = query
+                    .gte('order_date', startDate)
+                    .lte('order_date', `${endDate}T23:59:59`);
+            } else {
+                // Limit if no date, but we have default so this is fallback
+                query = query.limit(100);
+            }
+
             const { data: supaData, error: supaError } = await query.order('order_date', { ascending: false });
 
             if (supaError) throw supaError;
 
             // 2. Process Supabase Data
             const supaMapped = (supaData || []).map(mapSupabaseToUI);
-
-            // 3. Sort by Date Descending (Client side sort for display)
-            supaMapped.sort((a, b) => {
-                const dateA = parseSmartDate(a["Ngày lên đơn"]);
-                const dateB = parseSmartDate(b["Ngày lên đơn"]);
-                return (dateB || 0) - (dateA || 0);
-            });
 
             console.log(`Loaded: ${supaMapped.length} orders.`);
             setAllData(supaMapped);
@@ -180,7 +188,7 @@ function BaoCaoChiTiet() {
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [startDate, endDate]);
 
     // Get unique values for filters
     const uniqueMarkets = useMemo(() => {

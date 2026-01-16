@@ -1,16 +1,19 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  ORDER_MGMT_COLUMNS, BILL_LADING_COLUMNS, COLUMN_MAPPING,
-  EDITABLE_COLS, TEAM_COLUMN_NAME, DROPDOWN_OPTIONS,
-  LONG_TEXT_COLS, PRIMARY_KEY_COLUMN
-} from '../types';
-import '../styles/selection.css';
-import * as API from '../services/api';
-import MultiSelect from '../components/MultiSelect';
-import { rafThrottle } from '../utils/throttle';
-import { ChevronLeft, Settings } from 'lucide-react';
 import ColumnSettingsModal from '../components/ColumnSettingsModal';
+import MultiSelect from '../components/MultiSelect';
+import * as API from '../services/api';
+import '../styles/selection.css';
+import {
+  BILL_LADING_COLUMNS, COLUMN_MAPPING,
+  DROPDOWN_OPTIONS,
+  EDITABLE_COLS,
+  LONG_TEXT_COLS,
+  ORDER_MGMT_COLUMNS,
+  PRIMARY_KEY_COLUMN,
+  TEAM_COLUMN_NAME
+} from '../types';
 
 // Lazy load heavy components
 const SyncPopover = lazy(() => import('../components/SyncPopover'));
@@ -57,7 +60,7 @@ function VanDon() {
   const [quickFilter, setQuickFilter] = useState('');
   const [fixedColumns, setFixedColumns] = useState(2);
   const [showColumnSettings, setShowColumnSettings] = useState(false);
-  
+
   // Column visibility state
   const [visibleColumns, setVisibleColumns] = useState(() => {
     const saved = localStorage.getItem('vanDon_visibleColumns');
@@ -194,12 +197,12 @@ function VanDon() {
     setLoading(true);
     try {
       console.log('Starting data load...');
-      
+
       if (useBackendPagination) {
         // Use backend with pagination
         const activeTeam = bolActiveTab === 'hcm' ? 'HCM' : (bolActiveTab === 'hanoi' ? 'Hà Nội' : (omActiveTeam !== 'all' ? omActiveTeam : undefined));
         const activeStatus = enableDateFilter ? undefined : (filterValues.status || undefined);
-        
+
         const result = await API.fetchVanDon({
           page: currentPage,
           limit: rowsPerPage,
@@ -210,10 +213,10 @@ function VanDon() {
           dateFrom: enableDateFilter ? dateFrom : undefined,
           dateTo: enableDateFilter ? dateTo : undefined
         });
-        
+
         setAllData(result.data);
         setTotalRecords(result.total);
-        
+
         if (result.data.length === 0 && result.total === 0) {
           addToast('⚠️ Không tìm thấy dữ liệu phù hợp', 'warning', 3000);
         } else {
@@ -272,7 +275,7 @@ function VanDon() {
       isInitialMount.current = false;
       return;
     }
-    
+
     if (useBackendPagination) {
       const timeoutId = setTimeout(() => {
         loadData();
@@ -594,8 +597,8 @@ function VanDon() {
       return getFilteredData.slice((currentPage - 1) * effectiveRowsPerPage, currentPage * effectiveRowsPerPage);
     }
   }, [getFilteredData, currentPage, effectiveRowsPerPage, useBackendPagination]);
-  
-  const totalPages = useBackendPagination 
+
+  const totalPages = useBackendPagination
     ? Math.ceil(totalRecords / effectiveRowsPerPage)
     : Math.ceil(getFilteredData.length / effectiveRowsPerPage);
 
@@ -1099,441 +1102,386 @@ function VanDon() {
 
   /* End Component Logic */
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header Bar */}
-      <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
-        <div className="max-w-full mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link to="/" className="text-gray-600 hover:text-gray-900 transition-colors">
+    <div className="min-h-screen bg-gray-50 flex flex-col h-screen overflow-hidden">
+      {/* Header Bar - Now including Tabs and Main Actions */}
+      <div className="bg-white border-b border-gray-200 shadow-sm z-50 flex-shrink-0">
+        <div className="max-w-full mx-auto px-4 py-2">
+          <div className="flex items-center justify-between gap-4">
+            {/* Left: Logo & Title (Smaller) */}
+            <div className="flex items-center gap-3">
+              <Link to="/" className="text-gray-500 hover:text-gray-900 transition-colors">
                 <ChevronLeft className="w-5 h-5" />
               </Link>
               <img
-                  src="https://www.appsheet.com/template/gettablefileurl?appName=Appsheet-325045268&tableName=Kho%20%E1%BA%A3nh&fileName=Kho%20%E1%BA%A3nh_Images%2Fbe61f44f.%E1%BA%A2nh.021347.png"
-                  alt="Logo"
-                  className="h-10 object-contain"
-                />
+                src="https://www.appsheet.com/template/gettablefileurl?appName=Appsheet-325045268&tableName=Kho%20%E1%BA%A3nh&fileName=Kho%20%E1%BA%A3nh_Images%2Fbe61f44f.%E1%BA%A2nh.021347.png"
+                alt="Logo"
+                className="h-8 object-contain"
+              />
               <div>
-                <h1 className="text-xl font-bold text-gray-800">QUẢN LÝ VẬN ĐƠN</h1>
-                <p className="text-xs text-gray-500">Hệ thống quản lý SPEEGO</p>
+                <h1 className="text-lg font-bold text-gray-800 leading-tight">QUẢN LÝ VẬN ĐƠN</h1>
               </div>
             </div>
-            
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg">
-                <span className={`h-2 w-2 rounded-full ${allData.length > 0 ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                <span className="text-sm text-gray-600">
-                  {allData.length > 0 ? `${allData.length} đơn hàng` : 'Chưa có dữ liệu'}
+
+            {/* Middle: Tabs (Moved here) */}
+            <div className="flex bg-gray-100 p-0.5 rounded-lg border border-gray-200">
+              {[
+                { id: 'all', label: 'Dữ liệu đơn hàng', icon: '📋' },
+                { id: 'japan', label: 'Đơn Nhật', icon: '🇯🇵' },
+                { id: 'hcm', label: 'FFM đẩy vận hành', icon: '🚚' },
+                { id: 'hanoi', label: 'FFM Hà Nội', icon: '🏢' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  className={`px-4 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${bolActiveTab === tab.id
+                    ? 'bg-white text-[#F37021] shadow-sm'
+                    : 'text-gray-600 hover:bg-white/50 hover:text-[#F37021]'
+                    }`}
+                  onClick={() => { setBolActiveTab(tab.id); setCurrentPage(1); }}
+                >
+                  <span className="text-sm">{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Right: Status & Actions */}
+            <div className="flex items-center gap-2">
+              <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded-md border border-gray-100">
+                <span className={`h-1.5 w-1.5 rounded-full ${allData.length > 0 ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                <span className="text-[10px] uppercase font-bold text-gray-500">
+                  {allData.length > 0 ? `${allData.length} ĐƠN` : 'NO DATA'}
                 </span>
               </div>
               <button
                 onClick={loadData}
                 disabled={loading}
-                className="px-4 py-2 bg-[#F37021] hover:bg-[#e55f1a] text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2 shadow-sm"
+                className="px-3 py-1.5 bg-[#F37021] hover:bg-[#e55f1a] text-white rounded-md text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
               >
-                {loading ? (
-                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                )}
-                {loading ? 'Đang tải...' : 'Tải lại'}
+                {loading ? <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></div> : <span>🔄</span>}
+                {loading ? '...' : 'TẢI LẠI'}
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-full mx-auto px-6 py-6">
-        {/* Tabs */}
-        <div className="bg-white rounded-t-lg border-b border-gray-200 mb-0 shadow-sm">
-          <div className="flex overflow-x-auto">
-            {[
-              { id: 'all', label: 'Dữ liệu đơn hàng', icon: '📋' },
-              { id: 'japan', label: 'Đơn Nhật', icon: '🇯🇵' },
-              { id: 'hcm', label: 'FFM đẩy vận hành', icon: '🚚' },
-              { id: 'hanoi', label: 'FFM Hà Nội', icon: '🏢' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                className={`px-6 py-4 text-sm font-semibold transition-all whitespace-nowrap border-b-3 flex items-center gap-2 ${
-                  bolActiveTab === tab.id
-                    ? 'text-[#F37021] border-b-3 border-[#F37021] bg-[#fff5f0]'
-                    : 'text-gray-600 border-b-3 border-transparent hover:text-[#F37021] hover:bg-gray-50'
-                }`}
-                onClick={() => { setBolActiveTab(tab.id); setCurrentPage(1); }}
-              >
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
-              </button>
-            ))}
+      {/* Main Content Area - Scrollable but compact */}
+      <div className="flex-1 flex flex-col p-2 space-y-2 overflow-hidden bg-[#f4f7fa]">
+
+        {/* Combined Filter & Toolbar Row 1 */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-3 py-2 flex flex-wrap items-center gap-3">
+          {/* Quick Date Group */}
+          <div className="flex items-center gap-2 border-r border-gray-200 pr-3">
+            <select
+              value={bolDateType}
+              onChange={e => setBolDateType(e.target.value)}
+              className="text-xs border-none font-bold text-gray-600 focus:ring-0 cursor-pointer bg-gray-100 rounded px-1.5 py-1"
+            >
+              <option value="Ngày lên đơn">Ngày lên đơn</option>
+              <option value="Ngày đóng hàng">Ngày đóng hàng</option>
+            </select>
+            <select
+              className="text-xs border text-gray-700 rounded bg-white px-2 py-1 outline-none focus:border-[#F37021] min-w-[100px]"
+              value={quickFilter || ''}
+              onChange={(e) => handleQuickFilter(e.target.value)}
+            >
+              <option value="">- Chọn nhanh -</option>
+              <option value="today">Hôm nay</option>
+              <option value="yesterday">Hôm qua</option>
+              <option value="this-week">Tuần này</option>
+              <option value="this-month">Tháng này</option>
+            </select>
+            <div className="flex items-center gap-1">
+              <input
+                type="date"
+                className="text-xs border rounded px-1.5 py-1 focus:ring-1 focus:ring-[#F37021] outline-none w-[115px]"
+                value={dateFrom}
+                onChange={e => { setDateFrom(e.target.value); setEnableDateFilter(true); }}
+              />
+              <span className="text-gray-400">-</span>
+              <input
+                type="date"
+                className="text-xs border rounded px-1.5 py-1 focus:ring-1 focus:ring-[#F37021] outline-none w-[115px]"
+                value={dateTo}
+                onChange={e => { setDateTo(e.target.value); setEnableDateFilter(true); }}
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Filters Panel */}
-        <div className="bg-white rounded-b-lg shadow-sm border border-t-0 border-gray-200 p-4 mb-6">
-          <div className="flex flex-wrap items-end gap-4">
-            {/* Date Type Selector */}
-            <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
-              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Ngày:</label>
-              <select 
-                value={bolDateType} 
-                onChange={e => setBolDateType(e.target.value)} 
-                className="text-sm border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-[#F37021] focus:border-transparent"
-              >
-                <option value="Ngày lên đơn">Lên đơn</option>
-                <option value="Ngày đóng hàng">Đóng hàng</option>
-              </select>
-            </div>
-
-            {/* Quick Filter */}
-            <div className="min-w-[180px]">
-              <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Lọc nhanh</label>
-              <select
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F37021] bg-white"
-                value={quickFilter || ''}
-                onChange={(e) => handleQuickFilter(e.target.value)}
-              >
-                <option value="">-- Chọn --</option>
-                <option value="today">Hôm nay</option>
-                <option value="yesterday">Hôm qua</option>
-                <option value="this-week">Tuần này</option>
-                <option value="last-week">Tuần trước</option>
-                <option value="this-month">Tháng này</option>
-                <option value="last-month">Tháng trước</option>
-                <option value="this-year">Năm nay</option>
-              </select>
-            </div>
-
-            {/* Date Range Filter with Checkbox */}
-            <div className="min-w-[200px]">
-              <label className="text-xs font-semibold text-gray-600 mb-1.5 block flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={enableDateFilter || false}
-                  onChange={(e) => {
-                    setEnableDateFilter(e.target.checked);
-                    if (!e.target.checked) {
-                      setDateFrom('');
-                      setDateTo('');
-                      setQuickFilter('');
-                    }
-                  }}
-                  className="w-4 h-4 text-[#F37021] border-gray-300 rounded focus:ring-[#F37021]"
-                />
-                <span>Thời gian (Từ - Đến)</span>
-              </label>
-              <div className="flex gap-2">
-                <input 
-                  type="date" 
-                  disabled={!enableDateFilter}
-                  className="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-[#F37021] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed" 
-                  value={dateFrom} 
-                  onChange={e => setDateFrom(e.target.value)} 
-                />
-                <input 
-                  type="date" 
-                  disabled={!enableDateFilter}
-                  className="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-[#F37021] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed" 
-                  value={dateTo} 
-                  onChange={e => setDateTo(e.target.value)} 
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5 min-w-[180px]">
-              <label className="text-xs font-semibold text-gray-600">Sản phẩm</label>
+          {/* MultiSelect Group */}
+          <div className="flex items-center gap-2 border-r border-gray-200 pr-3 flex-shrink-0">
+            <div className="w-[120px] relative">
               <MultiSelect
-                label="Lọc sản phẩm"
+                label="Sản phẩm"
                 mainFilter={true}
                 options={getUniqueValues("Mặt hàng")}
                 selected={filterValues.product}
                 onChange={(vals) => setFilterValues(prev => ({ ...prev, product: vals }))}
               />
             </div>
-
-            <div className="flex flex-col gap-1.5 min-w-[180px]">
-              <label className="text-xs font-semibold text-gray-600">Khu vực</label>
+            <div className="w-[120px] relative">
               <MultiSelect
-                label="Lọc khu vực"
+                label="Khu vực"
                 mainFilter={true}
                 options={getUniqueValues("Khu vực")}
                 selected={filterValues.market}
                 onChange={(vals) => setFilterValues(prev => ({ ...prev, market: vals }))}
               />
             </div>
-
             <button
               onClick={refreshData}
-              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors border border-gray-300 flex items-center gap-2"
+              className="p-1 px-2 hover:bg-red-50 text-red-600 rounded text-xs transition-colors flex items-center gap-1 group flex-shrink-0"
+              title="Xóa tất cả bộ lọc"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              Xóa lọc
+              <span className="group-hover:rotate-90 transition-transform text-[10px]">✕</span>
+
             </button>
+          </div>
+
+          {/* Toolbar Actions Group */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={refreshData}
+              className="p-1 px-2 hover:bg-red-50 text-red-600 rounded text-xs transition-colors flex items-center gap-1 group flex-shrink-0"
+              title="Xóa tất cả bộ lọc"
+            >
+              <span className="group-hover:rotate-90 transition-transform text-[10px]">✕</span>
+              <span className="font-bold">XÓA LỌC</span>
+            </button>
+            <div className="h-4 w-px bg-gray-300 mx-1"></div>
+            <button
+              onClick={() => setSyncPopoverOpen(true)}
+              className="p-1 px-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-xs font-bold transition-all flex items-center gap-1.5 relative border border-blue-100"
+            >
+              🔄 Trạng thái
+              {(legacyChanges.size + pendingChanges.size) > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] px-1 rounded-full shadow-sm">
+                  {legacyChanges.size + pendingChanges.size}
+                </span>
+              )}
+            </button>
+            <button onClick={handleUpdateAll} className="p-1 px-2 bg-[#F37021] hover:bg-[#e55f1a] text-white rounded text-xs font-bold transition-all flex items-center gap-1 shadow-sm">
+              ✅ Cập nhật
+            </button>
+            <button onClick={() => setQuickAddModalOpen(true)} className="p-1 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold transition-all flex items-center gap-1 shadow-sm">
+              ➕ Thêm nhanh
+            </button>
+            <button onClick={() => setShowColumnSettings(true)} className="p-1 px-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-xs font-bold transition-all flex items-center gap-1">
+              ⚙️ Cài đặt cột
+            </button>
+            <button onClick={handleDownloadExcel} className="p-1 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition-all flex items-center gap-1">
+              📊 Excel
+            </button>
+
+
+            <div className="flex items-center gap-1 text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded border border-gray-100">
+              Cố định:
+              <input
+                type="number" min="0"
+                className="w-10 border-none bg-transparent focus:ring-0 text-center font-bold text-[#F37021]"
+                value={fixedColumns} onChange={e => setFixedColumns(Number(e.target.value))}
+              />
+            </div>
+          </div>
+
+          {/* Stats on the far right */}
+          <div className="ml-auto flex items-center gap-2">
+            <div className="text-right flex flex-col items-end">
+              <span className="text-[10px] text-gray-400 uppercase font-black tracking-wider">Tổng tiền</span>
+              <span className="text-sm font-black text-emerald-600 leading-none">{totalMoney.toLocaleString('vi-VN')} ₫</span>
+            </div>
           </div>
         </div>
 
-        {/* Toolbar */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-3 flex-wrap">
-              <button 
-                onClick={() => setSyncPopoverOpen(true)} 
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors border border-gray-300 relative flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Trạng thái cập nhật
-                {(legacyChanges.size + pendingChanges.size) > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-[#F37021] text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
-                    {legacyChanges.size + pendingChanges.size}
-                  </span>
-                )}
-              </button>
-              <button 
-                onClick={handleUpdateAll} 
-                className="px-4 py-2 bg-[#F37021] hover:bg-[#e55f1a] text-white rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Cập nhật
-              </button>
-              <button 
-                onClick={() => setQuickAddModalOpen(true)} 
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Thêm nhanh
-              </button>
-              <button 
-                onClick={() => setShowColumnSettings(true)}
-                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"
-              >
-                <Settings className="w-4 h-4" />
-                Cài đặt cột
-              </button>
-              <button 
-                onClick={handleDownloadExcel} 
-                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Excel
-              </button>
 
-              <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
-                <label className="text-sm text-gray-600">Cột cố định:</label>
-                <input 
-                  type="number" 
-                  min="0" 
-                  className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#F37021]" 
-                  value={fixedColumns} 
-                  onChange={e => setFixedColumns(Number(e.target.value))} 
-                />
+        {/* Table Area - Optimized for Height */}
+        <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden flex-1 flex flex-col">
+          <div className="overflow-auto relative select-none flex-1">
+            <table className="w-full border-collapse min-w-[2500px] text-[13px] leading-tight">
+              <thead className="sticky top-0 z-30 shadow-sm">
+
+                <tr className="bg-gray-100 h-12">
+                  {currentColumns.map((col, idx) => {
+                    const key = COLUMN_MAPPING[col] || col;
+                    const filterKey = col;
+                    const stickyStyle = idx < fixedColumns ?
+                      { position: 'sticky', left: idx * 100, zIndex: 40, background: '#f8f9fa' } : {};
+
+                    return (
+                      <th key={`filter-${col}`} className="p-1.5 border-b-2 border-r border-gray-300 min-w-[120px] align-top bg-[#f8f9fa]" style={stickyStyle}>
+                        <div className="font-semibold mb-1 text-gray-700">{col}</div>
+                        {/* Render Filters based on View Mode and Column Type */}
+                        {col === "STT" ? (
+                          <div className="text-xs text-gray-400">-</div>
+                        ) : col === "Mã Tracking" ? (
+                          <div className="flex flex-col gap-1">
+                            <input
+                              className="w-full text-xs px-1 py-0.5 border rounded" placeholder="Bao gồm..."
+                              value={localFilterValues.tracking_include} onChange={e => setLocalFilterValues(p => ({ ...p, tracking_include: e.target.value }))}
+                            />
+                            <input
+                              className="w-full text-xs px-1 py-0.5 border rounded" placeholder="Loại trừ..."
+                              value={localFilterValues.tracking_exclude} onChange={e => setLocalFilterValues(p => ({ ...p, tracking_exclude: e.target.value }))}
+                            />
+                          </div>
+                        ) : DROPDOWN_OPTIONS[col] || DROPDOWN_OPTIONS[key] || ["Trạng thái giao hàng", "Kết quả check", "GHI CHÚ"].includes(col) ? (
+                          <MultiSelect
+                            label={`Lọc...`}
+                            options={getMultiSelectOptions(col)}
+                            selected={filterValues[filterKey] || []}
+                            onChange={vals => setFilterValues(p => ({ ...p, [filterKey]: vals }))}
+                          />
+                        ) : ["Ngày lên đơn", "Ngày đóng hàng", "Ngày đẩy đơn", "Ngày có mã tracking", "Ngày Kế toán đối soát với FFM lần 2"].includes(col) ? (
+                          <input
+                            type="date" className="w-full text-xs px-1 py-1 border rounded shadow-sm"
+                            value={filterValues[filterKey] || ''} onChange={e => setFilterValues(p => ({ ...p, [filterKey]: e.target.value }))}
+                          />
+                        ) : (
+                          <input
+                            type="text" className="w-full text-xs px-1 py-1 border rounded shadow-sm" placeholder="..."
+                            value={localFilterValues[filterKey] || ''} onChange={e => setLocalFilterValues(p => ({ ...p, [filterKey]: e.target.value }))}
+                          />
+                        )}
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={currentColumns.length} className="text-center p-10 text-gray-500">Đang tải dữ liệu...</td></tr>
+                ) : paginatedData.length === 0 ? (
+                  <tr><td colSpan={currentColumns.length} className="text-center p-10 text-gray-500 italic">Không có dữ liệu phù hợp</td></tr>
+                ) : (
+                  paginatedData.map((row, rIdx) => {
+                    const orderId = row[PRIMARY_KEY_COLUMN];
+                    return (
+                      <tr key={orderId} className="hover:bg-[#E8EAF6] transition-colors">
+                        {currentColumns.map((col, cIdx) => {
+                          const key = COLUMN_MAPPING[col] || col;
+                          const val = row[key] ?? row[col] ?? row[col.replace(/ /g, '_')] ?? '';
+                          // Use formatDate for dates
+                          const displayVal = ["Ngày lên đơn", "Ngày đóng hàng", "Ngày đẩy đơn", "Ngày có mã tracking", "Ngày Kế toán đối soát với FFM lần 2"].includes(col)
+                            ? formatDate(val)
+                            : (col === "Tổng tiền VNĐ" ? Number(String(val).replace(/[^\d.-]/g, "")).toLocaleString('vi-VN') : val);
+
+                          const cellStyle = cIdx < fixedColumns ?
+                            { position: 'sticky', left: cIdx * 100, zIndex: 10 } : {};
+
+                          return (
+                            <td
+                              key={`${orderId}-${col}`}
+                              className={getCellClass(row, col, String(displayVal), rIdx, cIdx)}
+                              style={cellStyle}
+                              onMouseDown={(e) => handleMouseDown(rIdx, cIdx, e)}
+                              onMouseEnter={() => handleMouseEnter(rIdx, cIdx)}
+                            >
+                              {col === "STT" ? (row['rowIndex'] || ((currentPage - 1) * rowsPerPage + rIdx + 1)) :
+                                DROPDOWN_OPTIONS[col] ? (
+                                  <select
+                                    className="w-full bg-transparent border-none outline-none text-sm p-0 m-0 cursor-pointer"
+                                    value={String(val)}
+                                    onChange={(e) => handleCellChange(orderId, key, e.target.value)}
+                                  >
+                                    {DROPDOWN_OPTIONS[col].map(o => <option key={o} value={o}>{o}</option>)}
+                                  </select>
+                                ) : (viewMode === 'ORDER_MANAGEMENT' && (col === "Kết quả Check" || col === "Trạng thái giao hàng")) ? (
+                                  <select
+                                    className="w-full bg-transparent border-none outline-none text-sm p-0 m-0"
+                                    value={String(val)}
+                                    onChange={(e) => handleCellChange(orderId, key, e.target.value)}
+                                  >
+                                    {getMultiSelectOptions(key).filter(o => o !== '__EMPTY__').map(o => <option key={o} value={o}>{o}</option>)}
+                                  </select>
+                                ) : EDITABLE_COLS.includes(col) ? (
+                                  <input
+                                    type="text"
+                                    defaultValue={String(displayVal)}
+                                    onBlur={(e) => {
+                                      const newValue = e.target.value;
+                                      if (newValue !== String(displayVal)) {
+                                        handleCellChange(orderId, key, newValue);
+                                      }
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        const newValue = e.target.value;
+                                        if (newValue !== String(displayVal)) {
+                                          handleCellChange(orderId, key, newValue);
+                                        }
+                                        e.target.blur();
+                                      } else if (e.key === 'Escape') {
+                                        e.target.value = String(displayVal);
+                                        e.target.blur();
+                                      }
+                                    }}
+                                    onFocus={(e) => {
+                                      e.target.select();
+                                      setSelection({ startRow: rIdx, startCol: cIdx, endRow: rIdx, endCol: cIdx });
+                                    }}
+                                    className="w-full h-full outline-none bg-transparent border-none p-0 text-sm"
+                                  />
+                                ) : (
+                                  displayVal
+                                )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Pagination Footer - Also compact */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-2 flex-shrink-0">
+          <div className="flex justify-between items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Trang</span>
+              <div className="flex items-center bg-gray-100 rounded-lg p-1 border border-gray-200">
+                <button
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(p => p - 1)}
+                  className="w-7 h-7 flex items-center justify-center bg-white hover:bg-gray-50 text-gray-700 rounded shadow-sm disabled:opacity-30 disabled:shadow-none transition-all"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-xs font-bold text-gray-700 px-3 bg-white mx-1 py-1 rounded border border-gray-200 min-w-[60px] text-center shadow-inner">
+                  {currentPage} <span className="font-normal text-gray-400">/</span> {totalPages || 1}
+                </span>
+                <button
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(p => p + 1)}
+                  className="w-7 h-7 flex items-center justify-center bg-white hover:bg-gray-50 text-gray-700 rounded shadow-sm disabled:opacity-30 disabled:shadow-none transition-all"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
             <div className="flex items-center gap-4">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-2 rounded-lg border border-blue-200">
-                <div className="text-sm font-semibold text-gray-700">
-                  Tổng đơn: <span className="text-[#F37021]">{getFilteredData.length}</span>
-                </div>
-                <div className="text-xs text-gray-600">
-                  Tổng tiền: <span className="text-green-600 font-bold">{totalMoney.toLocaleString('vi-VN')} ₫</span>
-                </div>
+              <div className="flex items-center gap-2 bg-gray-50 px-2 py-1 rounded border border-gray-100">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-tighter">Hiển thị:</label>
+                <select
+                  className="border-none bg-transparent text-xs font-black text-[#F37021] focus:ring-0 p-0 cursor-pointer"
+                  value={rowsPerPage}
+                  onChange={e => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                >
+                  <option value="50">50 dòng</option>
+                  <option value="100">100 dòng</option>
+                  <option value="200">200 dòng</option>
+                  <option value="500">500 dòng</option>
+                </select>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Table */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-auto max-h-[calc(100vh-500px)] relative select-none">
-        <table className="w-full border-collapse min-w-[2500px] text-sm">
-          <thead className="sticky top-0 z-30">
-            <tr className="bg-gray-100 h-12">
-              {currentColumns.map((col, idx) => {
-                const key = COLUMN_MAPPING[col] || col;
-                const filterKey = col;
-                const stickyStyle = idx < fixedColumns ?
-                  { position: 'sticky', left: idx * 100, zIndex: 40, background: '#f8f9fa' } : {};
-
-                return (
-                  <th key={`filter-${col}`} className="p-1.5 border-b-2 border-r border-gray-300 min-w-[120px] align-top bg-[#f8f9fa]" style={stickyStyle}>
-                    <div className="font-semibold mb-1 text-gray-700">{col}</div>
-                    {/* Render Filters based on View Mode and Column Type */}
-                    {col === "STT" ? (
-                      <div className="text-xs text-gray-400">-</div>
-                    ) : col === "Mã Tracking" ? (
-                      <div className="flex flex-col gap-1">
-                        <input
-                          className="w-full text-xs px-1 py-0.5 border rounded" placeholder="Bao gồm..."
-                          value={localFilterValues.tracking_include} onChange={e => setLocalFilterValues(p => ({ ...p, tracking_include: e.target.value }))}
-                        />
-                        <input
-                          className="w-full text-xs px-1 py-0.5 border rounded" placeholder="Loại trừ..."
-                          value={localFilterValues.tracking_exclude} onChange={e => setLocalFilterValues(p => ({ ...p, tracking_exclude: e.target.value }))}
-                        />
-                      </div>
-                    ) : DROPDOWN_OPTIONS[col] || DROPDOWN_OPTIONS[key] || ["Trạng thái giao hàng", "Kết quả check", "GHI CHÚ"].includes(col) ? (
-                      <MultiSelect
-                        label={`Lọc...`}
-                        options={getMultiSelectOptions(col)}
-                        selected={filterValues[filterKey] || []}
-                        onChange={vals => setFilterValues(p => ({ ...p, [filterKey]: vals }))}
-                      />
-                    ) : ["Ngày lên đơn", "Ngày đóng hàng", "Ngày đẩy đơn", "Ngày có mã tracking", "Ngày Kế toán đối soát với FFM lần 2"].includes(col) ? (
-                      <input
-                        type="date" className="w-full text-xs px-1 py-1 border rounded shadow-sm"
-                        value={filterValues[filterKey] || ''} onChange={e => setFilterValues(p => ({ ...p, [filterKey]: e.target.value }))}
-                      />
-                    ) : (
-                      <input
-                        type="text" className="w-full text-xs px-1 py-1 border rounded shadow-sm" placeholder="..."
-                        value={localFilterValues[filterKey] || ''} onChange={e => setLocalFilterValues(p => ({ ...p, [filterKey]: e.target.value }))}
-                      />
-                    )}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={currentColumns.length} className="text-center p-10 text-gray-500">Đang tải dữ liệu...</td></tr>
-            ) : paginatedData.length === 0 ? (
-              <tr><td colSpan={currentColumns.length} className="text-center p-10 text-gray-500 italic">Không có dữ liệu phù hợp</td></tr>
-            ) : (
-              paginatedData.map((row, rIdx) => {
-                const orderId = row[PRIMARY_KEY_COLUMN];
-                return (
-                  <tr key={orderId} className="hover:bg-[#E8EAF6] transition-colors">
-                    {currentColumns.map((col, cIdx) => {
-                      const key = COLUMN_MAPPING[col] || col;
-                      const val = row[key] ?? row[col] ?? row[col.replace(/ /g, '_')] ?? '';
-                      // Use formatDate for dates
-                      const displayVal = ["Ngày lên đơn", "Ngày đóng hàng", "Ngày đẩy đơn", "Ngày có mã tracking", "Ngày Kế toán đối soát với FFM lần 2"].includes(col)
-                        ? formatDate(val)
-                        : (col === "Tổng tiền VNĐ" ? Number(String(val).replace(/[^\d.-]/g, "")).toLocaleString('vi-VN') : val);
-
-                      const cellStyle = cIdx < fixedColumns ?
-                        { position: 'sticky', left: cIdx * 100, zIndex: 10 } : {};
-
-                      return (
-                        <td
-                          key={`${orderId}-${col}`}
-                          className={getCellClass(row, col, String(displayVal), rIdx, cIdx)}
-                          style={cellStyle}
-                          onMouseDown={(e) => handleMouseDown(rIdx, cIdx, e)}
-                          onMouseEnter={() => handleMouseEnter(rIdx, cIdx)}
-                        >
-                          {col === "STT" ? (row['rowIndex'] || ((currentPage - 1) * rowsPerPage + rIdx + 1)) :
-                            DROPDOWN_OPTIONS[col] ? (
-                              <select
-                                className="w-full bg-transparent border-none outline-none text-sm p-0 m-0 cursor-pointer"
-                                value={String(val)}
-                                onChange={(e) => handleCellChange(orderId, key, e.target.value)}
-                              >
-                                {DROPDOWN_OPTIONS[col].map(o => <option key={o} value={o}>{o}</option>)}
-                              </select>
-                            ) : (viewMode === 'ORDER_MANAGEMENT' && (col === "Kết quả Check" || col === "Trạng thái giao hàng")) ? (
-                              <select
-                                className="w-full bg-transparent border-none outline-none text-sm p-0 m-0"
-                                value={String(val)}
-                                onChange={(e) => handleCellChange(orderId, key, e.target.value)}
-                              >
-                                {getMultiSelectOptions(key).filter(o => o !== '__EMPTY__').map(o => <option key={o} value={o}>{o}</option>)}
-                              </select>
-                            ) : EDITABLE_COLS.includes(col) ? (
-                              <input
-                                type="text"
-                                defaultValue={String(displayVal)}
-                                onBlur={(e) => {
-                                  const newValue = e.target.value;
-                                  if (newValue !== String(displayVal)) {
-                                    handleCellChange(orderId, key, newValue);
-                                  }
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    const newValue = e.target.value;
-                                    if (newValue !== String(displayVal)) {
-                                      handleCellChange(orderId, key, newValue);
-                                    }
-                                    e.target.blur();
-                                  } else if (e.key === 'Escape') {
-                                    e.target.value = String(displayVal);
-                                    e.target.blur();
-                                  }
-                                }}
-                                onFocus={(e) => {
-                                  e.target.select();
-                                  setSelection({ startRow: rIdx, startCol: cIdx, endRow: rIdx, endCol: cIdx });
-                                }}
-                                className="w-full h-full outline-none bg-transparent border-none p-0 text-sm"
-                              />
-                            ) : (
-                              displayVal
-                            )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-          </div>
-        </div>
-
-        {/* Pagination */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mt-6">
-          <div className="flex justify-center items-center gap-4 flex-wrap">
-            <button
-              disabled={currentPage <= 1} 
-              onClick={() => setCurrentPage(p => p - 1)}
-              className="px-4 py-2 bg-[#F37021] hover:bg-[#e55f1a] text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium transition-colors shadow-sm"
-            >
-              ← Trang trước
-            </button>
-            <span className="text-sm font-medium text-gray-700 px-4">
-              Trang <span className="font-bold text-[#F37021]">{currentPage}</span> / {totalPages || 1}
-            </span>
-            <button
-              disabled={currentPage >= totalPages} 
-              onClick={() => setCurrentPage(p => p + 1)}
-              className="px-4 py-2 bg-[#F37021] hover:bg-[#e55f1a] text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium transition-colors shadow-sm"
-            >
-              Trang sau →
-            </button>
-            <div className="flex items-center gap-2 ml-4">
-              <label className="text-sm text-gray-600">Số dòng/trang:</label>
-              <select
-                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F37021] bg-white"
-                value={rowsPerPage} 
-                onChange={e => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-              >
-                <option value="50">50</option>
-                <option value="70">70</option>
-                <option value="100">100</option>
-                <option value="200">200</option>
-                <option value="500">500</option>
-              </select>
-            </div>
-          </div>
-        </div>
       </div>
+
 
       {/* Selection Summary Bar */}
       {calculatedSummary && calculatedSummary.count > 1 && (

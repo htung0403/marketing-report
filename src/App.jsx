@@ -3,6 +3,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Header from './components/Header';
 import ProtectedRoute from './components/ProtectedRoute';
+import ScrollToTop from './components/ScrollToTop';
 import AdminTools from './pages/AdminTools';
 import BaoCaoChiTiet from './pages/BaoCaoChiTiet';
 import BaoCaoHieuSuatKPI from './pages/BaoCaoHieuSuatKPI';
@@ -13,6 +14,7 @@ import ChangeLogViewer from './pages/ChangeLogViewer';
 import DanhSachDon from './pages/DanhSachDon';
 import DanhSachPage from './pages/DanhSachPage';
 import DonChiaCSKH from './pages/DonChiaCSKH';
+import ExternalView from './pages/ExternalView';
 import F3Report from './pages/F3Report';
 import FFM from './pages/FFM';
 import FinanceDashboard from './pages/FinanceDashboard';
@@ -36,6 +38,7 @@ import XemBaoCaoMKT from './pages/XemBaoCaoMKT';
 function App() {
   return (
     <Router>
+      <ScrollToTop />
       <div className="min-h-screen bg-gray-50">
         <Header />
 
@@ -71,6 +74,7 @@ function App() {
           <Route path="/lenh-san-xuat" element={<ProtectedRoute><LenHSanXuat /></ProtectedRoute>} />
           <Route path="/lich-su-thay-doi" element={<ProtectedRoute><ChangeLogViewer /></ProtectedRoute>} />
           <Route path="/admin-tools" element={<ProtectedRoute><AdminTools /></ProtectedRoute>} />
+          <Route path="/external-view" element={<ProtectedRoute><ExternalView /></ProtectedRoute>} />
         </Routes>
 
         {/* Toast notifications */}

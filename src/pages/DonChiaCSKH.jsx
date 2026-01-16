@@ -195,17 +195,17 @@ export default function DonChiaCSKH() {
     loadF3Data();
   }, [startDate, endDate]);
 
-  // Initialize Dates to Yesterday - Today if both empty
+  // Initialize Dates to Last 3 Days if both empty
   useEffect(() => {
     if (!startDate && !endDate) {
       const now = new Date();
       const todayStr = now.toISOString().split('T')[0];
 
-      const yesterday = new Date(now);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      const start = new Date(now);
+      start.setDate(start.getDate() - 3);
+      const startStr = start.toISOString().split('T')[0];
 
-      setStartDate(yesterdayStr);
+      setStartDate(startStr);
       setEndDate(todayStr);
     }
   }, []);

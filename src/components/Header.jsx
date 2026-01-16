@@ -24,7 +24,7 @@ export default function Header() {
   }
 
   return (
-    <nav className="bg-green-600 shadow-lg">
+    <nav className="bg-green-600 shadow-lg sticky top-0 z-50">
       <div className="mx-auto px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center space-x-4">

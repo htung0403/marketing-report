@@ -13,8 +13,12 @@ function QuanLyCSKH() {
   const [filterProduct, setFilterProduct] = useState([]);
   const [filterStatus, setFilterStatus] = useState([]);
 
-  // Date state - default to today
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  // Date state - default to last 3 days
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 3);
+    return d.toISOString().split('T')[0];
+  });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   const [quickFilter, setQuickFilter] = useState('today');

@@ -240,3 +240,17 @@ CREATE POLICY "Allow all delete" ON public.orders FOR DELETE USING (true);
 -- Hoàn thành!
 -- =====================================================
 SELECT 'Schema đã được tạo thành công!' as message;
+
+-- =====================================================
+-- 7. Bảng system_settings - Cấu hình hệ thống (Mới)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.system_settings (
+    id TEXT PRIMARY KEY,
+    settings JSONB,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by TEXT
+);
+
+-- Bảo mật (RLS)
+ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all access" ON public.system_settings FOR ALL USING (true) WITH CHECK (true);

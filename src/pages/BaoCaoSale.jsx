@@ -61,24 +61,28 @@ export default function BaoCaoSale() {
     // 1. Initialize Dates
     useEffect(() => {
         const today = new Date();
-        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-        const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
+        // Default to Last 3 Days
+        const d = new Date();
+        d.setDate(d.getDate() - 3);
         const formatDateForInput = (date) => date.toISOString().split('T')[0];
 
         setFilters(prev => ({
             ...prev,
-            startDate: formatDateForInput(firstDay),
-            endDate: formatDateForInput(lastDay)
+            startDate: formatDateForInput(d),
+            endDate: formatDateForInput(today)
         }));
     }, []);
 
     // 2. Fetch Data
     useEffect(() => {
         const fetchData = async () => {
+            // Wait for dates to be initialized
+            if (!filters.startDate || !filters.endDate) return;
+
             setLoading(true);
             try {
-                const res = await fetch(`${API_HOST}/report/generate?tableName=Báo cáo sale`);
+                // Pass date params to API for server-side optimization if supported
+                const res = await fetch(`${API_HOST}/report/generate?tableName=Báo cáo sale&startDate=${filters.startDate}&endDate=${filters.endDate}`);
                 const result = await res.json();
                 const apiData = result.data;
                 const employeeData = result.employeeData;
@@ -193,7 +197,8 @@ export default function BaoCaoSale() {
                     teams: unique('team')
                 });
 
-                // Initial Select All
+                // Initial Select All (Only if filters are empty/first load?)
+                // Actually reset options when data reloads is safe
                 setFilters(prev => ({
                     ...prev,
                     products: unique('sanPham'),
@@ -210,7 +215,7 @@ export default function BaoCaoSale() {
         };
 
         fetchData();
-    }, []);
+    }, [filters.startDate, filters.endDate]);
 
     // --- Filtering Logic ---
     const filteredData = useMemo(() => {

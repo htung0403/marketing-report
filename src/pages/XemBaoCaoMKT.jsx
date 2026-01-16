@@ -16,7 +16,7 @@ export default function XemBaoCaoMKT() {
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
-    d.setDate(1); // First day of current month
+    d.setDate(d.getDate() - 3); // Last 3 Days default
     return d.toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState(() => {
@@ -57,16 +57,20 @@ export default function XemBaoCaoMKT() {
       // Fetch Detail Reports
       let query = supabase
         .from('detail_reports')
-        .select('*')
         .select('*');
-      //.gte('Ngày', startDate)
-      //.lte('Ngày', endDate);
+
+      if (startDate && endDate) {
+        query = query
+          .gte('Ngày', startDate)
+          .lte('Ngày', endDate);
+      }
 
       const { data: reports, error } = await query;
 
       if (error) throw error;
 
       const allReports = reports || [];
+      // Client-side fallback just in case, though server-side should handle it
       const filteredReports = allReports.filter(r => isDateInRange(r['Ngày'], startDate, endDate));
 
       setData(filteredReports);

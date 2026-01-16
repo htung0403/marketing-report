@@ -161,6 +161,51 @@ export default function NhapDonMoi() {
         "Gel Xương Khớp", "Gel XK Thái", "Gel XK Phi", "Dán Kinoki", "Sữa tắm CUISHIFAN",
         "Bonavita Coffee", "Gel Dạ Dày", "Gel Trĩ", "Dragon Blood Cream"
     ];
+
+    // Các sản phẩm CHỈ dành cho nhân viên có quyền R&D
+    // Load from System Settings (Advanced) or use default
+    // Các sản phẩm CHỈ dành cho nhân viên có quyền R&D
+    const [rdProducts, setRdProducts] = useState([
+        "Glutathione Collagen NEW",
+        "Dragon Blood Cream",
+        "Gel XK Thái",
+        "Gel XK Phi"
+    ]);
+
+    useEffect(() => {
+        const fetchSystemSettings = async () => {
+            try {
+                // Try fetching from Supabase first
+                const { data, error } = await supabase
+                    .from('system_settings')
+                    .select('settings')
+                    .eq('id', 'global_config')
+                    .single();
+
+                if (data && data.settings && Array.isArray(data.settings.rndProducts)) {
+                    setRdProducts(data.settings.rndProducts);
+                    return;
+                }
+            } catch (err) {
+                // Silent fail/continue to local
+            }
+
+            // Fallback to LocalStorage if Supabase fails or returns nothing
+            try {
+                const s = localStorage.getItem('system_settings');
+                if (s) {
+                    const parsed = JSON.parse(s);
+                    if (parsed.rndProducts && Array.isArray(parsed.rndProducts)) {
+                        setRdProducts(parsed.rndProducts);
+                    }
+                }
+            } catch (e) { }
+        };
+
+        fetchSystemSettings();
+    }, []);
+
+    const RD_EXCLUSIVE_PRODUCTS = rdProducts;
     const GIFT_LIST = [
         "Serum Sâm", "Cream Sâm", "VIT C", "Dưỡng Tóc", "Kem Body",
         "Cream Bakuchiol", "Serum Bakuchiol", "Kẹo Dâu Glu", "Dầu gội",
@@ -184,6 +229,22 @@ export default function NhapDonMoi() {
     const userEmail = (user?.Email || user?.email || "").toString().toLowerCase().trim();
     const userName = user?.['Họ_và_tên'] || user?.['Họ và tên'] || user?.['Tên'] || "";
     const boPhan = user?.['Bộ_phận'] || user?.['Bộ phận'] || "";
+
+    // Check R&D Permission
+    const hasRndPermission = useMemo(() => {
+        if (!user) return false;
+        // Kiểm tra trường "Phân quyền" hoặc "Thẻ phân quyền" hoặc role R&D
+        const permissions = user['Phân_quyền'] || user['Phân quyền'] || user['permissions'] || "";
+
+        if (Array.isArray(permissions)) return permissions.includes("R&D");
+        return String(permissions).includes("R&D");
+    }, [user]);
+
+    // Filter Products
+    const visibleProducts = useMemo(() => {
+        if (hasRndPermission) return PRODUCT_LIST;
+        return PRODUCT_LIST.filter(p => !RD_EXCLUSIVE_PRODUCTS.includes(p));
+    }, [hasRndPermission, PRODUCT_LIST]);
 
     const loadPageData = async () => {
         setLoadingPages(true);
@@ -244,8 +305,8 @@ export default function NhapDonMoi() {
             setPages(pageList);
 
         } catch (error) {
-            console.error("Lỗi khi tải dữ liệu page/nhân sự:", error);
-            // alert("Lỗi tải dữ liệu: " + error.message);
+            console.error("Lỗi khi tải dữ liệu page/nhân sự (Có thể do mất mạng hoặc lỗi server):", error);
+            // Không hiện alert để tránh làm phiền, chỉ log warning
         } finally {
             setLoadingPages(false);
             setLoadingSale(false);
@@ -291,17 +352,22 @@ export default function NhapDonMoi() {
     // Load DB Rates
     useEffect(() => {
         const fetchRates = async () => {
-            const { data } = await supabase.from('exchange_rates').select('*').eq('id', 1).single();
-            if (data) {
-                setDbRates({
-                    "USD": data.usd,
-                    "JPY": data.jpy,
-                    "KRW": data.krw,
-                    "CAD": data.cad,
-                    "AUD": data.aud,
-                    "GBP": data.gbp,
-                    "VND": 1
-                });
+            try {
+                const { data, error } = await supabase.from('exchange_rates').select('*').eq('id', 1).single();
+                if (error) throw error;
+                if (data) {
+                    setDbRates({
+                        "USD": data.usd,
+                        "JPY": data.jpy,
+                        "KRW": data.krw,
+                        "CAD": data.cad,
+                        "AUD": data.aud,
+                        "GBP": data.gbp,
+                        "VND": 1
+                    });
+                }
+            } catch (err) {
+                console.warn("Không thể tải tỷ giá từ DB (Dùng mặc định):", err);
             }
         };
         fetchRates();
@@ -704,7 +770,7 @@ export default function NhapDonMoi() {
                                                 <Label>Mặt hàng (Chính)</Label>
                                                 <select id="productMain" value={formData.productMain} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2d7c2d]">
                                                     <option value="">Chọn mặt hàng...</option>
-                                                    {PRODUCT_LIST.map(p => <option key={p} value={p}>{p}</option>)}
+                                                    {visibleProducts.map(p => <option key={p} value={p}>{p}</option>)}
                                                 </select>
                                             </div>
                                             <div className="space-y-2">

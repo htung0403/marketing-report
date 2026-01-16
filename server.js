@@ -1,7 +1,7 @@
-import express from 'express';
 import cors from 'cors';
+import express from 'express';
+import { dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -55,7 +55,7 @@ app.get('/van-don', async (req, res) => {
   try {
     console.log('GET /van-don - Request received');
     console.log('Query params:', req.query);
-    
+
     // Thử fetch từ API thực tế trước
     let data = [];
     try {
@@ -85,22 +85,22 @@ app.get('/van-don', async (req, res) => {
       console.warn('⚠️ External API error, using mock data:', apiError.message);
       data = [...mockVanDonData];
     }
-    
+
     // Filter by query parameters
     const { page = 1, limit = 100, team, status, market, product } = req.query;
-    
+
     let filteredData = [...data];
-    
+
     // Filter by team if provided
     if (team && team !== 'all') {
       filteredData = filteredData.filter(item => item.Team === team);
     }
-    
+
     // Filter by status if provided
     if (status) {
       filteredData = filteredData.filter(item => item["Trạng thái giao hàng"] === status);
     }
-    
+
     // Filter by market if provided
     if (market) {
       const marketArray = Array.isArray(market) ? market : (typeof market === 'string' ? [market] : []);
@@ -108,7 +108,7 @@ app.get('/van-don', async (req, res) => {
         filteredData = filteredData.filter(item => marketArray.includes(item["Khu vực"]));
       }
     }
-    
+
     // Filter by product if provided
     if (product) {
       const productArray = Array.isArray(product) ? product : (typeof product === 'string' ? [product] : []);
@@ -116,14 +116,14 @@ app.get('/van-don', async (req, res) => {
         filteredData = filteredData.filter(item => productArray.includes(item["Mặt hàng"]));
       }
     }
-    
+
     // Pagination
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const startIndex = (pageNum - 1) * limitNum;
     const endIndex = startIndex + limitNum;
     const paginatedData = filteredData.slice(startIndex, endIndex);
-    
+
     res.json({
       success: true,
       data: paginatedData,

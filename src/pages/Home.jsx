@@ -9,6 +9,7 @@ import {
   DollarSign,
   Edit3,
   FileText,
+  FlaskConical,
   ListTodo,
   Medal,
   Megaphone,
@@ -23,9 +24,10 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 function Home() {
+  const navigate = useNavigate();
   const [userRole, setUserRole] = useState("user");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const location = useLocation();
@@ -54,14 +56,36 @@ function Home() {
     },
     {
       id: "dashboard",
-      label: "Dashboard báo cáo",
+      label: "Dashboard quản trị",
       icon: <BarChart3 className="w-5 h-5" />,
-      path: "/bang-bao-cao",
-      comingSoon: true,
+      path: "#",
+      subItems: [
+        {
+          id: "dashboard-growth",
+          label: "Dashboard Tăng trưởng",
+          icon: <TrendingUp className="w-4 h-4" />,
+          path: "/dashboard-tang-truong",
+          comingSoon: true,
+        },
+        {
+          id: "dashboard-kpi",
+          label: "Dashboard KPI",
+          icon: <Target className="w-4 h-4" />,
+          path: "/dashboard-kpi",
+          comingSoon: true,
+        },
+        {
+          id: "dashboard-okr",
+          label: "Dashboard OKR",
+          icon: <Award className="w-4 h-4" />,
+          path: "/dashboard-okr",
+          comingSoon: true,
+        },
+      ],
     },
     {
       id: "crm",
-      label: "Khách hàng & CRM",
+      label: "CSKH & CRM",
       icon: <Users className="w-5 h-5" />,
       path: "#",
       subItems: [
@@ -304,6 +328,49 @@ function Home() {
       ],
     },
     {
+      id: "rnd",
+      label: "Quản lý R&D",
+      icon: <FlaskConical className="w-5 h-5" />,
+      path: "#",
+      subItems: [
+        {
+          id: "rnd-input",
+          label: "Nhập báo cáo",
+          icon: <TrendingUp className="w-4 h-4" />,
+          path: "#",
+          comingSoon: true,
+        },
+        {
+          id: "rnd-view",
+          label: "Xem báo cáo R&D",
+          icon: <BarChart3 className="w-4 h-4" />,
+          path: "#",
+          comingSoon: true,
+        },
+        {
+          id: "rnd-detail",
+          label: "Danh sách đơn",
+          icon: <ClipboardList className="w-4 h-4" />,
+          path: "#",
+          comingSoon: true,
+        },
+        {
+          id: "rnd-pages",
+          label: "Danh sách Page",
+          icon: <ListTodo className="w-4 h-4" />,
+          path: "#",
+          comingSoon: true,
+        },
+        {
+          id: "rnd-weekly",
+          label: "Nhập báo cáo tuần",
+          icon: <FileText className="w-4 h-4" />,
+          path: "#",
+          comingSoon: true,
+        },
+      ],
+    },
+    {
       id: "settings",
       label: "Cài đặt hệ thống",
       icon: <Settings className="w-5 h-5" />,
@@ -321,27 +388,43 @@ function Home() {
           label: "Lịch sử thay đổi",
           icon: <ClipboardList className="w-4 h-4" />,
           path: "/lich-su-thay-doi",
-        }
+        },
       ]
     },
   ];
 
   const contentSections = [
     {
-      title: "PHÂN TÍCH & BÁO CÁO",
+      title: "DASHBOARD QUẢN TRỊ",
       items: [
         {
-          title: "Dashboard báo cáo",
-          icon: <BarChart3 className="w-8 h-8" />,
+          title: "Dashboard Tăng trưởng",
+          icon: <TrendingUp className="w-8 h-8" />,
           color: "bg-orange-500",
-          path: "/bang-bao-cao",
+          path: "/dashboard-tang-truong",
+          status: "Sắp ra mắt",
+          comingSoon: true,
+        },
+        {
+          title: "Dashboard KPI",
+          icon: <Target className="w-8 h-8" />,
+          color: "bg-blue-600",
+          path: "/dashboard-kpi",
+          status: "Sắp ra mắt",
+          comingSoon: true,
+        },
+        {
+          title: "Dashboard OKR",
+          icon: <Award className="w-8 h-8" />,
+          color: "bg-indigo-600",
+          path: "/dashboard-okr",
           status: "Sắp ra mắt",
           comingSoon: true,
         },
       ],
     },
     {
-      title: "KHÁCH HÀNG & CRM",
+      title: "CSKH & CRM",
       items: [
         {
           title: "Danh sách đơn",
@@ -573,9 +656,53 @@ function Home() {
         },
       ],
     },
-
     {
-      title: "VẬN ĐƠN",
+      title: "QUẢN LÝ R&D",
+      items: [
+        {
+          title: "Nhập báo cáo",
+          icon: <TrendingUp className="w-8 h-8" />,
+          color: "bg-pink-600",
+          path: "#",
+          status: "Sắp ra mắt",
+          comingSoon: true,
+        },
+        {
+          title: "Xem báo cáo R&D",
+          icon: <BarChart3 className="w-8 h-8" />,
+          color: "bg-pink-600",
+          path: "#",
+          status: "Sắp ra mắt",
+          comingSoon: true,
+        },
+        {
+          title: "Danh sách đơn",
+          icon: <ClipboardList className="w-8 h-8" />,
+          color: "bg-pink-600",
+          path: "#",
+          status: "Sắp ra mắt",
+          comingSoon: true,
+        },
+        {
+          title: "Danh sách Page",
+          icon: <ListTodo className="w-8 h-8" />,
+          color: "bg-pink-600",
+          path: "#",
+          status: "Sắp ra mắt",
+          comingSoon: true,
+        },
+        {
+          title: "Nhập báo cáo tuần",
+          icon: <FileText className="w-8 h-8" />,
+          color: "bg-pink-600",
+          path: "#",
+          status: "Sắp ra mắt",
+          comingSoon: true,
+        },
+      ],
+    },
+    {
+      title: "QUẢN LÝ GIAO HÀNG",
       items: [
         {
           title: "Quản lý vận đơn",
@@ -588,7 +715,7 @@ function Home() {
           title: "Báo cáo vận đơn",
           icon: <BarChart3 className="w-8 h-8" />,
           color: "bg-teal-500",
-          path: "#",
+          path: "/bao-cao-van-don",
           status: "Mở ứng dụng",
         },
         {
@@ -709,16 +836,14 @@ function Home() {
                   <div className="ml-4 mt-1 space-y-1">
                     {item.subItems.map((subItem) => (
                       subItem.isExternal ? (
-                        <a
+                        <div
                           key={subItem.id}
-                          href={subItem.path}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+                          onClick={() => navigate(`/external-view?url=${encodeURIComponent(subItem.path)}`)}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
                         >
                           {subItem.icon}
                           <span>{subItem.label}</span>
-                        </a>
+                        </div>
                       ) : (
                         <Link
                           key={subItem.id}
@@ -766,12 +891,10 @@ function Home() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {section.items.map((item, itemIndex) => (
                     item.isExternal ? (
-                      <a
+                      <div
                         key={itemIndex}
-                        href={item.path}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`group relative bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 p-6 border border-gray-200 hover:border-gray-300 ${item.comingSoon ? "opacity-75" : ""
+                        onClick={() => navigate(`/external-view?url=${encodeURIComponent(item.path)}`)}
+                        className={`group relative bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 p-6 border border-gray-200 hover:border-gray-300 cursor-pointer ${item.comingSoon ? "opacity-75" : ""
                           }`}
                       >
                         <div className="flex items-start gap-4">
@@ -799,7 +922,7 @@ function Home() {
                             </div>
                           )}
                         </div>
-                      </a>
+                      </div>
                     ) : (
                       <Link
                         key={itemIndex}

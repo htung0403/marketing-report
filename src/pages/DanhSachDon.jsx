@@ -14,10 +14,16 @@ function DanhSachDon() {
   const [filterMarket, setFilterMarket] = useState([]);
   const [filterProduct, setFilterProduct] = useState([]);
   const [filterStatus, setFilterStatus] = useState([]);
-  const [searchDate, setSearchDate] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-
+  // Initialize dates with "Last 3 Days"
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 3);
+    return d.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+  const [searchDate, setSearchDate] = useState(''); // Keep existing if needed, or remove if redundant
 
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -155,17 +161,27 @@ function DanhSachDon() {
     "_source": 'supabase'
   });
 
-  // Load data from Supabase only
+  // Modified loadData to use date filters on server side
   const loadData = async () => {
     setLoading(true);
     try {
-      console.log('Loading data from Supabase...');
+      console.log(`Loading data from Supabase (From: ${startDate} To: ${endDate})...`);
 
-      // 1. Fetch Supabase Data
+      // 1. Fetch Supabase Data with Date Filter
       let query = supabase.from('orders').select('*');
 
-      // Removed SQL date filtering to rely on robust JS filtering
-      // if (searchDate) { ... }
+      if (startDate) {
+        query = query.gte('order_date', startDate);
+      }
+      if (endDate) {
+        // Add time to end of day? Or just date string comparison works if strict YYYY-MM-DD
+        // Supabase date column might be date or timestamp. Assuming date or timestamp.
+        // If timestamp, YYYY-MM-DD matches start of day. lte needs end of day.
+        // Safer: lte YYYY-MM-DD might mean midnight if timestamp.
+        // Let's rely on string comparison or add time if needed.
+        // For 'order_date', usually it's just date.
+        query = query.lte('order_date', endDate);
+      }
 
       const { data: supaData, error: supaError } = await query.order('order_date', { ascending: false });
 
@@ -196,7 +212,7 @@ function DanhSachDon() {
 
   useEffect(() => {
     loadData();
-  }, []); // Only load once on mount, filtering is client side now
+  }, [startDate, endDate]); // Reload when dates change
 
   // Get unique values for filters
   const uniqueMarkets = useMemo(() => {
