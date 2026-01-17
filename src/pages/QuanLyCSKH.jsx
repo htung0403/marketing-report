@@ -138,35 +138,25 @@ function QuanLyCSKH() {
       let query = supabase.from('orders').select('*');
 
       // Date Filter Logic
-      if (startDate === endDate) {
-        // Single Day -> Use Robust "Swap" Logic
-        const [y, m, d] = startDate.split('-');
-        let queryCondition = `order_date.eq.${startDate}`;
-
-        // Handle swapped Day/Month ambiguity (e.g. 2026-01-11 stored as 2026-11-01)
-        if (parseInt(d) <= 12 && m !== d) {
-          const swappedDate = `${y}-${d}-${m}`;
-          queryCondition += `,order_date.eq.${swappedDate}`;
-        }
-        query = query.or(queryCondition);
-      } else {
-        // Date Range -> Use Standard Range
-        query = query
-          .gte('order_date', `${startDate}T00:00:00`)
-          .lte('order_date', `${endDate}T23:59:59`);
+      // Date Filter Logic (Aligned with DanhSachDon)
+      if (startDate) {
+        query = query.gte('order_date', startDate);
+      }
+      if (endDate) {
+        query = query.lte('order_date', endDate);
       }
 
       query = query.order('order_date', { ascending: false });
 
-      if (!isAdmin && !isLeader) {
-        if (userName) {
-          query = query.eq('cskh', userName);
-        } else {
-          console.warn("Restricted view but no UserName found. Showing empty.");
-          // Use a nil UUID which is syntactically valid but won't match any real record
-          query = query.eq('id', '00000000-0000-0000-0000-000000000000');
-        }
-      }
+      // if (!isAdmin && !isLeader) {
+      //   if (userName) {
+      //     query = query.eq('cskh', userName);
+      //   } else {
+      //     console.warn("Restricted view but no UserName found. Showing empty.");
+      //     // Use a nil UUID which is syntactically valid but won't match any real record
+      //     query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+      //   }
+      // }
 
       const { data, error } = await query;
 
@@ -645,37 +635,33 @@ function QuanLyCSKH() {
                   paginatedData.map((row, index) => (
                     <tr key={row[PRIMARY_KEY_COLUMN] || index} className="hover:bg-gray-50 transition-colors">
                       {displayColumns.map((col) => {
-                        {
-                          displayColumns.map((col) => {
-                            // Priority: Check if row has exact key 'col'. If not, try COLUMN_MAPPING.
-                            // This prevents COLUMN_MAPPING from overriding our manually mapped friendly keys.
-                            let value = row[col];
+                        // Priority: Check if row has exact key 'col'. If not, try COLUMN_MAPPING.
+                        // This prevents COLUMN_MAPPING from overriding our manually mapped friendly keys.
+                        let value = row[col];
 
-                            if (value === undefined || value === null) {
-                              const key = COLUMN_MAPPING[col];
-                              if (key) value = row[key];
-                            }
-
-                            value = value ?? '';
-
-                            // Format date
-                            if (col.includes('Ngày') || col.includes('Time') || col === 'order_date') {
-                              value = formatDate(value);
-                            }
-
-                            // Format money
-                            if (['Tổng tiền VNĐ', 'Tiền Hàng', 'Phí ship', 'Phí Chung'].includes(col)) {
-                              const num = parseFloat(String(value).replace(/[^\d.-]/g, '')) || 0;
-                              value = num.toLocaleString('vi-VN') + ' ₫';
-                            }
-
-                            return (
-                              <td key={col} className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
-                                {value || '-'}
-                              </td>
-                            );
-                          })
+                        if (value === undefined || value === null) {
+                          const key = COLUMN_MAPPING[col];
+                          if (key) value = row[key];
                         }
+
+                        value = value ?? '';
+
+                        // Format date
+                        if (col.includes('Ngày') || col.includes('Time') || col === 'order_date') {
+                          value = formatDate(value);
+                        }
+
+                        // Format money
+                        if (['Tổng tiền VNĐ', 'Tiền Hàng', 'Phí ship', 'Phí Chung'].includes(col)) {
+                          const num = parseFloat(String(value).replace(/[^\d.-]/g, '')) || 0;
+                          value = num.toLocaleString('vi-VN') + ' ₫';
+                        }
+
+                        return (
+                          <td key={col} className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                            {value || '-'}
+                          </td>
+                        );
                       })}
                     </tr>
                   ))

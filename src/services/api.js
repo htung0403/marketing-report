@@ -89,33 +89,46 @@ export const fetchOrders = async () => {
     }
 };
 
-import { logDataChange } from './logging';
 
 export const updateSingleCell = async (orderId, columnKey, newValue) => {
-    const payload = { [PRIMARY_KEY_COLUMN]: orderId, [columnKey]: newValue };
+    try {
+        // Map App Key to DB Key
+        let dbKey = Object.keys(DB_TO_APP_MAPPING).find(key => DB_TO_APP_MAPPING[key] === columnKey);
 
-    // Log before or after? After success is better.
-    const response = await fetch(SINGLE_UPDATE_API_URL, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || `HTTP error! status: ${response.status}`);
+        // Special reverse mapping or fallback
+        if (!dbKey) {
+            // Handle simple keys or direct matches
+            if (columnKey === 'Trạng thái giao hàng NB') dbKey = 'delivery_status_nb';
+            // Default attempt: lowercase if needed? No, strict mapping prefered.
+            console.warn(`Could not map app key "${columnKey}" to DB key.`);
+            // Attempt generic match if key exists in table? 
+            // For now, if no mapping found, return error to avoid bad data
+            // UNLESS it's a known direct key
+            if (columnKey === 'delivery_status') dbKey = 'delivery_status';
+        }
+
+        if (!dbKey) throw new Error(`Không tìm thấy cột tương ứng trong DB cho: ${columnKey}`);
+
+        // Update Supabase
+        // Key is order_code (unique) or id?
+        // PRIMARY_KEY_COLUMN is "Mã đơn hàng" -> order_code
+        // Supabase `orders` has `order_code` unique column.
+
+        const { data, error } = await supabase
+            .from('orders')
+            .update({ [dbKey]: newValue })
+            .eq('order_code', orderId)
+            .select();
+
+        if (error) throw error;
+
+        console.log(`Updated ${orderId}: ${dbKey} = ${newValue}`);
+        return { success: true, daa: data };
+
+    } catch (error) {
+        console.error('updateSingleCell Supabase error:', error);
+        throw error;
     }
-
-    // Log the change
-    logDataChange({
-        action: 'UPDATE',
-        table_name: SHEET_NAME, // 'F3'
-        record_id: orderId,
-        field: columnKey,
-        new_value: newValue,
-        details: { method: 'updateSingleCell' }
-    });
-
-    return await response.json();
 };
 
 export const fetchMGTNoiBoOrders = async () => {
@@ -196,19 +209,140 @@ export const fetchFFMOrders = async () => {
 };
 
 export const updateBatch = async (rows) => {
-    const response = await fetch(BATCH_UPDATE_API_URL, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(rows)
-    });
-    if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || `HTTP error! status: ${response.status}`);
+    try {
+        console.log(`Supabase Batch Update: ${rows.length} rows`);
+
+        // rows format: [{ "Mã đơn hàng": "...", "Kết quả Check": "..." }, ...]
+
+        // Must transform to Supabase format
+        const updates = rows.map(row => {
+            const orderCode = row[PRIMARY_KEY_COLUMN];
+            if (!orderCode) return null;
+
+            const updatePayload = {};
+            Object.keys(row).forEach(appKey => {
+                if (appKey === PRIMARY_KEY_COLUMN) return;
+
+                // Map app key to db key
+                let dbKey = Object.keys(DB_TO_APP_MAPPING).find(k => DB_TO_APP_MAPPING[k] === appKey);
+
+                // Fallbacks
+                if (!dbKey) {
+                    if (appKey === 'Trạng thái giao hàng NB') dbKey = 'delivery_status_nb';
+                    if (appKey === 'delivery_status') dbKey = 'delivery_status';
+                }
+
+                if (dbKey) {
+                    updatePayload[dbKey] = row[appKey];
+                }
+            });
+
+            return { order_code: orderCode, ...updatePayload };
+        }).filter(Boolean);
+
+        if (updates.length === 0) return { success: true, message: "Nothing to update" };
+
+        // Supabase upsert is efficient for bulk updates if PK is present
+        // 'order_code' is unique key.
+        const { data, error } = await supabase
+            .from('orders')
+            .upsert(updates, { onConflict: 'order_code' })
+            .select();
+
+        if (error) throw error;
+
+        return { success: true, count: data.length };
+
+    } catch (error) {
+        console.error('updateBatch Supabase error:', error);
+        throw error;
     }
-    return await response.json();
 };
 
-// Fetch Van Don data với pagination và filters từ backend
+
+
+import { supabase } from './supabaseClient';
+
+const DB_TO_APP_MAPPING = {
+    "order_code": "Mã đơn hàng",
+    "customer_name": "Name*",
+    "customer_phone": "Phone*",
+    "customer_address": "Add",
+    "city": "City",
+    "state": "State",
+    "country": "Khu vực", // Mapping 'country' col to 'Khu vực' (or check if 'region' exists)
+    "zipcode": "Zipcode",
+    "product": "Mặt hàng",
+    "total_amount_vnd": "Tổng tiền VNĐ",
+    "payment_method": "Hình thức thanh toán",
+    "tracking_code": "Mã Tracking",
+    "shipping_fee": "Phí ship nội địa Mỹ (usd)", // Approx mapping
+    "marketing_staff": "Nhân viên Sale", // Approx
+    "sale_staff": "Nhân viên Sale",
+    "team": "Team",
+    "delivery_staff": "NV Vận đơn",
+    "delivery_status": "Trạng thái giao hàng", // Or 'Trạng thái giao hàng NB' depending on context
+    "payment_status": "Trạng thái thu tiền",
+    "note": "Ghi chú",
+    "reason": "Lý do",
+    "order_date": "Ngày lên đơn",
+    "goods_amount": "Giá bán", // Approx
+    "shipping_unit": "Đơn vị vận chuyển",
+    "accountant_confirm": "Kế toán xác nhận thu tiền về",
+    "created_at": "Ngày đóng hàng", // Fallback
+
+    // New Columns Mapping
+    "check_result": "Kết quả Check",
+    "vandon_note": "Ghi chú của VĐ",
+    "item_name_1": "Tên mặt hàng 1",
+    "item_qty_1": "Số lượng mặt hàng 1",
+    "item_name_2": "Tên mặt hàng 2",
+    "item_qty_2": "Số lượng mặt hàng 2",
+    "gift_item": "Quà tặng",
+    "gift_item": "Quà tặng",
+    "gift_qty": "Số lượng quà kèm",
+
+    // Full Mapping Round 2
+    "delivery_status_nb": "Trạng thái giao hàng NB",
+    "payment_currency": "Loại tiền thanh toán",
+    "estimated_delivery_date": "Thời gian giao dự kiến",
+    "warehouse_fee": "Phí xử lý đơn đóng hàng-Lưu kho(usd)",
+    "note_caps": "GHI CHÚ",
+    "accounting_check_date": "Ngày Kế toán đối soát với FFM lần 2",
+    "reconciled_amount": "Số tiền của đơn hàng đã về TK Cty"
+};
+
+// Helper to map Supabase row to App Format
+const mapSupabaseOrderToApp = (sOrder) => {
+    const appOrder = {};
+    // Default copy all
+    Object.keys(sOrder).forEach(k => {
+        appOrder[k] = sOrder[k];
+    });
+
+    // Apply explicit mappings
+    Object.entries(DB_TO_APP_MAPPING).forEach(([dbKey, appKey]) => {
+        if (sOrder[dbKey] !== undefined) {
+            appOrder[appKey] = sOrder[dbKey];
+        }
+    });
+
+    // Custom logic for critical fields if missing or needing format
+    if (!appOrder["Ngày lên đơn"] && sOrder.order_date) appOrder["Ngày lên đơn"] = sOrder.order_date;
+    if (!appOrder["Mã đơn hàng"]) appOrder["Mã đơn hàng"] = sOrder.order_code;
+
+    // Status mapping if needed (Supabase might use English vs App Vietnamese)
+    // For now assuming data was migrated with Vietnamese values or UI handles it.
+
+    // Explicitly set these for VanDon.jsx logic
+    // Nếu trong DB có delivery_status_nb thì dùng, nếu không thì fallback về delivery_status cũ (hoặc để trống)
+    appOrder["Trạng thái giao hàng NB"] = sOrder.delivery_status_nb || sOrder.delivery_status;
+
+    return appOrder;
+};
+
+
+// Fetch Van Don data với pagination và filters từ backend (NOW SUPABASE)
 export const fetchVanDon = async (options = {}) => {
     const {
         page = 1,
@@ -222,154 +356,73 @@ export const fetchVanDon = async (options = {}) => {
     } = options;
 
     try {
-        const params = new URLSearchParams({
-            page: page.toString(),
-            limit: limit.toString()
-        });
+        console.log('Fetching Van Don properties from Supabase...');
 
+        let query = supabase
+            .from('orders')
+            .select('*', { count: 'exact' });
+
+        // --- FILTERS ---
         if (team && team !== 'all') {
-            params.append('team', team);
+            query = query.eq('team', team);
         }
+
+        // Status map: "Trạng thái giao hàng"
         if (status) {
-            params.append('status', status);
+            query = query.ilike('delivery_status', `%${status}%`);
         }
+
         if (Array.isArray(market) && market.length > 0) {
-            market.forEach(m => params.append('market', m));
+            query = query.in('country', market); // 'market' comes from 'Khu vực', which maps to 'country'
         } else if (typeof market === 'string' && market) {
-            params.append('market', market);
+            query = query.eq('country', market);
         }
+
         if (Array.isArray(product) && product.length > 0) {
-            product.forEach(p => params.append('product', p));
+            query = query.in('product', product);
         } else if (typeof product === 'string' && product) {
-            params.append('product', product);
+            query = query.eq('product', product);
         }
 
-        // Use backend API endpoint
-        const API_URL = '/api/van-don';
-        const url = `${API_URL}?${params.toString()}`;
-
-        console.log('Fetching Van Don from backend:', url);
-
-        // Add timeout and abort controller
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
-
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Van Don API Error:', errorText);
-            throw new Error(`API Error ${response.status}: ${response.statusText}`);
+        if (dateFrom) {
+            query = query.gte('order_date', dateFrom);
+        }
+        if (dateTo) {
+            query = query.lte('order_date', dateTo);
         }
 
-        const json = await response.json();
+        // --- PAGINATION ---
+        const from = (page - 1) * limit;
+        const to = from + limit - 1;
 
-        if (json.error) {
-            throw new Error(json.error);
+        query = query.range(from, to).order('order_date', { ascending: false });
+
+        const { data, error, count } = await query;
+
+        if (error) {
+            console.error('Supabase fetch error:', error);
+            throw error;
         }
 
-        // Backend trả về: { success, data, total, page, limit, totalPages, rows }
-        const data = json.data || json.rows || [];
-
-        // Apply date filters on client side (nếu backend chưa support)
-        let filteredData = data;
-        if (dateFrom || dateTo) {
-            filteredData = data.filter(item => {
-                const orderDate = item['Ngày lên đơn'] || item['Ngày đóng hàng'] || '';
-                if (!orderDate) return true;
-
-                // Parse date (format: DD/MM/YYYY or YYYY-MM-DD)
-                let dateValue;
-                if (orderDate.includes('/')) {
-                    const [d, m, y] = orderDate.split('/');
-                    dateValue = new Date(`${y}-${m}-${d}`);
-                } else {
-                    dateValue = new Date(orderDate);
-                }
-
-                if (dateFrom) {
-                    const fromDate = new Date(dateFrom);
-                    if (dateValue < fromDate) return false;
-                }
-                if (dateTo) {
-                    const toDate = new Date(dateTo);
-                    toDate.setHours(23, 59, 59, 999);
-                    if (dateValue > toDate) return false;
-                }
-                return true;
-            });
-        }
+        const mappedData = data.map(mapSupabaseOrderToApp);
 
         return {
-            data: filteredData,
-            total: json.total || filteredData.length,
-            page: json.page || page,
-            limit: json.limit || limit,
-            totalPages: json.totalPages || Math.ceil((json.total || filteredData.length) / limit)
+            data: mappedData,
+            total: count || 0,
+            page: page,
+            limit: limit,
+            totalPages: Math.ceil((count || 0) / limit)
         };
 
     } catch (error) {
-        console.error('fetchVanDon error:', error);
-
-        // Check if it's a timeout error
-        if (error.name === 'AbortError') {
-            console.error('⏱️ Request timeout - backend took too long');
-            return {
-                data: [],
-                total: 0,
-                page: page,
-                limit: limit,
-                totalPages: 0,
-                error: 'Request timeout. Vui lòng thử lại.'
-            };
-        }
-
-        // Fallback to old API if backend fails (only for non-timeout errors)
-        console.log('Falling back to direct API...');
-        try {
-            const allData = await fetchOrders();
-            // Apply basic filters on client side
-            let filtered = allData;
-            if (team && team !== 'all') {
-                filtered = filtered.filter(item => item.Team === team);
-            }
-            if (status) {
-                filtered = filtered.filter(item => item["Trạng thái giao hàng"] === status);
-            }
-
-            // Paginate
-            const pageNum = parseInt(page);
-            const limitNum = parseInt(limit);
-            const startIndex = (pageNum - 1) * limitNum;
-            const endIndex = startIndex + limitNum;
-            const paginated = filtered.slice(startIndex, endIndex);
-
-            return {
-                data: paginated,
-                total: filtered.length,
-                page: pageNum,
-                limit: limitNum,
-                totalPages: Math.ceil(filtered.length / limitNum)
-            };
-        } catch (fallbackError) {
-            console.error('Fallback also failed:', fallbackError);
-            return {
-                data: [],
-                total: 0,
-                page: page,
-                limit: limit,
-                totalPages: 0,
-                error: 'Không thể tải dữ liệu. Vui lòng thử lại sau.'
-            };
-        }
+        console.error('fetchVanDon Supabase error:', error);
+        return {
+            data: [],
+            total: 0,
+            page: page,
+            limit: limit,
+            totalPages: 0,
+            error: error.message
+        };
     }
 };

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 // If xlsx is not available, processExcelFile will fail. Assuming environment setup.
 // I will keep imports minimal.
-
+import { supabase } from '../supabase/config';
 
 export default function BaoCaoMarketing() {
   const [appData, setAppData] = useState({
@@ -268,59 +268,60 @@ export default function BaoCaoMarketing() {
     }
 
     setLoading(true);
-    updateStatus('Bắt đầu quá trình gửi dữ liệu...');
-
-    const rowsData = tableRows.map((row) => {
-      const rowObject = {};
-      Object.keys(row.data).forEach((key) => {
-        let value = row.data[key];
-        const numberFields = ['Số Mess', 'Phản hồi', 'Đơn Mess', 'Doanh số Mess', 'CPQC', 'Số_Mess_Cmt', 'Số đơn', 'Doanh số'];
-        if (numberFields.includes(key)) {
-          value = String(value).replace(/[^0-9]/g, '');
-        }
-        rowObject[key] = value;
-      });
-
-      if (!rowObject['Email']) {
-        rowObject['Email'] = userEmail;
-      }
-      return rowObject;
-    });
-
-    const payload = {
-      sheetName: currentTableName,
-      spreadsheetId: SPREADSHEET_ID,
-      fields: headerMkt,
-      rows: rowsData,
-      settings: {
-        checkDuplicates: true,
-        validateData: true,
-        returnDetails: true,
-      },
-    };
+    updateStatus('Bắt đầu gửi dữ liệu lên Supabase...');
 
     try {
-      const response = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      const rowsData = tableRows.map((row) => {
+        const rowObject = {};
+
+        // Map fields
+        // Must match Supabase detail_reports columns exactly
+        // "Tên", "Email", "Ngày", "ca", "Sản_phẩm", "Thị_trường", etc.
+
+        Object.keys(row.data).forEach((key) => {
+          let value = row.data[key];
+
+          // Process numeric fields
+          const numberFields = ['Số Mess', 'Phản hồi', 'Đơn Mess', 'Doanh số Mess', 'CPQC', 'Số_Mess_Cmt', 'Số đơn', 'Doanh số'];
+          if (numberFields.includes(key)) {
+            // Remove non-numeric chars for calculation, but keeping raw string might be safe for now 
+            // if Supabase column is TEXT. But script uses numeric().
+            // Let's clean it to be safe.
+            if (typeof value === 'string') {
+              value = Number(value.replace(/[^0-9]/g, '')) || 0;
+            }
+          }
+          rowObject[key] = value;
+        });
+
+        // Ensure critical fields
+        if (!rowObject['Email']) rowObject['Email'] = userEmail;
+        if (!rowObject['Tên']) rowObject['Tên'] = employeeNameFromUrl || userEmail; // Fallback
+
+        // Auto-fields if missing
+        if (!rowObject['Ngày']) rowObject['Ngày'] = getToday();
+
+        return rowObject;
       });
 
-      const result = await response.json();
+      // Insert into Supabase
+      const { data, error } = await supabase
+        .from('detail_reports')
+        .insert(rowsData)
+        .select();
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || `Lỗi HTTP: ${response.status}`);
-      }
+      if (error) throw error;
 
-      const summary = result.summary;
       setResponseMsg({
-        text: `Thành công! Đã thêm ${summary.added} dòng. Trùng lặp: ${summary.duplicates}. Lỗi: ${summary.validationErrors}.`,
+        text: `Thành công! Đã thêm ${data.length} dòng vào hệ thống.`,
         isSuccess: true,
         visible: true,
       });
       updateStatus('Gửi báo cáo thành công.');
 
+      // Reset form
       setTableRows([createRowData({ Tên: employeeNameFromUrl, Email: userEmail }, appData.employeeDetails)]);
+
     } catch (error) {
       console.error('Lỗi khi gửi dữ liệu:', error);
       setResponseMsg({ text: 'Lỗi khi gửi dữ liệu: ' + error.message, isSuccess: false, visible: true });

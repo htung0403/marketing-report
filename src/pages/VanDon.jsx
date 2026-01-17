@@ -814,26 +814,7 @@ function VanDon() {
     addToast(`Đã đồng bộ ${updatedCount} trường dữ liệu.`, 'success');
   };
 
-  const handleDownloadExcel = () => {
-    // Generate simple excel/csv
-    const headers = currentColumns;
-    const body = getFilteredData.map(row => {
-      return headers.map(col => {
-        const val = row[COLUMN_MAPPING[col] || col] || row[col] || '';
-        return `"${String(val).replace(/"/g, '""')}"`;
-      }).join(",");
-    }).join("\n");
 
-    const csv = `\uFEFF${headers.join(",")}\n${body}`;
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `export_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   // --- Interaction (Mouse) ---
   const handleMouseDown = (rowIdx, colIdx, e) => {
@@ -1100,6 +1081,41 @@ function VanDon() {
     return classes;
   };
 
+  const handleDownloadExcel = async () => {
+    try {
+      const toastId = addToast("Đang tạo file Excel...", "loading", 0);
+      const XLSX = await import('xlsx');
+
+      const dataToExport = getFilteredData.map(row => {
+        const newRow = {};
+        currentColumns.forEach(col => {
+          const key = COLUMN_MAPPING[col] || col;
+          // Format specific columns if needed
+          let val = row[key] ?? row[col] ?? row[col.replace(/ /g, '_')] ?? '';
+
+          if (["Ngày lên đơn", "Ngày đóng hàng", "Ngày đẩy đơn", "Ngày có mã tracking", "Ngày Kế toán đối soát với FFM lần 2"].includes(col)) {
+            val = formatDate(val);
+          }
+
+          newRow[col] = val;
+        });
+        return newRow;
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "VanDon");
+      XLSX.writeFile(workbook, `VanDon_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+      removeToast(toastId);
+      addToast("Đã xuất file Excel thành công!", "success");
+    } catch (e) {
+      console.error("Export error:", e);
+      addToast("Lỗi khi xuất file Excel", "error");
+    }
+  };
+
+
   /* End Component Logic */
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col h-screen overflow-hidden">
@@ -1269,8 +1285,8 @@ function VanDon() {
             <button onClick={() => setShowColumnSettings(true)} className="p-1 px-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-xs font-bold transition-all flex items-center gap-1">
               ⚙️ Cài đặt cột
             </button>
-            <button onClick={handleDownloadExcel} className="p-1 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition-all flex items-center gap-1">
-              📊 Excel
+            <button onClick={handleDownloadExcel} className="p-1 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition-all flex items-center gap-1 shadow-sm">
+              📊 Xuất Excel
             </button>
 
 

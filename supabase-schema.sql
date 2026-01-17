@@ -193,6 +193,27 @@ ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 -- 6. Cập nhật bảng orders (Thêm các cột thiếu từ F3)
 -- =====================================================
 -- Run manually if table already exists
+
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS check_result TEXT;       -- Kết quả Check
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS vandon_note TEXT;        -- Ghi chú của VĐ
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS item_name_1 TEXT;        -- Tên mặt hàng 1
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS item_qty_1 TEXT;         -- Số lượng mặt hàng 1
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS item_name_2 TEXT;        -- Tên mặt hàng 2
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS item_qty_2 TEXT;         -- Số lượng mặt hàng 2
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS gift_item TEXT;          -- Quà tặng
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS gift_item TEXT;          -- Quà tặng
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS gift_qty TEXT;           -- Số lượng quà kèm
+
+-- Các cột bổ sung đợt 2 (Full khớp giao diện)
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivery_status_nb TEXT; -- Trạng thái giao hàng NB (Tách riêng)
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_currency TEXT;   -- Loại tiền thanh toán
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS estimated_delivery_date DATE; -- Thời gian giao dự kiến
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS warehouse_fee NUMERIC;   -- Phí xử lý đơn đóng hàng-Lưu kho(usd)
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS note_caps TEXT;          -- GHI CHÚ (Viết hoa)
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS accounting_check_date DATE; -- Ngày Kế toán đối soát với FFM lần 2
+-- reconciled_amount đã có trong comment dưới, sẽ uncomment hoặc add lại nếu cần đảm bảo
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS reconciled_amount NUMERIC; -- Số tiền của đơn hàng đã về TK Cty
+
 /*
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS cskh TEXT;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivery_staff TEXT;

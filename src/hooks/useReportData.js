@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../supabase/config';
 
 // Add useSnapshot parameter, default to true for safety/performance as requested
-export function useReportData(userRole, userTeam, userEmail, useSnapshot = true) {
+export function useReportData(userRole, userTeam, userEmail, useSnapshot = false) {
   const [masterData, setMasterData] = useState([]);
   const [firebaseReports, setFirebaseReports] = useState([]);
   const [loading, setLoading] = useState(true);
