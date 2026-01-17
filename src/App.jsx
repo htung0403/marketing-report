@@ -18,8 +18,11 @@ import SalesOrderHistoryPage from './pages/SalesOrderHistoryPage';
 // ... (existing imports)
 
 
+import BaoCaoChiTietRnD from './pages/BaoCaoChiTietRnD';
+import BaoCaoRnD from './pages/BaoCaoRnD';
 import DanhSachDon from './pages/DanhSachDon';
 import DanhSachPage from './pages/DanhSachPage';
+import DanhSachPageRnD from './pages/DanhSachPageRnD';
 import DonChiaCSKH from './pages/DonChiaCSKH';
 import ExternalView from './pages/ExternalView';
 import F3Report from './pages/F3Report';
@@ -39,6 +42,7 @@ import QuanLyCSKH from './pages/QuanLyCSKH';
 import ReportDashboard from './pages/ReportDashboard';
 import VanDon from './pages/VanDon';
 import XemBaoCaoMKT from './pages/XemBaoCaoMKT';
+import XemBaoCaoRnD from './pages/XemBaoCaoRnD';
 
 /* Header component extracted to `src/components/Header.jsx` */
 
@@ -79,6 +83,12 @@ function App() {
           <Route path="/xem-bao-cao-mkt" element={<ProtectedRoute><XemBaoCaoMKT /></ProtectedRoute>} />
           <Route path="/ffm" element={<ProtectedRoute><FFM /></ProtectedRoute>} />
           <Route path="/lenh-san-xuat" element={<ProtectedRoute><LenHSanXuat /></ProtectedRoute>} />
+
+          {/* RD Module Routes */}
+          <Route path="/bao-cao-rd" element={<ProtectedRoute><BaoCaoRnD /></ProtectedRoute>} />
+          <Route path="/xem-bao-cao-rd" element={<ProtectedRoute><XemBaoCaoRnD /></ProtectedRoute>} />
+          <Route path="/bao-cao-chi-tiet-rd" element={<ProtectedRoute><BaoCaoChiTietRnD /></ProtectedRoute>} />
+          <Route path="/danh-sach-page-rd" element={<ProtectedRoute><DanhSachPageRnD /></ProtectedRoute>} />
 
           {/* History Routes */}
           <Route path="/lich-su-thay-doi" element={<ProtectedRoute><ChangeLogViewer /></ProtectedRoute>} />
