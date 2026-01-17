@@ -624,7 +624,8 @@ function VanDon() {
       const col = Object.keys(row).find(k => k !== PRIMARY_KEY_COLUMN);
       try {
         const toastId = addToast('Đang cập nhật...', 'loading', 0);
-        await API.updateSingleCell(row[PRIMARY_KEY_COLUMN], col, row[col]);
+        const currentUsername = localStorage.getItem('username') || 'Unknown';
+        await API.updateSingleCell(row[PRIMARY_KEY_COLUMN], col, row[col], currentUsername);
         setAllData(prev => {
           const idx = prev.findIndex(r => r[PRIMARY_KEY_COLUMN] === row[PRIMARY_KEY_COLUMN]);
           if (idx > -1) {
@@ -651,7 +652,8 @@ function VanDon() {
     } else {
       try {
         const toastId = addToast(`Đang cập nhật ${rowsToUpdate.length} đơn hàng...`, 'loading', 0);
-        const res = await API.updateBatch(rowsToUpdate);
+        const currentUsername = localStorage.getItem('username') || 'Unknown';
+        const res = await API.updateBatch(rowsToUpdate, currentUsername);
         if (res.success) {
           setAllData(prev => {
             let next = [...prev];
@@ -746,7 +748,8 @@ function VanDon() {
     });
     try {
       const toastId = addToast('Đang gửi tất cả thay đổi...', 'loading', 0);
-      const res = await API.updateBatch(rowsToSend);
+      const currentUsername = localStorage.getItem('username') || 'Unknown';
+      const res = await API.updateBatch(rowsToSend, currentUsername);
       if (res.success) {
         setAllData(prev => {
           let next = [...prev];
@@ -962,33 +965,66 @@ function VanDon() {
       // Simply: iterate selection or data based on rules.
       // Simplified: Paste top-left aligned to selection start
 
-      rows.forEach((rowVals, rIdx) => {
-        const targetRowIdx = bounds.minRow + rIdx;
-        if (targetRowIdx >= paginatedData.length) return;
+      // Flood Fill Logic:
+      // If clipboard has only 1 cell (1x1), and selection > 1x1, fill the selection with that value.
+      const isFloodFill = rows.length === 1 && rows[0].length === 1 &&
+        ((bounds.maxRow - bounds.minRow > 0) || (bounds.maxCol - bounds.minCol > 0));
 
-        const rowData = paginatedData[targetRowIdx];
-        const orderId = rowData[PRIMARY_KEY_COLUMN];
+      if (isFloodFill) {
+        const val = rows[0][0];
+        for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
+          if (r >= paginatedData.length) continue;
+          const rowData = paginatedData[r];
+          const orderId = rowData[PRIMARY_KEY_COLUMN];
 
-        rowVals.forEach((val, cIdx) => {
-          const targetColIdx = bounds.minCol + cIdx;
-          if (targetColIdx >= currentColumns.length) return;
+          for (let c = bounds.minCol; c <= bounds.maxCol; c++) {
+            if (c >= currentColumns.length) continue;
+            const colName = currentColumns[c];
+            if (!EDITABLE_COLS.includes(colName)) continue;
 
-          const colName = currentColumns[targetColIdx];
-          if (!EDITABLE_COLS.includes(colName)) return; // Skip read-only
+            const dataKey = COLUMN_MAPPING[colName] || colName;
+            const originalValue = rowData[dataKey] ?? '';
 
-          const dataKey = COLUMN_MAPPING[colName] || colName;
-          const originalValue = rowData[dataKey] ?? '';
-
-          if (String(val) !== String(originalValue)) {
-            if (!newPending.has(orderId)) newPending.set(orderId, new Map());
-            newPending.get(orderId).set(dataKey, {
-              newValue: String(val),
-              originalValue: String(originalValue)
-            });
-            updatedCount++;
+            if (String(val) !== String(originalValue)) {
+              if (!newPending.has(orderId)) newPending.set(orderId, new Map());
+              newPending.get(orderId).set(dataKey, {
+                newValue: String(val),
+                originalValue: String(originalValue)
+              });
+              updatedCount++;
+            }
           }
+        }
+      } else {
+        // Normal Paste (Top-Left aligned)
+        rows.forEach((rowVals, rIdx) => {
+          const targetRowIdx = bounds.minRow + rIdx;
+          if (targetRowIdx >= paginatedData.length) return;
+
+          const rowData = paginatedData[targetRowIdx];
+          const orderId = rowData[PRIMARY_KEY_COLUMN];
+
+          rowVals.forEach((val, cIdx) => {
+            const targetColIdx = bounds.minCol + cIdx;
+            if (targetColIdx >= currentColumns.length) return;
+
+            const colName = currentColumns[targetColIdx];
+            if (!EDITABLE_COLS.includes(colName)) return; // Skip read-only
+
+            const dataKey = COLUMN_MAPPING[colName] || colName;
+            const originalValue = rowData[dataKey] ?? '';
+
+            if (String(val) !== String(originalValue)) {
+              if (!newPending.has(orderId)) newPending.set(orderId, new Map());
+              newPending.get(orderId).set(dataKey, {
+                newValue: String(val),
+                originalValue: String(originalValue)
+              });
+              updatedCount++;
+            }
+          });
         });
-      });
+      }
 
       if (updatedCount > 0) {
         setPendingChanges(newPending);

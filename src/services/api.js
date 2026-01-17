@@ -90,7 +90,7 @@ export const fetchOrders = async () => {
 };
 
 
-export const updateSingleCell = async (orderId, columnKey, newValue) => {
+export const updateSingleCell = async (orderId, columnKey, newValue, modifiedBy) => {
     try {
         // Map App Key to DB Key
         let dbKey = Object.keys(DB_TO_APP_MAPPING).find(key => DB_TO_APP_MAPPING[key] === columnKey);
@@ -114,9 +114,14 @@ export const updateSingleCell = async (orderId, columnKey, newValue) => {
         // PRIMARY_KEY_COLUMN is "Mã đơn hàng" -> order_code
         // Supabase `orders` has `order_code` unique column.
 
+        const updatePayload = { [dbKey]: newValue };
+        if (modifiedBy) {
+            updatePayload.last_modified_by = modifiedBy;
+        }
+
         const { data, error } = await supabase
             .from('orders')
-            .update({ [dbKey]: newValue })
+            .update(updatePayload)
             .eq('order_code', orderId)
             .select();
 
@@ -208,7 +213,7 @@ export const fetchFFMOrders = async () => {
     }
 };
 
-export const updateBatch = async (rows) => {
+export const updateBatch = async (rows, modifiedBy) => {
     try {
         console.log(`Supabase Batch Update: ${rows.length} rows`);
 
@@ -220,6 +225,10 @@ export const updateBatch = async (rows) => {
             if (!orderCode) return null;
 
             const updatePayload = {};
+            if (modifiedBy) {
+                updatePayload.last_modified_by = modifiedBy;
+            }
+
             Object.keys(row).forEach(appKey => {
                 if (appKey === PRIMARY_KEY_COLUMN) return;
 
@@ -263,7 +272,7 @@ export const updateBatch = async (rows) => {
 
 import { supabase } from './supabaseClient';
 
-const DB_TO_APP_MAPPING = {
+export const DB_TO_APP_MAPPING = {
     "order_code": "Mã đơn hàng",
     "customer_name": "Name*",
     "customer_phone": "Phone*",

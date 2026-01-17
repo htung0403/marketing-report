@@ -197,7 +197,7 @@ ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS check_result TEXT;       -- Kết quả Check
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS vandon_note TEXT;        -- Ghi chú của VĐ
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS item_name_1 TEXT;        -- Tên mặt hàng 1
-ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS item_qty_1 TEXT;         -- Số lượng mặt hàng 1
+ALTER TABLE   COLUMN IF NOT EXISTS item_qty_1 TEXT;         -- Số lượng mặt hàng 1
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS item_name_2 TEXT;        -- Tên mặt hàng 2
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS item_qty_2 TEXT;         -- Số lượng mặt hàng 2
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS gift_item TEXT;          -- Quà tặng
@@ -213,6 +213,7 @@ ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS note_caps TEXT;          -- G
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS accounting_check_date DATE; -- Ngày Kế toán đối soát với FFM lần 2
 -- reconciled_amount đã có trong comment dưới, sẽ uncomment hoặc add lại nếu cần đảm bảo
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS reconciled_amount NUMERIC; -- Số tiền của đơn hàng đã về TK Cty
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS last_modified_by TEXT;    -- Người chỉnh sửa cuối cùng
 
 /*
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS cskh TEXT;
@@ -275,3 +276,174 @@ CREATE TABLE IF NOT EXISTS public.system_settings (
 -- Bảo mật (RLS)
 ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all access" ON public.system_settings FOR ALL USING (true) WITH CHECK (true);
+
+-- ROW MẶC ĐỊNH (Quan trọng: Chạy dòng này để tránh lỗi 404)
+INSERT INTO public.system_settings (id, settings)
+VALUES ('global_config', '{"theme": "light", "notifications": true}')
+ON CONFLICT (id) DO NOTHING;
+
+-- 12. Bảng bill_of_lading_history - Lưu lịch sử thay đổi vận đơn
+CREATE TABLE IF NOT EXISTS public.bill_of_lading_history (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  order_code TEXT NOT NULL,
+  old_data JSONB,
+  new_data JSONB,
+  changed_at TIMESTAMPTZ DEFAULT NOW(),
+  changed_by TEXT
+);
+
+-- Function to log changes to bill_of_lading_history
+CREATE OR REPLACE FUNCTION public.log_bill_of_lading_changes()
+RETURNS TRIGGER AS $$
+DECLARE
+  current_user_name TEXT;
+BEGIN
+  -- Lấy tên người sửa từ cột last_modified_by của bản ghi MỚI
+  current_user_name := NEW.last_modified_by;
+  
+  -- Nếu không tìm thấy, thử lấy từ context hoặc để Unknown
+  IF current_user_name IS NULL THEN
+     current_user_name := 'Unknown';
+  END IF;
+
+  INSERT INTO public.bill_of_lading_history (order_code, old_data, new_data, changed_by)
+  VALUES (
+    NEW.order_code, 
+    to_jsonb(OLD), 
+    to_jsonb(NEW), 
+    current_user_name
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to execute the function on update
+DROP TRIGGER IF EXISTS on_bill_of_lading_change ON public.orders;
+CREATE TRIGGER on_bill_of_lading_change
+  AFTER UPDATE ON public.orders
+  FOR EACH ROW
+  EXECUTE FUNCTION public.log_bill_of_lading_changes();
+
+-- =====================================================
+-- 13. Bảng sales_order_logs - Lưu lịch sử thay đổi Sale & Order
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.sales_order_logs (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  order_code TEXT NOT NULL,
+  old_data JSONB,
+  new_data JSONB,
+  changed_at TIMESTAMPTZ DEFAULT NOW(),
+  changed_by TEXT
+);
+
+-- Bảo mật
+ALTER TABLE public.sales_order_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all access" ON public.sales_order_logs FOR ALL USING (true) WITH CHECK (true);
+
+-- Function to log changes to sales_order_logs
+CREATE OR REPLACE FUNCTION public.log_sales_order_changes()
+RETURNS TRIGGER AS $$
+DECLARE
+  current_user_name TEXT;
+BEGIN
+  current_user_name := NEW.last_modified_by;
+  IF current_user_name IS NULL THEN
+     current_user_name := 'Unknown';
+  END IF;
+
+  INSERT INTO public.sales_order_logs (order_code, old_data, new_data, changed_by)
+  VALUES (
+    NEW.order_code, 
+    to_jsonb(OLD), 
+    to_jsonb(NEW), 
+    current_user_name
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger for Sales Order Logs (Separate from Bill of Lading if needed, or shared?)
+-- CAUTION: If we have multiple triggers on the same table, they all fire. 
+-- Since `orders` is ONE table, splitting logs by "logic" is hard unless we filter columns.
+-- For now, we will create a SECOND trigger that looks identical but writes to a different table?
+-- That would duplicate logs.
+-- BETTER QUERY: Does the user want EXACTLY the same logs but in a different table?
+-- OR just a different VIEW of the same logs?
+-- The user said: "làm bảng database sales_order_logs ghi log về thay đổi quả phần này"
+-- "trong thẻ lịch sử thay đổi sale order"
+-- It implies a separate log table, perhaps for separation of concerns or permissioning later.
+-- I will implement as requested: separate table, separate trigger (even if redundant for now).
+
+DROP TRIGGER IF EXISTS on_sales_order_change ON public.orders;
+CREATE TRIGGER on_sales_order_change
+  AFTER UPDATE ON public.orders
+  FOR EACH ROW
+  EXECUTE FUNCTION public.log_sales_order_changes();
+
+-- =====================================================
+-- 14. Bảng marketing_pages - Danh sách Page Marketing
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.marketing_pages (
+  id TEXT PRIMARY KEY,
+  page_name TEXT,
+  mkt_staff TEXT,
+  product TEXT,
+  market TEXT,
+  pancake_id TEXT,
+  page_link TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Bảo mật
+ALTER TABLE public.marketing_pages ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all access" ON public.marketing_pages FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all read" ON public.marketing_pages FOR SELECT USING (true);
+CREATE POLICY "Allow all insert" ON public.marketing_pages FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all update" ON public.marketing_pages FOR UPDATE USING (true);
+CREATE POLICY "Allow all delete" ON public.marketing_pages FOR DELETE USING (true);
+
+-- =====================================================
+-- 15. Bảng cskh_crm_logs - Lưu lịch sử thay đổi CSKH & CRM
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.cskh_crm_logs (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  order_code TEXT NOT NULL,
+  old_data JSONB,
+  new_data JSONB,
+  changed_at TIMESTAMPTZ DEFAULT NOW(),
+  changed_by TEXT
+);
+
+-- Bảo mật
+ALTER TABLE public.cskh_crm_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all access" ON public.cskh_crm_logs FOR ALL USING (true) WITH CHECK (true);
+
+-- Function to log changes to cskh_crm_logs
+CREATE OR REPLACE FUNCTION public.log_cskh_crm_changes()
+RETURNS TRIGGER AS $$
+DECLARE
+  current_user_name TEXT;
+BEGIN
+  current_user_name := NEW.last_modified_by;
+  IF current_user_name IS NULL THEN
+     current_user_name := 'Unknown';
+  END IF;
+
+  INSERT INTO public.cskh_crm_logs (order_code, old_data, new_data, changed_by)
+  VALUES (
+    NEW.order_code, 
+    to_jsonb(OLD), 
+    to_jsonb(NEW), 
+    current_user_name
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger for CSKH CRM Logs
+DROP TRIGGER IF EXISTS on_cskh_crm_change ON public.orders;
+CREATE TRIGGER on_cskh_crm_change
+  AFTER UPDATE ON public.orders
+  FOR EACH ROW
+  EXECUTE FUNCTION public.log_cskh_crm_changes();

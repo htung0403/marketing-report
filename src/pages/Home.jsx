@@ -64,22 +64,22 @@ function Home() {
           id: "dashboard-growth",
           label: "Dashboard Tăng trưởng",
           icon: <TrendingUp className="w-4 h-4" />,
-          path: "/dashboard-tang-truong",
-          comingSoon: true,
+          path: "https://redirect.zalo.me/v3/verifyv2/pc?token=P6BqnjfrMGXk3lx3rnrRPsWD_gdV7LDYO0Ft-uiMM6Gt1FsbWXaDF3KEhlRQ45yqPWpm-pTZP0&continue=https%3A%2F%2Fdashboard-lumiquantri.vercel.app%2F",
+          isExternal: true,
         },
         {
           id: "dashboard-kpi",
           label: "Dashboard KPI",
           icon: <Target className="w-4 h-4" />,
-          path: "/dashboard-kpi",
-          comingSoon: true,
+          path: "https://redirect.zalo.me/v3/verifyv2/pc?token=P6BqnjfrMGXk3lx3rnrRPsWD_gdV7LDYO0Ft-uiMM6Gt1FsbWXaDF3KEhlRQ45yqPWpm-pTZP0&continue=https%3A%2F%2Fdashboard-lumiquantri.vercel.app%2F",
+          isExternal: true,
         },
         {
           id: "dashboard-okr",
           label: "Dashboard OKR",
           icon: <Award className="w-4 h-4" />,
-          path: "/dashboard-okr",
-          comingSoon: true,
+          path: "https://redirect.zalo.me/v3/verifyv2/pc?token=P6BqnjfrMGXk3lx3rnrRPsWD_gdV7LDYO0Ft-uiMM6Gt1FsbWXaDF3KEhlRQ45yqPWpm-pTZP0&continue=https%3A%2F%2Fdashboard-lumiquantri.vercel.app%2F",
+          isExternal: true,
         },
       ],
     },
@@ -159,6 +159,12 @@ function Home() {
           label: "Báo cáo vận đơn",
           icon: <BarChart3 className="w-4 h-4" />,
           path: "/bao-cao-van-don",
+        },
+        {
+          id: "delivery-history",
+          label: "Lịch sử thay đổi",
+          icon: <ClipboardList className="w-4 h-4" />,
+          path: "/lich-su-van-don",
         },
         {
           id: "edit-order",
@@ -402,25 +408,25 @@ function Home() {
           title: "Dashboard Tăng trưởng",
           icon: <TrendingUp className="w-8 h-8" />,
           color: "bg-orange-500",
-          path: "/dashboard-tang-truong",
-          status: "Sắp ra mắt",
-          comingSoon: true,
+          path: "https://redirect.zalo.me/v3/verifyv2/pc?token=P6BqnjfrMGXk3lx3rnrRPsWD_gdV7LDYO0Ft-uiMM6Gt1FsbWXaDF3KEhlRQ45yqPWpm-pTZP0&continue=https%3A%2F%2Fdashboard-lumiquantri.vercel.app%2F",
+          status: "Mở ứng dụng",
+          isExternal: true,
         },
         {
           title: "Dashboard KPI",
           icon: <Target className="w-8 h-8" />,
           color: "bg-blue-600",
-          path: "/dashboard-kpi",
-          status: "Sắp ra mắt",
-          comingSoon: true,
+          path: "https://redirect.zalo.me/v3/verifyv2/pc?token=P6BqnjfrMGXk3lx3rnrRPsWD_gdV7LDYO0Ft-uiMM6Gt1FsbWXaDF3KEhlRQ45yqPWpm-pTZP0&continue=https%3A%2F%2Fdashboard-lumiquantri.vercel.app%2F",
+          status: "Mở ứng dụng",
+          isExternal: true,
         },
         {
           title: "Dashboard OKR",
           icon: <Award className="w-8 h-8" />,
           color: "bg-indigo-600",
-          path: "/dashboard-okr",
-          status: "Sắp ra mắt",
-          comingSoon: true,
+          path: "https://redirect.zalo.me/v3/verifyv2/pc?token=P6BqnjfrMGXk3lx3rnrRPsWD_gdV7LDYO0Ft-uiMM6Gt1FsbWXaDF3KEhlRQ45yqPWpm-pTZP0&continue=https%3A%2F%2Fdashboard-lumiquantri.vercel.app%2F",
+          status: "Mở ứng dụng",
+          isExternal: true,
         },
       ],
     },
@@ -446,6 +452,13 @@ function Home() {
           icon: <PlusCircle className="w-8 h-8" />,
           color: "bg-green-500",
           path: "/nhap-don",
+          status: "Mở ứng dụng",
+        },
+        {
+          title: "Lịch sử thay đổi",
+          icon: <ClipboardList className="w-8 h-8" />,
+          color: "bg-gray-600",
+          path: "/lich-su-cskh",
           status: "Mở ứng dụng",
         },
       ],
@@ -480,6 +493,13 @@ function Home() {
           icon: <BarChart3 className="w-8 h-8" />,
           color: "bg-orange-600",
           path: "/xem-bao-cao-sale",
+          status: "Mở ứng dụng",
+        },
+        {
+          title: "Lịch sử thay đổi",
+          icon: <ClipboardList className="w-8 h-8" />,
+          color: "bg-gray-600",
+          path: "/lich-su-sale-order",
           status: "Mở ứng dụng",
         },
       ],
@@ -733,6 +753,13 @@ function Home() {
           path: "/ffm",
           status: "Mở ứng dụng",
         },
+        {
+          title: "Lịch sử thay đổi",
+          icon: <ClipboardList className="w-8 h-8" />,
+          color: "bg-gray-500", // Choosing a neutral color or distinct color
+          path: "/lich-su-van-don",
+          status: "Mở ứng dụng",
+        },
       ],
     },
     {
@@ -777,16 +804,7 @@ function Home() {
           } flex flex-col sticky top-0 h-screen`}
       >
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          {!sidebarCollapsed && (
-            <div className="flex items-center gap-2">
-              <img
-                src="https://www.appsheet.com/template/gettablefileurl?appName=Appsheet-325045268&tableName=Kho%20%E1%BA%A3nh&fileName=Kho%20%E1%BA%A3nh_Images%2Fbe61f44f.%E1%BA%A2nh.021347.png"
-                alt="Logo"
-                className="h-8 object-contain"
-              />
-            </div>
-          )}
+        <div className="p-4 border-b border-gray-200 flex items-center justify-end">
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
@@ -798,6 +816,7 @@ function Home() {
             )}
           </button>
         </div>
+
 
         {/* Menu Items */}
         <nav className="flex-1 overflow-y-auto p-2">
@@ -965,7 +984,7 @@ function Home() {
           ))}
         </div>
       </div>
-    </div>
+    </div >
   );
 }
 

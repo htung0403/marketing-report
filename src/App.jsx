@@ -10,7 +10,14 @@ import BaoCaoHieuSuatKPI from './pages/BaoCaoHieuSuatKPI';
 import BaoCaoMarketing from './pages/BaoCaoMarketing';
 import BaoCaoSale from './pages/BaoCaoSale';
 import BaoCaoVanDon from './pages/BaoCaoVanDon';
+import BillOfLadingHistoryPage from './pages/BillOfLadingHistoryPage';
 import ChangeLogViewer from './pages/ChangeLogViewer';
+import CskhCrmHistoryPage from './pages/CskhCrmHistoryPage';
+import SalesOrderHistoryPage from './pages/SalesOrderHistoryPage';
+
+// ... (existing imports)
+
+
 import DanhSachDon from './pages/DanhSachDon';
 import DanhSachPage from './pages/DanhSachPage';
 import DonChiaCSKH from './pages/DonChiaCSKH';
@@ -72,7 +79,13 @@ function App() {
           <Route path="/xem-bao-cao-mkt" element={<ProtectedRoute><XemBaoCaoMKT /></ProtectedRoute>} />
           <Route path="/ffm" element={<ProtectedRoute><FFM /></ProtectedRoute>} />
           <Route path="/lenh-san-xuat" element={<ProtectedRoute><LenHSanXuat /></ProtectedRoute>} />
+
+          {/* History Routes */}
           <Route path="/lich-su-thay-doi" element={<ProtectedRoute><ChangeLogViewer /></ProtectedRoute>} />
+          <Route path="/lich-su-van-don" element={<ProtectedRoute><BillOfLadingHistoryPage /></ProtectedRoute>} />
+          <Route path="/lich-su-sale-order" element={<ProtectedRoute><SalesOrderHistoryPage /></ProtectedRoute>} />
+          <Route path="/lich-su-cskh" element={<ProtectedRoute><CskhCrmHistoryPage /></ProtectedRoute>} />
+
           <Route path="/admin-tools" element={<ProtectedRoute><AdminTools /></ProtectedRoute>} />
           <Route path="/external-view" element={<ProtectedRoute><ExternalView /></ProtectedRoute>} />
         </Routes>
