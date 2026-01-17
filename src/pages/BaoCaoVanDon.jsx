@@ -77,6 +77,7 @@ const createEmptyStats = () => ({
     "Đang Giao": { count: 0 },
     "Chưa Giao": { count: 0 },
     "Hoàn": { count: 0 },
+    "Hủy": { count: 0 }, // New status
     "chờ check": { count: 0 },
     "Trống trạng thái": { count: 0 }
 });
@@ -286,13 +287,14 @@ export default function BaoCaoVanDon() {
                 if (dStatus.includes("Giao Thành Công")) t["Giao Thành Công"].count++;
                 else if (dStatus.includes("Đang Giao")) t["Đang Giao"].count++;
                 else if (dStatus.includes("Chưa Giao")) t["Chưa Giao"].count++;
+                else if (dStatus.toLowerCase().includes("huỷ") || dStatus.toLowerCase().includes("hủy") || dStatus.toLowerCase().includes("cancel")) t["Hủy"].count++;
                 else if (dStatus.includes("Hoàn")) t["Hoàn"].count++;
                 else if (dStatus.includes("chờ check")) t["chờ check"].count++;
                 else if (!dStatus) t["Trống trạng thái"].count++;
 
                 t["Tổng đơn lên nội bộ"].count++;
                 if (pStatus.includes("Có bill") || pStatus.includes("Có bill 1 phần")) t["Tổng đơn đủ đkien đẩy vh"].count++;
-                if (dStatus && !dStatus.includes("Chưa Giao") && !dStatus.includes("chờ check")) t["Tổng đơn lên vận hành"].count++;
+                if (dStatus && !dStatus.includes("Chưa Giao") && !dStatus.includes("chờ check") && !dStatus.toLowerCase().includes("huỷ") && !dStatus.toLowerCase().includes("hủy") && !dStatus.toLowerCase().includes("cancel")) t["Tổng đơn lên vận hành"].count++;
             });
         });
 
@@ -302,12 +304,13 @@ export default function BaoCaoVanDon() {
     // --- CHART DATA PREP ---
     const chartsData = useMemo(() => {
         // 1. Status Breakdown
-        const statusCounts = { 'Giao Thành Công': 0, 'Hoàn': 0, 'Đang Giao': 0, 'chờ check': 0, 'Khác': 0 };
+        const statusCounts = { 'Giao Thành Công': 0, 'Hoàn': 0, 'Hủy': 0, 'Đang Giao': 0, 'chờ check': 0, 'Khác': 0 };
         filteredReportData.forEach(r => {
-            const s = r["Trạng thái giao hàng NB"] || "";
-            if (s.includes("Giao Thành Công")) statusCounts['Giao Thành Công']++;
-            else if (s.includes("Hoàn")) statusCounts['Hoàn']++;
-            else if (s.includes("Đang Giao")) statusCounts['Đang Giao']++;
+            const s = (r["Trạng thái giao hàng NB"] || "").toLowerCase();
+            if (s.includes("giao thành công")) statusCounts['Giao Thành Công']++;
+            else if (s.includes("hoàn")) statusCounts['Hoàn']++;
+            else if (s.includes("huỷ") || s.includes("hủy") || s.includes("cancel")) statusCounts['Hủy']++;
+            else if (s.includes("đang giao")) statusCounts['Đang Giao']++;
             else if (s.includes("chờ check")) statusCounts['chờ check']++;
             else if (s) statusCounts['Khác']++;
         });
@@ -316,7 +319,7 @@ export default function BaoCaoVanDon() {
             labels: Object.keys(statusCounts),
             datasets: [{
                 data: Object.values(statusCounts),
-                backgroundColor: ['#2ecc71', '#e74c3c', '#3498db', '#f1c40f', '#95a5a6'],
+                backgroundColor: ['#2ecc71', '#e74c3c', '#8e44ad', '#3498db', '#f1c40f', '#95a5a6'],
             }]
         };
 
@@ -335,14 +338,16 @@ export default function BaoCaoVanDon() {
         const staffPerf = Object.entries(reportStats.staffStats).map(([name, data]) => ({
             name,
             success: data._total["Giao Thành Công"].count,
-            returned: data._total["Hoàn"].count
-        })).sort((a, b) => (b.success + b.returned) - (a.success + a.returned)).slice(0, 10);
+            returned: data._total["Hoàn"].count,
+            canceled: data._total["Hủy"].count
+        })).sort((a, b) => (b.success + b.returned + b.canceled) - (a.success + a.returned + a.canceled)).slice(0, 10);
 
         const staffChart = {
             labels: staffPerf.map(s => s.name),
             datasets: [
                 { label: 'Thành Công', data: staffPerf.map(s => s.success), backgroundColor: '#2ecc71' },
-                { label: 'Hoàn', data: staffPerf.map(s => s.returned), backgroundColor: '#e74c3c' }
+                { label: 'Hoàn', data: staffPerf.map(s => s.returned), backgroundColor: '#e74c3c' },
+                { label: 'Hủy', data: staffPerf.map(s => s.canceled), backgroundColor: '#8e44ad' }
             ]
         };
 
@@ -350,16 +355,18 @@ export default function BaoCaoVanDon() {
         const carrierStats = {};
         filteredReportData.forEach(r => {
             const c = r["Đơn vị vận chuyển"] || "Không xác định";
-            if (!carrierStats[c]) carrierStats[c] = { success: 0, returned: 0 };
-            const s = r["Trạng thái giao hàng NB"] || "";
-            if (s.includes("Giao Thành Công")) carrierStats[c].success++;
-            else if (s.includes("Hoàn")) carrierStats[c].returned++;
+            if (!carrierStats[c]) carrierStats[c] = { success: 0, returned: 0, canceled: 0 };
+            const s = (r["Trạng thái giao hàng NB"] || "").toLowerCase();
+            if (s.includes("giao thành công")) carrierStats[c].success++;
+            else if (s.includes("hoàn")) carrierStats[c].returned++;
+            else if (s.includes("huỷ") || s.includes("hủy") || s.includes("cancel")) carrierStats[c].canceled++;
         });
         const carrierChart = {
             labels: Object.keys(carrierStats),
             datasets: [
                 { label: 'Thành Công', data: Object.values(carrierStats).map(d => d.success), backgroundColor: '#2ecc71' },
-                { label: 'Hoàn', data: Object.values(carrierStats).map(d => d.returned), backgroundColor: '#e74c3c' }
+                { label: 'Hoàn', data: Object.values(carrierStats).map(d => d.returned), backgroundColor: '#e74c3c' },
+                { label: 'Hủy', data: Object.values(carrierStats).map(d => d.canceled), backgroundColor: '#8e44ad' }
             ]
         };
 
@@ -404,7 +411,7 @@ export default function BaoCaoVanDon() {
     const refundData = useMemo(() => {
         return filteredReportData.filter(r => {
             const status = (r["Trạng thái giao hàng NB"] || "").toLowerCase();
-            return status.includes("hoàn") || status.includes("huỷ");
+            return status.includes("hoàn") || status.includes("huỷ") || status.includes("hủy") || status.includes("cancel");
         });
     }, [filteredReportData]);
 
@@ -439,6 +446,7 @@ export default function BaoCaoVanDon() {
                 <td>{data["Đang Giao"].count}</td>
                 <td>{data["Chưa Giao"].count}</td>
                 <td>{data["Hoàn"].count}</td>
+                <td>{data["Hủy"].count}</td>
                 <td>{data["chờ check"].count}</td>
                 <td>{data["Trống trạng thái"].count}</td>
                 <td className={payRate > 80 ? 'bcvd-text-positive' : 'bcvd-text-negative'}>{payRate.toFixed(1)}%</td>
@@ -479,7 +487,7 @@ export default function BaoCaoVanDon() {
                     className={`bcvd-tab-btn ${activeTab === 'DonHoan' ? 'active' : ''}`}
                     onClick={() => setActiveTab('DonHoan')}
                 >
-                    Danh sách hoàn
+                    Danh sách Hoàn/Hủy
                 </button>
             </div>
 
@@ -600,7 +608,10 @@ export default function BaoCaoVanDon() {
                     <div className="bcvd-refund-section">
                         <div className="bcvd-refund-info">
                             Báo cáo Đơn Hoàn / Huỷ: <span style={{ color: '#e74c3c', marginLeft: '8px' }}>
-                                {reportStats.grandTotal["Hoàn"].count} đơn
+                                {reportStats.grandTotal["Hoàn"].count + reportStats.grandTotal["Hủy"].count} đơn
+                            </span>
+                            <span className="text-sm text-gray-500 ml-2 font-normal">
+                                (Hoàn: {reportStats.grandTotal["Hoàn"].count} | Hủy: {reportStats.grandTotal["Hủy"].count})
                             </span>
                         </div>
                         <button
@@ -671,6 +682,7 @@ export default function BaoCaoVanDon() {
                                     <th rowSpan={2}>Đang Giao</th>
                                     <th rowSpan={2}>Chưa Giao</th>
                                     <th rowSpan={2}>Hoàn</th>
+                                    <th rowSpan={2}>Hủy</th>
                                     <th rowSpan={2}>chờ check</th>
                                     <th rowSpan={2}>Trống trạng thái</th>
                                     <th rowSpan={2}>Tỷ lệ thu tiền/giao thành công</th>
@@ -845,7 +857,7 @@ export default function BaoCaoVanDon() {
 
                         <div className="bcvd-summary-bar">
                             <div className="bcvd-summary-item" style={{ borderColor: '#e74c3c' }}>
-                                <div className="label" style={{ color: '#c0392b' }}>Tổng đơn hoàn</div>
+                                <div className="label" style={{ color: '#c0392b' }}>Tổng đơn Hoàn/Hủy</div>
                                 <div className="value" style={{ color: '#e74c3c' }}>
                                     {refundData.length}
                                 </div>
@@ -869,20 +881,26 @@ export default function BaoCaoVanDon() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {refundData.map((row, idx) => (
-                                        <tr key={idx}>
-                                            <td>{row["Mã đơn hàng"]}</td>
-                                            <td>{row["Ngày lên đơn"] || row["Thời gian lên đơn"]}</td>
-                                            <td>{row["Name*"]}</td>
-                                            <td>{row["Phone*"]}</td>
-                                            <td>{row["Mặt hàng"]}</td>
-                                            <td>{formatCurrency(row["Tổng tiền VNĐ"])}</td>
-                                            <td>{row["NV Vận đơn"] || row["NV_Vận_đơn"]}</td>
-                                            <td>{row["Đơn vị vận chuyển"] || row["Đơn_vị_vận_chuyển"]}</td>
-                                            <td style={{ color: '#e74c3c', fontWeight: 'bold' }}>{row["Trạng thái giao hàng NB"]}</td>
-                                            <td>{row["Lý do"] || row["Ghi chú"] || "-"}</td>
-                                        </tr>
-                                    ))}
+                                    {refundData.map((row, idx) => {
+                                        const status = (row["Trạng thái giao hàng NB"] || "").toLowerCase();
+                                        const isCancel = status.includes("huỷ") || status.includes("hủy") || status.includes("cancel");
+                                        const statusColor = isCancel ? '#8e44ad' : '#e74c3c';
+
+                                        return (
+                                            <tr key={idx}>
+                                                <td>{row["Mã đơn hàng"]}</td>
+                                                <td>{row["Ngày lên đơn"] || row["Thời gian lên đơn"]}</td>
+                                                <td>{row["Name*"]}</td>
+                                                <td>{row["Phone*"]}</td>
+                                                <td>{row["Mặt hàng"]}</td>
+                                                <td>{formatCurrency(row["Tổng tiền VNĐ"])}</td>
+                                                <td>{row["NV Vận đơn"] || row["NV_Vận_đơn"]}</td>
+                                                <td>{row["Đơn vị vận chuyển"] || row["Đơn_vị_vận_chuyển"]}</td>
+                                                <td style={{ color: statusColor, fontWeight: 'bold' }}>{row["Trạng thái giao hàng NB"]}</td>
+                                                <td>{row["Lý do"] || row["Ghi chú"] || "-"}</td>
+                                            </tr>
+                                        );
+                                    })}
                                     {refundData.length === 0 && (
                                         <tr>
                                             <td colSpan={10} className="bcvd-no-data">Không có đơn hoàn/huỷ trong khoảng thời gian này.</td>
