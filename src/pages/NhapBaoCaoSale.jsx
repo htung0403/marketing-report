@@ -1,28 +1,33 @@
 import { useEffect, useState } from 'react';
 
 export default function NhapBaoCaoSale() {
-    const [userInfo, setUserInfo] = useState({ name: '', email: '' });
+    const [currentUserInfo, setCurrentUserInfo] = useState({ ten: '', email: '' });
 
     useEffect(() => {
-        const name = localStorage.getItem('username') || '';
+        // Get user info from localStorage
+        const ten = localStorage.getItem('username') || '';
         const email = localStorage.getItem('userEmail') || '';
-        setUserInfo({ name, email });
+        setCurrentUserInfo({ ten, email });
     }, []);
 
-    if (!userInfo.name || !userInfo.email) {
+    if (!currentUserInfo.ten || !currentUserInfo.email) {
         return (
-            <div className="flex items-center justify-center min-h-screen text-gray-500">
+            <div style={{ padding: '20px', textAlign: 'center' }}>
                 Đang tải thông tin người dùng...
             </div>
         );
     }
 
     return (
-        <div className="w-full h-[calc(100vh-64px)] bg-white">
+        <div style={{ width: '100%', height: '100vh' }}>
             <iframe
-                src={`https://nguyenbatyads37.github.io/static-html-show-data/baoCaoThuCong.html?hoten=${encodeURIComponent(userInfo.name)}&email=${encodeURIComponent(userInfo.email)}&tableName=Báo cáo sale`}
-                title="Sale nhập báo cáo"
-                className="w-full h-full border-none"
+                src={`https://nguyenbatyads37.github.io/static-html-show-data/baoCaoThuCong.html?hoten=${encodeURIComponent(currentUserInfo.ten)}&email=${encodeURIComponent(currentUserInfo.email)}&tableName=Báo cáo sale`}
+                title="Báo cáo Sale"
+                style={{
+                    width: '100%',
+                    height: '100%',
+                    border: 'none'
+                }}
             />
         </div>
     );

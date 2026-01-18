@@ -225,7 +225,7 @@ function DanhSachDon() {
 
   // Sync data from F3 Firebase
   const handleSyncF3 = async () => {
-    if (!window.confirm("Bạn có chắc chắn muốn đồng bộ dữ liệu từ F3 (Firebase) về Supabase? Dữ liệu cũ trên Supabase có thể bị ghi đè hoặc trùng lặp.")) return;
+    if (!window.confirm("Bạn có chắc chắn muốn đồng bộ dữ liệu từ F3 (Firebase) về Supabase?\n\nLưu ý: Chỉ thêm dữ liệu MỚI (chưa có), KHÔNG ghi đè dữ liệu đã tồn tại.")) return;
 
     try {
       setSyncing(true);
@@ -354,10 +354,10 @@ function DanhSachDon() {
           };
         });
 
-        // Upsert to Supabase
+        // Insert only new records to Supabase (don't update existing)
         const { error } = await supabase
           .from("orders")
-          .upsert(transformedBatch, { onConflict: 'order_code', ignoreDuplicates: false });
+          .upsert(transformedBatch, { onConflict: 'order_code', ignoreDuplicates: true });
 
         if (error) {
           console.error("Batch error:", error);

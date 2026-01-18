@@ -3,13 +3,12 @@ import { isDateInRange } from '../utils/dateParsing';
 import './BaoCaoSale.css';
 
 const API_HOST = 'https://n-api-gamma.vercel.app';
-
 // Helpers
 const formatCurrency = (value) => Number(value || 0).toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
 const formatNumber = (value) => Number(value || 0).toLocaleString('vi-VN');
 const formatPercent = (value) => {
     if (value === null || value === undefined || !Number.isFinite(+value)) return '0.00%';
-    return `${(Number(value || 0) * 100).toFixed(2)}%`;
+    return `${(Number(value || 0) * 100).toFixed(2)}% `;
 };
 const formatDate = (dateValue) => {
     const d = new Date(dateValue);
@@ -17,7 +16,7 @@ const formatDate = (dateValue) => {
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
+    return `${day} /${month}/${year} `;
 };
 
 export default function BaoCaoSale() {
@@ -656,17 +655,19 @@ export default function BaoCaoSale() {
                     </div>
 
                     {/* Tab 5: Thu Cong */}
-                    {activeTab === 'thu-cong' && currentUserInfo && (
-                        <div className={`tab-content active`}>
-                            <iframe
-                                src={`https://nguyenbatyads37.github.io/static-html-show-data/baoCaoThuCong.html?hoten=${encodeURIComponent(currentUserInfo.ten)}&email=${encodeURIComponent(currentUserInfo.email)}&tableName=Báo cáo sale`}
-                                title="Báo cáo thủ công"
-                            />
-                        </div>
-                    )}
+                    {
+                        activeTab === 'thu-cong' && currentUserInfo && (
+                            <div className={`tab-content active`}>
+                                <iframe
+                                    src={`https://nguyenbatyads37.github.io/static-html-show-data/baoCaoThuCong.html?hoten=${encodeURIComponent(currentUserInfo.ten)}&email=${encodeURIComponent(currentUserInfo.email)}&tableName=Báo cáo sale`}
+                                    title="Báo cáo thủ công"
+                                />
+                            </div>
+                        )
+                    }
 
                 </div>
             </div>
-        </div>
+        </div >
     );
 }
