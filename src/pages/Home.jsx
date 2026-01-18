@@ -493,6 +493,46 @@ function Home() {
       ],
     },
     {
+      title: "QUẢN LÝ GIAO HÀNG",
+      items: [
+        {
+          title: "Quản lý vận đơn",
+          icon: <Package className="w-8 h-8" />,
+          color: "bg-[#F37021]",
+          path: "/van-don",
+          status: "Mở ứng dụng",
+        },
+        {
+          title: "Báo cáo vận đơn",
+          icon: <BarChart3 className="w-8 h-8" />,
+          color: "bg-teal-500",
+          path: "/bao-cao-van-don",
+          status: "Mở ứng dụng",
+        },
+        {
+          title: "Chỉnh sửa đơn",
+          icon: <Edit3 className="w-8 h-8" />,
+          color: "bg-cyan-500",
+          path: "/chinh-sua-don",
+          status: "Mở ứng dụng",
+        },
+        {
+          title: "FFM",
+          icon: <ClipboardList className="w-8 h-8" />,
+          color: "bg-indigo-500",
+          path: "/ffm",
+          status: "Mở ứng dụng",
+        },
+        {
+          title: "Lịch sử thay đổi",
+          icon: <ClipboardList className="w-8 h-8" />,
+          color: "bg-gray-500", // Choosing a neutral color or distinct color
+          path: "/lich-su-van-don",
+          status: "Mở ứng dụng",
+        },
+      ],
+    },
+    {
       title: "QUẢN LÝ MARKETING",
       items: [
         {
@@ -698,46 +738,7 @@ function Home() {
         },
       ],
     },
-    {
-      title: "QUẢN LÝ GIAO HÀNG",
-      items: [
-        {
-          title: "Quản lý vận đơn",
-          icon: <Package className="w-8 h-8" />,
-          color: "bg-[#F37021]",
-          path: "/van-don",
-          status: "Mở ứng dụng",
-        },
-        {
-          title: "Báo cáo vận đơn",
-          icon: <BarChart3 className="w-8 h-8" />,
-          color: "bg-teal-500",
-          path: "/bao-cao-van-don",
-          status: "Mở ứng dụng",
-        },
-        {
-          title: "Chỉnh sửa đơn",
-          icon: <Edit3 className="w-8 h-8" />,
-          color: "bg-cyan-500",
-          path: "#",
-          status: "Mở ứng dụng",
-        },
-        {
-          title: "FFM",
-          icon: <ClipboardList className="w-8 h-8" />,
-          color: "bg-indigo-500",
-          path: "/ffm",
-          status: "Mở ứng dụng",
-        },
-        {
-          title: "Lịch sử thay đổi",
-          icon: <ClipboardList className="w-8 h-8" />,
-          color: "bg-gray-500", // Choosing a neutral color or distinct color
-          path: "/lich-su-van-don",
-          status: "Mở ứng dụng",
-        },
-      ],
-    },
+
     {
       title: "CÀI ĐẶT HỆ THỐNG",
       items: [

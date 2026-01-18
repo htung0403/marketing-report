@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '../../supabase/config';
 import bcrypt from 'bcryptjs';
+import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
+import { supabase } from '../../supabase/config';
 
 export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }) {
   const [users, setUsers] = useState([]);
@@ -22,7 +22,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
     Ca: '',
     role: 'user'
   });
-  
+
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 30;
@@ -32,17 +32,17 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
     const fetchUsers = async () => {
       try {
         setLoading(true);
-        
+
         const { data, error: fetchError } = await supabase
           .from('human_resources')
           .select('*')
           .order('Họ Và Tên', { ascending: true });
-        
+
         if (fetchError) throw fetchError;
-        
+
         if (data) {
           setUsers(data);
-          
+
           // Apply role-based filtering
           if (userRole === 'leader' && userTeam) {
             const filtered = data.filter(user => user.Team === userTeam);
@@ -78,7 +78,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
 
     // Apply team filter (for admin)
     if (teamFilter && teamFilter.length > 0) {
-      filtered = filtered.filter(user => 
+      filtered = filtered.filter(user =>
         teamFilter.includes(user.Team)
       );
     }
@@ -106,17 +106,17 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
         .from('human_resources')
         .update(updatedData)
         .eq('id', userId);
-      
+
       if (error) throw error;
-      
+
       // Update local state
-      setUsers(prev => prev.map(user => 
+      setUsers(prev => prev.map(user =>
         user.id === userId ? { ...user, ...updatedData } : user
       ));
-      setFilteredUsers(prev => prev.map(user => 
+      setFilteredUsers(prev => prev.map(user =>
         user.id === userId ? { ...user, ...updatedData } : user
       ));
-      
+
       setIsModalOpen(false);
       setEditingUser(null);
       toast.success('Cập nhật thông tin nhân sự thành công!');
@@ -128,7 +128,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
 
   // Open edit modal
   const openEditModal = (user) => {
-    setEditingUser({...user});
+    setEditingUser({ ...user });
     setIsModalOpen(true);
   };
 
@@ -189,9 +189,9 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
         .from('users')
         .select('id')
         .eq('email', newUser.email);
-      
+
       if (checkError) throw checkError;
-      
+
       if (existingUsers && existingUsers.length > 0) {
         toast.error('Email này đã được sử dụng!');
         return;
@@ -224,7 +224,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
           }
         ])
         .select();
-      
+
       if (userError) throw userError;
 
       // Create record in human_resources table
@@ -247,7 +247,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
             created_by: localStorage.getItem('username') || 'admin'
           }
         ]);
-      
+
       if (hrError) throw hrError;
 
       // Refresh users list
@@ -255,12 +255,12 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
         .from('human_resources')
         .select('*')
         .order('Họ Và Tên', { ascending: true });
-      
+
       if (refreshError) throw refreshError;
-      
+
       if (updatedUsers) {
         setUsers(updatedUsers);
-        
+
         if (userRole === 'leader' && userTeam) {
           const filtered = updatedUsers.filter(user => user.Team === userTeam);
           setFilteredUsers(filtered);
@@ -296,13 +296,13 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
         .from('human_resources')
         .delete()
         .eq('id', deletingUser.id);
-      
+
       if (error) throw error;
-      
+
       // Update local state
       setUsers(prev => prev.filter(user => user.id !== deletingUser.id));
       setFilteredUsers(prev => prev.filter(user => user.id !== deletingUser.id));
-      
+
       closeDeleteConfirm();
       toast.success('Xóa nhân sự thành công!');
     } catch (err) {
@@ -351,7 +351,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
           </button>
         )}
       </div>
-      
+
       {/* Statistics */}
       <div className="mb-4 flex items-center justify-between">
         <p className="text-gray-600">
@@ -366,10 +366,10 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
           )}
         </p>
       </div>
-      
+
       {/* User Management Table */}
       {filteredUsers.length === 0 ? (
-        <div className="text-center py-8 bg-gray-50 rounded-lg">
+        <div className="text-center py-20 bg-white rounded-xl shadow-sm border border-gray-100">
           <p className="text-gray-500">Không có dữ liệu nhân sự</p>
         </div>
       ) : (
@@ -437,27 +437,25 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
             <button
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className={`relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-md ${
-                currentPage === 1
+              className={`relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-md ${currentPage === 1
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
-              }`}
+                }`}
             >
               Trước
             </button>
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className={`relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium rounded-md ${
-                currentPage === totalPages
+              className={`relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium rounded-md ${currentPage === totalPages
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
-              }`}
+                }`}
             >
               Sau
             </button>
           </div>
-          
+
           <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
             <div>
               <p className="text-sm text-gray-700">
@@ -472,16 +470,15 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                 <button
                   onClick={() => handlePageChange(currentPage - 1)}
                   disabled={currentPage === 1}
-                  className={`relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 ${
-                    currentPage === 1 ? 'cursor-not-allowed opacity-50' : ''
-                  }`}
+                  className={`relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 ${currentPage === 1 ? 'cursor-not-allowed opacity-50' : ''
+                    }`}
                 >
                   <span className="sr-only">Previous</span>
                   <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
                   </svg>
                 </button>
-                
+
                 {/* Page numbers */}
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
                   // Show first page, last page, current page, and pages around current
@@ -494,11 +491,10 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                       <button
                         key={page}
                         onClick={() => handlePageChange(page)}
-                        className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
-                          page === currentPage
+                        className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${page === currentPage
                             ? 'z-10 bg-blue-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600'
                             : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
-                        }`}
+                          }`}
                       >
                         {page}
                       </button>
@@ -515,14 +511,13 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   }
                   return null;
                 })}
-                
+
                 {/* Next button */}
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages}
-                  className={`relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 ${
-                    currentPage === totalPages ? 'cursor-not-allowed opacity-50' : ''
-                  }`}
+                  className={`relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 ${currentPage === totalPages ? 'cursor-not-allowed opacity-50' : ''
+                    }`}
                 >
                   <span className="sr-only">Next</span>
                   <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -555,7 +550,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   <input
                     type="text"
                     value={editingUser['Họ Và Tên'] || ''}
-                    onChange={(e) => setEditingUser({...editingUser, 'Họ Và Tên': e.target.value})}
+                    onChange={(e) => setEditingUser({ ...editingUser, 'Họ Và Tên': e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Nhập họ và tên"
                   />
@@ -569,7 +564,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   <input
                     type="email"
                     value={editingUser.email || ''}
-                    onChange={(e) => setEditingUser({...editingUser, email: e.target.value})}
+                    onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Nhập email"
                   />
@@ -583,7 +578,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   <input
                     type="text"
                     value={editingUser['Bộ phận'] || ''}
-                    onChange={(e) => setEditingUser({...editingUser, 'Bộ phận': e.target.value})}
+                    onChange={(e) => setEditingUser({ ...editingUser, 'Bộ phận': e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Nhập bộ phận"
                   />
@@ -597,7 +592,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   <input
                     type="text"
                     value={editingUser.Team || ''}
-                    onChange={(e) => setEditingUser({...editingUser, Team: e.target.value})}
+                    onChange={(e) => setEditingUser({ ...editingUser, Team: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Nhập team"
                   />
@@ -611,7 +606,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   <input
                     type="text"
                     value={editingUser['Vị trí'] || ''}
-                    onChange={(e) => setEditingUser({...editingUser, 'Vị trí': e.target.value})}
+                    onChange={(e) => setEditingUser({ ...editingUser, 'Vị trí': e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Nhập vị trí"
                   />
@@ -624,7 +619,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   </label>
                   <select
                     value={editingUser['chi nhánh'] || ''}
-                    onChange={(e) => setEditingUser({...editingUser, 'chi nhánh': e.target.value})}
+                    onChange={(e) => setEditingUser({ ...editingUser, 'chi nhánh': e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">-- Chọn chi nhánh --</option>
@@ -640,7 +635,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   </label>
                   <select
                     value={editingUser.Ca || ''}
-                    onChange={(e) => setEditingUser({...editingUser, Ca: e.target.value})}
+                    onChange={(e) => setEditingUser({ ...editingUser, Ca: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">-- Chọn ca --</option>
@@ -700,7 +695,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   <input
                     type="text"
                     value={newUser['Họ Và Tên']}
-                    onChange={(e) => setNewUser({...newUser, 'Họ Và Tên': e.target.value})}
+                    onChange={(e) => setNewUser({ ...newUser, 'Họ Và Tên': e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     placeholder="Nhập họ và tên"
                   />
@@ -714,7 +709,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   <input
                     type="email"
                     value={newUser.email}
-                    onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     placeholder="Nhập email"
                   />
@@ -728,7 +723,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   <input
                     type="password"
                     value={newUser.password}
-                    onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)"
                   />
@@ -742,7 +737,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   <input
                     type="text"
                     value={newUser['Bộ phận']}
-                    onChange={(e) => setNewUser({...newUser, 'Bộ phận': e.target.value})}
+                    onChange={(e) => setNewUser({ ...newUser, 'Bộ phận': e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     placeholder="Nhập bộ phận"
                   />
@@ -756,7 +751,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   <input
                     type="text"
                     value={newUser.Team}
-                    onChange={(e) => setNewUser({...newUser, Team: e.target.value})}
+                    onChange={(e) => setNewUser({ ...newUser, Team: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     placeholder="Nhập team"
                   />
@@ -770,7 +765,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   <input
                     type="text"
                     value={newUser['Vị trí']}
-                    onChange={(e) => setNewUser({...newUser, 'Vị trí': e.target.value})}
+                    onChange={(e) => setNewUser({ ...newUser, 'Vị trí': e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     placeholder="Nhập vị trí"
                   />
@@ -783,7 +778,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   </label>
                   <select
                     value={newUser['chi nhánh']}
-                    onChange={(e) => setNewUser({...newUser, 'chi nhánh': e.target.value})}
+                    onChange={(e) => setNewUser({ ...newUser, 'chi nhánh': e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
                     <option value="">-- Chọn chi nhánh --</option>
@@ -799,7 +794,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   </label>
                   <select
                     value={newUser.Ca}
-                    onChange={(e) => setNewUser({...newUser, Ca: e.target.value})}
+                    onChange={(e) => setNewUser({ ...newUser, Ca: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
                     <option value="">-- Chọn ca --</option>
@@ -815,7 +810,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   </label>
                   <select
                     value={newUser.role}
-                    onChange={(e) => setNewUser({...newUser, role: e.target.value})}
+                    onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
                     <option value="user">User</option>
@@ -864,7 +859,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
               <p className="text-gray-700 mb-4">
                 Bạn có chắc chắn muốn xóa nhân sự này không?
               </p>
-              
+
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
                 <p className="text-sm">
                   <span className="font-semibold text-gray-700">Họ và Tên:</span>{' '}

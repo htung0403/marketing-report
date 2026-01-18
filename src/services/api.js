@@ -105,6 +105,10 @@ export const updateSingleCell = async (orderId, columnKey, newValue, modifiedBy)
             // For now, if no mapping found, return error to avoid bad data
             // UNLESS it's a known direct key
             if (columnKey === 'delivery_status') dbKey = 'delivery_status';
+
+            // FFM Specific Mappings
+            if (columnKey === 'Ghi chú vận đơn') dbKey = 'vandon_note';
+            if (columnKey === 'Ngày đẩy đơn') dbKey = 'accounting_check_date';
         }
 
         if (!dbKey) throw new Error(`Không tìm thấy cột tương ứng trong DB cho: ${columnKey}`);
@@ -153,63 +157,33 @@ export const fetchMGTNoiBoOrders = async () => {
 
 export const fetchFFMOrders = async () => {
     try {
-        const FFM_DATA_API_URL = `${MAIN_HOST}/sheet/FFM/data`;
-        console.log('Fetching FFM data from:', FFM_DATA_API_URL);
+        console.log('Fetching FFM orders from Supabase...');
 
-        const response = await fetch(FFM_DATA_API_URL, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            }
-        });
+        // Query: Team = HCM or Hanoi OR Shipping Unit contains MGT
+        // Supabase OR syntax: .or('team.eq.HCM,team.eq.Hà Nội,shipping_unit.ilike.%MGT%')
+        // shipping_unit maps to 'Đơn vị vận chuyển'
 
-        console.log('FFM Response status:', response.status);
+        const { data, error, count } = await supabase
+            .from('orders')
+            .select('*', { count: 'exact' })
+            .or('team.eq.HCM,team.eq.Hà Nội,shipping_unit.ilike.%MGT%')
+            .order('order_date', { ascending: false })
+            .limit(1000); // Reasonable limit for checking
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('FFM API Error Response:', errorText);
-            throw new Error(`API Error ${response.status}: ${response.statusText}`);
+        if (error) {
+            console.error('Supabase fetchFFMOrders error:', error);
+            throw error;
         }
 
-        const json = await response.json();
-        console.log('FFM API Response:', json);
+        console.log(`Loaded ${data.length} FFM orders from Supabase`);
 
-        if (json.error) throw new Error(json.error);
-
-        const data = json.rows || json.data || json;
-        if (!Array.isArray(data)) {
-            console.error('Invalid FFM data format:', data);
-            throw new Error('Dữ liệu FFM trả về không đúng định dạng mảng');
-        }
-
-        console.log(`Loaded ${data.length} FFM orders`);
-        return data;
+        // Map to App Format
+        return data.map(mapSupabaseOrderToApp);
 
     } catch (error) {
         console.error('fetchFFMOrders error:', error);
-
-        // Fallback với dữ liệu demo nếu API lỗi
-        console.log('Using fallback demo data for FFM...');
-        return [
-            {
-                "Mã đơn hàng": "FFM001",
-                "Name*": "Nguyễn Văn C",
-                "Phone*": "0912345678",
-                "Add": "789 Đường FFM",
-                "City": "Hà Nội",
-                "State": "Hà Nội",
-                "Khu vực": "Miền Bắc",
-                "Mặt hàng": "Sản phẩm FFM",
-                "Giá bán": "1500000",
-                "Tổng tiền VNĐ": "1500000",
-                "Ghi chú": "Đơn hàng FFM demo",
-                "Trạng thái giao hàng": "ĐANG GIAO",
-                "Mã Tracking": "",
-                "Ngày lên đơn": new Date().toISOString(),
-                "Ngày đóng hàng": ""
-            }
-        ];
+        // Let the caller handle UI notifications
+        throw error;
     }
 };
 
@@ -239,6 +213,10 @@ export const updateBatch = async (rows, modifiedBy) => {
                 if (!dbKey) {
                     if (appKey === 'Trạng thái giao hàng NB') dbKey = 'delivery_status_nb';
                     if (appKey === 'delivery_status') dbKey = 'delivery_status';
+
+                    // FFM Specific Mappings
+                    if (appKey === 'Ghi chú vận đơn') dbKey = 'vandon_note';
+                    if (appKey === 'Ngày đẩy đơn') dbKey = 'accounting_check_date';
                 }
 
                 if (dbKey) {

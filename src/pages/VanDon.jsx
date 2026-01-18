@@ -1,12 +1,12 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import ColumnSettingsModal from '../components/ColumnSettingsModal';
 import MultiSelect from '../components/MultiSelect';
 import * as API from '../services/api';
 import '../styles/selection.css';
 import {
   BILL_LADING_COLUMNS, COLUMN_MAPPING,
+  DEFAULT_BILL_LADING_COLUMNS,
   DROPDOWN_OPTIONS,
   EDITABLE_COLS,
   LONG_TEXT_COLS,
@@ -71,9 +71,9 @@ function VanDon() {
         console.error('Error parsing saved columns:', e);
       }
     }
-    // Initialize with all columns visible
+    // Initialize with default columns
     const initial = {};
-    const cols = viewMode === 'ORDER_MANAGEMENT' ? ORDER_MGMT_COLUMNS : BILL_LADING_COLUMNS;
+    const cols = viewMode === 'ORDER_MANAGEMENT' ? ORDER_MGMT_COLUMNS : DEFAULT_BILL_LADING_COLUMNS;
     cols.forEach(col => {
       initial[col] = true;
     });
@@ -1161,9 +1161,7 @@ function VanDon() {
           <div className="flex items-center justify-between gap-4">
             {/* Left: Logo & Title (Smaller) */}
             <div className="flex items-center gap-3">
-              <Link to="/" className="text-gray-500 hover:text-gray-900 transition-colors">
-                <ChevronLeft className="w-5 h-5" />
-              </Link>
+
               <img
                 src="https://www.appsheet.com/template/gettablefileurl?appName=Appsheet-325045268&tableName=Kho%20%E1%BA%A3nh&fileName=Kho%20%E1%BA%A3nh_Images%2Fbe61f44f.%E1%BA%A2nh.021347.png"
                 alt="Logo"
@@ -1633,10 +1631,11 @@ function VanDon() {
         }}
         onResetDefault={() => {
           const defaultCols = {};
-          allColumns.forEach(col => { defaultCols[col] = true; });
+          const defaults = viewMode === 'ORDER_MANAGEMENT' ? allColumns : DEFAULT_BILL_LADING_COLUMNS;
+          defaults.forEach(col => { defaultCols[col] = true; });
           setVisibleColumns(defaultCols);
         }}
-        defaultColumns={allColumns}
+        defaultColumns={viewMode === 'ORDER_MANAGEMENT' ? allColumns : DEFAULT_BILL_LADING_COLUMNS}
       />
     </div>
   );

@@ -1,11 +1,13 @@
-import { ChevronLeft, Download, RefreshCw, Search, Settings, X } from 'lucide-react';
+import { Download, Edit, Eye, RefreshCw, Search, Settings, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabase/config';
 import { COLUMN_MAPPING, PRIMARY_KEY_COLUMN } from '../types';
 
 function QuanLyCSKH() {
+  const navigate = useNavigate(); // Add hook for navigation if needed, or just use Link
   const [allData, setAllData] = useState([]);
+
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [debouncedSearchText, setDebouncedSearchText] = useState('');
@@ -426,6 +428,93 @@ function QuanLyCSKH() {
     setVisibleColumns(defaultCols);
   };
 
+
+
+  // --- Edit Modal Logic ---
+  const [editingOrder, setEditingOrder] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isViewing, setIsViewing] = useState(false); // New state for View Only mode
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Open Edit modal
+  const openEditModal = (order) => {
+    setEditingOrder({ ...order });
+    setIsViewing(false);
+    setIsEditModalOpen(true);
+  };
+
+  // Open View modal
+  const openViewModal = (order) => {
+    setEditingOrder({ ...order });
+    setIsViewing(true);
+    setIsEditModalOpen(true);
+  };
+
+  // Handle Input Change in Modal
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditingOrder(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Save Updates
+  const handleUpdateOrder = async () => {
+    if (!editingOrder) return;
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          customer_name: editingOrder.customer_name,
+          customer_phone: editingOrder.customer_phone,
+          customer_address: editingOrder.customer_address,
+          area: editingOrder.area, // Khu vực
+          note: editingOrder.note,
+
+          // Extended fields
+          product_main: editingOrder.product_main,
+          payment_method: editingOrder.payment_method, // or payment_method_text if needed, check schema
+          delivery_status: editingOrder.delivery_status,
+          total_amount_vnd: parseFloat(editingOrder.total_amount_vnd) || 0,
+          tracking_code: editingOrder.tracking_code,
+          // Add others if necessary based on schema
+        })
+        .eq('id', editingOrder.id);
+
+      if (error) throw error;
+
+      alert("✅ Cập nhật thành công!");
+
+      // Update local list
+      setAllData(prev => prev.map(item => item.id === editingOrder.id ? { ...item, ...editingOrder } : item));
+      setIsEditModalOpen(false);
+      setEditingOrder(null);
+
+    } catch (err) {
+      console.error("Update error:", err);
+      alert("❌ Lỗi cập nhật: " + err.message);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+
+  // Handle Delete
+  const handleDelete = async (id) => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa đơn hàng này? Hành động này không thể hoàn tác!")) return;
+
+    try {
+      const { error } = await supabase.from('orders').delete().eq('id', id);
+      if (error) throw error;
+
+      alert("✅ Đã xóa đơn hàng thành công!");
+      // Update UI locally to avoid reload
+      setAllData(prev => prev.filter(item => item.id !== id));
+    } catch (error) {
+      console.error("Delete error:", error);
+      alert("❌ Lỗi xóa đơn: " + error.message);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -433,9 +522,7 @@ function QuanLyCSKH() {
         <div className="max-w-full mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link to="/" className="text-gray-600 hover:text-gray-900">
-                <ChevronLeft className="w-5 h-5" />
-              </Link>
+
               <div>
                 <h1 className="text-xl font-bold text-gray-800">QUẢN LÝ CSKH</h1>
                 <p className="text-xs text-gray-500">Dữ liệu từ F3</p>
@@ -613,6 +700,9 @@ function QuanLyCSKH() {
                       </div>
                     </th>
                   ))}
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50 border-l border-gray-200 sticky right-0 z-10 w-[120px]">
+                    Thao tác
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -663,6 +753,38 @@ function QuanLyCSKH() {
                           </td>
                         );
                       })}
+
+                      {/* Action Column */}
+                      <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap border-l border-gray-200 sticky right-0 bg-white z-10 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          {/* View - Open Modal Read Only */}
+                          <button
+                            onClick={() => openViewModal(row)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            title="Xem chi tiết"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+
+                          {/* Edit - Open Modal */}
+                          <button
+                            onClick={() => openEditModal(row)}
+                            className="p-1.5 text-orange-600 hover:bg-orange-50 rounded transition-colors"
+                            title="Chỉnh sửa nhanh"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+
+                          {/* Delete */}
+                          <button
+                            onClick={() => handleDelete(row.id)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Xóa đơn hàng"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -800,9 +922,199 @@ function QuanLyCSKH() {
           </div>
         </div>
       )}
+      {/* Edit/View Modal for CSKH */}
+      {isEditModalOpen && editingOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">
+                  {isViewing ? "Chi tiết đơn hàng" : "Chỉnh sửa thông tin CSKH"}
+                </h2>
+                <p className="text-sm text-gray-500">Mã đơn: <span className="font-mono font-bold text-blue-600">{editingOrder.order_code}</span></p>
+              </div>
+              <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-6">
+
+              {/* Section 1: Thông tin khách hàng */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-gray-800 mb-3 border-b pb-2">1. Thông tin khách hàng</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tên khách hàng</label>
+                    <input
+                      name="customer_name"
+                      value={editingOrder.customer_name || ''}
+                      onChange={handleEditChange}
+                      readOnly={isViewing}
+                      disabled={isViewing}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${isViewing ? 'bg-gray-100' : ''}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại</label>
+                    <input
+                      name="customer_phone"
+                      value={editingOrder.customer_phone || ''}
+                      onChange={handleEditChange}
+                      readOnly={isViewing}
+                      disabled={isViewing}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${isViewing ? 'bg-gray-100' : ''}`}
+                    />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Địa chỉ</label>
+                  <input
+                    name="customer_address"
+                    value={editingOrder.customer_address || ''}
+                    onChange={handleEditChange}
+                    readOnly={isViewing}
+                    disabled={isViewing}
+                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${isViewing ? 'bg-gray-100' : ''}`}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4 mt-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Khu vực</label>
+                    <input
+                      name="area"
+                      value={editingOrder.area || ''}
+                      onChange={handleEditChange}
+                      readOnly={isViewing}
+                      disabled={isViewing}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${isViewing ? 'bg-gray-100' : ''}`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Thông tin đơn hàng */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-gray-800 mb-3 border-b pb-2">2. Thông tin đơn hàng</h3>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Mặt hàng chính</label>
+                    <input
+                      name="product_main"
+                      value={editingOrder.product_main || ''}
+                      onChange={handleEditChange}
+                      readOnly={isViewing}
+                      disabled={isViewing}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${isViewing ? 'bg-gray-100' : ''}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tổng tiền (VNĐ)</label>
+                    <input
+                      name="total_amount_vnd"
+                      type="number"
+                      value={editingOrder.total_amount_vnd || 0}
+                      onChange={handleEditChange}
+                      readOnly={isViewing}
+                      disabled={isViewing}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 font-bold text-red-600 ${isViewing ? 'bg-gray-100' : ''}`}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mt-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Hình thức thanh toán</label>
+                    <select
+                      name="payment_method"
+                      value={editingOrder.payment_method || ''}
+                      onChange={handleEditChange}
+                      disabled={isViewing}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${isViewing ? 'bg-gray-100' : ''}`}
+                    >
+                      <option value="">-- Chọn --</option>
+                      <option value="COD">COD (Thu hộ)</option>
+                      <option value="CK">Chuyển khoản</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Trạng thái & Vận chuyển */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-gray-800 mb-3 border-b pb-2">3. Trạng thái & Vận chuyển</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Mã Tracking</label>
+                    <input
+                      name="tracking_code"
+                      value={editingOrder.tracking_code || ''}
+                      onChange={handleEditChange}
+                      readOnly={isViewing}
+                      disabled={isViewing}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 font-mono ${isViewing ? 'bg-gray-100' : ''}`}
+                      placeholder="Nhập mã vận đơn..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái giao hàng</label>
+                    <input
+                      name="delivery_status"
+                      value={editingOrder.delivery_status || ''}
+                      onChange={handleEditChange}
+                      readOnly={isViewing}
+                      disabled={isViewing}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${isViewing ? 'bg-gray-100' : ''}`}
+                      placeholder="Ví dụ: Đã giao, Đang vận chuyển..."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú CSKH</label>
+                <textarea
+                  name="note"
+                  rows={3}
+                  value={editingOrder.note || ''}
+                  onChange={handleEditChange}
+                  readOnly={isViewing}
+                  disabled={isViewing}
+                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${isViewing ? 'bg-gray-100' : ''}`}
+                  placeholder="Nhập ghi chú..."
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium"
+                disabled={isUpdating}
+              >
+                {isViewing ? "Đóng" : "Hủy bỏ"}
+              </button>
+
+              {!isViewing && (
+                <button
+                  onClick={handleUpdateOrder}
+                  disabled={isUpdating}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2"
+                >
+                  {isUpdating && <RefreshCw className="w-4 h-4 animate-spin" />}
+                  {isUpdating ? "Đang lưu..." : "Lưu thay đổi"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default QuanLyCSKH;
-

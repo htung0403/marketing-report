@@ -1,6 +1,5 @@
-import { ChevronLeft, RefreshCw, Settings, X } from "lucide-react";
+import { RefreshCw, Settings, X } from "lucide-react";
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { supabase } from '../supabase/config';
 
 // Helper Functions
@@ -503,10 +502,7 @@ export default function DonChiaCSKH() {
     <div className="min-h-screen bg-gray-50 p-5">
       <div className="container mx-auto">
         {/* Back Button */}
-        <Link to="/trang-chu" className="inline-flex items-center text-green-600 hover:text-green-700 mb-4">
-          <ChevronLeft className="w-5 h-5" />
-          <span>Quay lại</span>
-        </Link>
+
 
         {/* Header */}
         <div className="bg-white p-4 rounded-lg shadow mb-4">

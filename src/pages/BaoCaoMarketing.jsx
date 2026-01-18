@@ -196,7 +196,7 @@ export default function BaoCaoMarketing() {
       data['id_NS'] = data['id_NS'] || employeeToUse.id_ns;
       data['Chi nhánh'] = data['Chi nhánh'] || employeeToUse.branch;
     } else {
-      data['Email'] = data['Email'] || userEmail;
+      // data['Email'] = data['Email'] || userEmail; // REMOVED: Don't force userEmail if not found in list
       if (employeeNameFromUrl) {
         data['Tên'] = data['Tên'] || employeeNameFromUrl;
       }
@@ -222,6 +222,10 @@ export default function BaoCaoMarketing() {
     });
 
     setTableRows([...tableRows, createRowData(newRowData, appData.employeeDetails)]);
+  };
+
+  const handleAddNewRow = () => {
+    setTableRows([...tableRows, createRowData({}, appData.employeeDetails)]);
   };
 
   const handleRemoveRow = (index) => {
@@ -348,7 +352,7 @@ export default function BaoCaoMarketing() {
         {/* Add Row Button */}
         <button
           type="button"
-          onClick={() => handleAddRow(0)}
+          onClick={handleAddNewRow}
           className="mb-3 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-semibold transition"
         >
           ➕ Thêm dòng

@@ -1,6 +1,5 @@
-import { ChevronLeft, Download, RefreshCw, Search, Settings, Trash2, X } from 'lucide-react';
+import { Download, RefreshCw, Search, Settings, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { logDataChange } from '../services/logging';
 import { supabase } from '../supabase/config';
 import { COLUMN_MAPPING, PRIMARY_KEY_COLUMN } from '../types';
@@ -706,9 +705,7 @@ function DanhSachDon() {
         <div className="max-w-full mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link to="/" className="text-gray-600 hover:text-gray-900">
-                <ChevronLeft className="w-5 h-5" />
-              </Link>
+
               <div>
                 <h1 className="text-xl font-bold text-gray-800">DANH SÁCH ĐƠN HÀNG</h1>
                 <p className="text-xs text-gray-500">Dữ liệu từ Database</p>

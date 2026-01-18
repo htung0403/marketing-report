@@ -26,6 +26,13 @@ export const BILL_LADING_COLUMNS = [
     "Kế toán xác nhận thu tiền về", "Ngày Kế toán đối soát với FFM lần 2"
 ];
 
+// --- DEFAULT COLUMNS (Bill of Lading) ---
+export const DEFAULT_BILL_LADING_COLUMNS = [
+    "Mã đơn hàng", "Ngày lên đơn", "Name*", "Phone*", "Add", "City", "State",
+    "Mặt hàng", "Tổng tiền VNĐ", "Kết quả Check", "Trạng thái giao hàng NB",
+    "Mã Tracking", "Lý do", "Ghi chú của VĐ", "Trạng thái thu tiền"
+];
+
 // Specific dropdown options for columns defined in the HTML
 export const DROPDOWN_OPTIONS = {
     "Kết quả Check": ["", "OK", "Huỷ", "Treo", "Vận đơn XL", "Đợi hàng", "Khách hẹn", "Chờ check lại", "Sai SĐT", "Sai địa chỉ", "Khác"],
@@ -52,7 +59,7 @@ export const EDITABLE_COLS = [
 export const LONG_TEXT_COLS = ["Lý do", "Ghi chú của VĐ", "Ghi chú", "GHI CHÚ"];
 
 export const COLUMN_MAPPING = {
-    "Ghi chú vận đơn": "ngày hẹn đẩy đơn",
+    "Ghi chú vận đơn": "Ghi chú của VĐ",
     "Kết quả check": "Kết quả Check",
     "khu vực": "Khu vực"
 };

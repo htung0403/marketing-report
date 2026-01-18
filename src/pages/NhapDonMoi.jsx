@@ -1,6 +1,6 @@
-import { AlertCircle, Check, ChevronDown, ChevronLeft, RefreshCcw, Save, Search, XCircle } from "lucide-react";
+import { AlertCircle, Check, ChevronDown, RefreshCcw, Save, Search, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../supabase/config';
 
 const HR_URL = import.meta.env.VITE_HR_URL || "https://lumi-6dff7-default-rtdb.asia-southeast1.firebasedatabase.app/datasheet/Nh%C3%A2n_s%E1%BB%B1.json";
@@ -90,13 +90,24 @@ const PopoverContent = ({ children, className = "", align = "start" }) => (
 
 const cn = (...classes) => classes.filter(Boolean).join(' ');
 
-export default function NhapDonMoi() {
+export default function NhapDonMoi({ isEdit = false }) {
     // -------------------------------------------------------------------------
     // 1. STATE MANAGEMENT
     // -------------------------------------------------------------------------
     const [date, setDate] = useState(new Date());
     const [activeTab, setActiveTab] = useState("khach-hang");
     const [isSaving, setIsSaving] = useState(false);
+
+    const [searchParams] = useSearchParams();
+
+    // Edit Mode State
+    const [searchQuery, setSearchQuery] = useState(searchParams.get("orderId") || "");
+    const [isSearching, setIsSearching] = useState(false);
+    const [isOrderLoaded, setIsOrderLoaded] = useState(false);
+
+    // Autocomplete State
+    const [suggestions, setSuggestions] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
 
     // Form Data - Centralized State
     const [formData, setFormData] = useState({
@@ -321,6 +332,15 @@ export default function NhapDonMoi() {
 
     const [dbRates, setDbRates] = useState({});
 
+    useEffect(() => {
+        const orderIdParam = searchParams.get("orderId");
+        if (orderIdParam && isEdit) {
+            setSearchQuery(orderIdParam);
+            // Delay slightly to ensure component mounted or just call directly
+            handleSearch(null, orderIdParam);
+        }
+    }, [searchParams, isEdit]);
+
     // --- LOGIC: Auto-fill Product Names ---
     useEffect(() => {
         const product = formData.productMain || "";
@@ -440,18 +460,134 @@ export default function NhapDonMoi() {
         setXacNhan(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
+    // --- Autocomplete Logic ---
+    useEffect(() => {
+        const fetchSuggestions = async () => {
+            // Only fetch if NOT already searching/loading to avoid spam
+            if (isSearching) return;
+
+            try {
+                let queryBuilder = supabase
+                    .from('orders')
+                    .select('order_code, customer_name');
+
+                if (!searchQuery || searchQuery.trim() === '') {
+                    // Empty query: Fetch recent 100 orders
+                    queryBuilder = queryBuilder.order('created_at', { ascending: false }).limit(100);
+                } else {
+                    // Search query: Filter by order_code
+                    queryBuilder = queryBuilder.ilike('order_code', `%${searchQuery}%`).limit(5);
+                }
+
+                const { data, error } = await queryBuilder;
+
+                if (error) throw error;
+                setSuggestions(data || []);
+                // Only show if we have data
+                if (data && data.length > 0) {
+                    // We control show/hide via onFocus/onBlur, but this ensures data is ready
+                }
+            } catch (err) {
+                console.error("Suggestion error:", err);
+            }
+        };
+
+        const timeoutId = setTimeout(fetchSuggestions, 300); // Debounce
+        return () => clearTimeout(timeoutId);
+    }, [searchQuery, isSearching]);
+
+    const selectSuggestion = (code) => {
+        setSearchQuery(code);
+        setShowSuggestions(false);
+        handleSearch(null, code);
+    };
+
+    const handleSearch = async (e, queryOverride) => {
+        if (e) e.preventDefault();
+        const query = queryOverride || searchQuery;
+        if (!query || !query.trim()) return;
+
+        setIsSearching(true);
+        try {
+            // Search primarily by order_code. ID search removed to prevent UUID casting errors.
+            const { data, error } = await supabase
+                .from('orders')
+                .select('*')
+                .eq('order_code', query.trim())
+                .maybeSingle(); // Use maybeSingle to return null instead of throwing error if not found
+
+            if (error) throw error;
+
+            if (!data) {
+                alert("Không tìm thấy đơn hàng có mã này!");
+                setIsOrderLoaded(false); // Reset loaded state
+                return;
+            }
+
+            // Map Data to Form
+            setFormData({
+                "ma-don": data.order_code,
+                "created_at": data.order_date ? data.order_date.slice(0, 16) : new Date().toISOString().slice(0, 16),
+                "tracking_code": data.tracking_code || "",
+
+                "ten-kh": data.customer_name || "",
+                "phone": data.customer_phone || "",
+                "add": data.customer_address || "",
+                "city": data.city || "",
+                "state": data.state || "",
+                "zipcode": data.zipcode || "",
+                "area": data.area || "",
+
+                "productMain": data.product_main || "",
+                "mathang1": data.product_name_1 || "", "sl1": data.quantity_1 || 1,
+                "mathang2": data.product_name_2 || "", "sl2": data.quantity_2 || 0,
+                "quatang": data.gift || "", "slq": data.gift_quantity || 0,
+
+                "sale_price": data.sale_price || 0,
+                "paymentType": data.payment_type || "VND",
+                "exchange_rate": data.exchange_rate || 1,
+                "tong-tien": data.total_amount_vnd || 0,
+                "hinh-thuc": data.payment_method_text || "",
+                "shipping_fee": data.shipping_fee || 0,
+                "shipping_cost": data.shipping_cost || 0,
+                "base_price": data.base_price || 0,
+                "reconciled_vnd": data.reconciled_vnd || 0,
+
+                "note_sale": data.note ? data.note.split('\nRef:')[0] : "",
+                "team": data.team || "",
+                "creator_name": data.created_by || "",
+            });
+
+            setDate(data.order_date ? new Date(data.order_date) : new Date());
+            setSelectedPage(data.page_name || "");
+            setSelectedMkt(data.marketing_staff || "");
+            setSelectedSale(data.sale_staff || "");
+            setTrangThaiDon(null); // Reset status check
+            setIsOrderLoaded(true);
+
+
+
+        } catch (err) {
+            console.error("Search error:", err);
+            alert("Lỗi khi tìm đơn hàng: " + err.message);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
     const handleSave = async () => {
         // Validation
-        if (!formData["ten-kh"] || !formData["phone"] || !selectedPage) {
+        // Validation - Only strict for new orders
+        if (!isEdit && (!formData["ten-kh"] || !formData["phone"] || !selectedPage)) {
             alert("Vui lòng nhập tên, số điện thoại khách hàng và chọn Page!");
             return;
         }
 
         setIsSaving(true);
         try {
-            // Generate Code if empty
+            // Generate Code if empty (Only for new orders)
             let orderCode = formData["ma-don"];
-            if (!orderCode) {
+            if (!orderCode && !isEdit) {
                 // Rule: 3 chars of Product + Random string
                 let prefix = "DH";
                 if (formData.productMain && formData.productMain.length >= 3) {
@@ -459,12 +595,17 @@ export default function NhapDonMoi() {
                 }
                 const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
                 orderCode = `${prefix}${random}`;
+            } else if (!orderCode && isEdit) {
+                alert("Đơn hàng chỉnh sửa phải có Mã Đơn Hàng!");
+                setIsSaving(false);
+                return;
             }
 
             // Prepare payload
             const orderPayload = {
                 order_code: orderCode,
-                order_date: new Date().toISOString(), // Use full ISO string
+                order_date: new Date().toISOString(), // Use full ISO string or preserve original?
+                // For edit, maybe we want to keep original date unless user changed it
                 tracking_code: formData.tracking_code,
 
                 customer_name: formData["ten-kh"],
@@ -473,7 +614,7 @@ export default function NhapDonMoi() {
                 city: formData.city,
                 state: formData.state,
                 zipcode: formData.zipcode,
-                area: formData.area, // New
+                area: formData.area,
 
                 // Products
                 product_main: formData.productMain,
@@ -501,39 +642,46 @@ export default function NhapDonMoi() {
                 sale_staff: selectedSale,
 
                 // Defaults / System
-                delivery_status: "Chờ xử lý",
+                delivery_status: isEdit ? undefined : "Chờ xử lý", // Don't overwrite status on edit
                 // User Info
-                cskh: userName, // CRITICAL: Current user is CSKH
-                created_by: userEmail,
+                cskh: userName,
+                // Don't overwrite created_by on edit ideally, but here we just send it if new
 
                 note: `${formData["note_sale"] || ""} \nRef: ${formData.team || ""}`,
-
-                // Override status if needed or just keep default
-                // delivery_status is already set above to 'Chờ xử lý'
             };
 
-            const { data: savedData, error } = await supabase
-                .from('orders')
-                .insert([orderPayload])
-                .select(); // Request returned data to verify persistence
+            // Remove undefined keys
+            Object.keys(orderPayload).forEach(key => orderPayload[key] === undefined && delete orderPayload[key]);
+
+            const query = supabase.from('orders');
+            let result;
+
+            if (isEdit) {
+                result = await query.upsert([orderPayload], { onConflict: 'order_code' }).select();
+            } else {
+                result = await query.insert([orderPayload]).select();
+            }
+
+            const { data: savedData, error } = result;
 
             if (error) throw error;
 
             if (!savedData || savedData.length === 0) {
-                console.warn("⚠️ Warning: Data inserted but not returned (RLS Policy?).");
+                console.warn("⚠️ Warning: Data inserted/updated but not returned (RLS Policy?).");
             }
 
-            alert("✅ Lưu đơn hàng thành công! Đã lưu vào Supabase.");
+            alert(isEdit ? "✅ Cập nhật đơn hàng thành công!" : "✅ Lưu đơn hàng thành công!");
 
             // Optional: Reset form or Redirect
-            // Reset core fields
-            setFormData(prev => ({
-                ...prev,
-                "ten-kh": "",
-                phone: "",
-                "ma-don": "",
-                "tong-tien": ""
-            }));
+            if (!isEdit) {
+                setFormData(prev => ({
+                    ...prev,
+                    "ten-kh": "",
+                    phone: "",
+                    "ma-don": "",
+                    "tong-tien": ""
+                }));
+            }
 
         } catch (error) {
             console.error("Save error:", error);
@@ -547,15 +695,12 @@ export default function NhapDonMoi() {
         <div className="min-h-screen bg-gray-50 p-6">
             <div className="max-w-7xl mx-auto">
                 {/* Back Button */}
-                <Link to="/trang-chu" className="inline-flex items-center text-green-600 hover:text-green-700 mb-4">
-                    <ChevronLeft className="w-5 h-5" />
-                    <span>Quay lại</span>
-                </Link>
+
 
                 <div className="space-y-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h1 className="text-2xl font-bold text-[#2d7c2d]">Nhập đơn hàng mới</h1>
+                            <h1 className="text-2xl font-bold text-[#2d7c2d]">{isEdit ? "Chỉnh Sửa Đơn Hàng" : "Nhập đơn hàng mới"}</h1>
                             <p className="text-gray-500 italic text-sm">Vui lòng điền đầy đủ các thông tin bắt buộc (*)</p>
                         </div>
                         <div className="flex gap-2">
@@ -567,431 +712,483 @@ export default function NhapDonMoi() {
                             </Link>
                             <Button className="bg-[#2d7c2d] hover:bg-[#256625]" onClick={handleSave} disabled={isSaving}>
                                 <Save className="w-4 h-4 mr-2" />
-                                {isSaving ? "Đang lưu..." : "Lưu đơn hàng"}
+                                {isSaving ? "Đang lưu..." : (isEdit ? "Cập nhật đơn hàng" : "Lưu đơn hàng")}
                             </Button>
                         </div>
                     </div>
 
-                    {/* Tabs */}
-                    <div className="w-full">
-                        <div className="grid grid-cols-3 bg-gray-100 p-1 rounded-lg mb-4">
-                            <button
-                                onClick={() => setActiveTab("khach-hang")}
-                                className={`py-3 px-4 rounded-md font-medium transition-colors ${activeTab === "khach-hang" ? "bg-[#2d7c2d] text-white" : "text-gray-700 hover:bg-gray-200"}`}
-                            >
-                                Thông tin khách hàng
-                            </button>
-                            <button
-                                onClick={() => setActiveTab("thong-tin-don")}
-                                className={`py-3 px-4 rounded-md font-medium transition-colors ${activeTab === "thong-tin-don" ? "bg-[#2d7c2d] text-white" : "text-gray-700 hover:bg-gray-200"}`}
-                            >
-                                Thông tin đơn
-                            </button>
-                            <button
-                                onClick={() => setActiveTab("nhan-su")}
-                                className={`py-3 px-4 rounded-md font-medium transition-colors ${activeTab === "nhan-su" ? "bg-[#2d7c2d] text-white" : "text-gray-700 hover:bg-gray-200"}`}
-                            >
-                                Thông tin nhân sự
-                            </button>
-                        </div>
-
-                        {/* Tab: Thông tin khách hàng */}
-                        {activeTab === "khach-hang" && (
-                            <Card>
-                                <CardHeader className="pb-3 border-b mb-4">
-                                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                                        <div className="w-1 h-6 bg-[#2d7c2d] rounded-full" />
-                                        Dữ liệu khách hàng
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="ngay-len-don">Ngày lên đơn*</Label>
-                                        <DatePicker value={date} onChange={setDate} className="w-full" />
+                    {/* Edit Mode Search Bar */}
+                    {isEdit && (
+                        <Card className="bg-blue-50 border-blue-200">
+                            <CardContent className="p-4 flex gap-4 items-center">
+                                <div className="flex-1">
+                                    <Label className="mb-1 text-blue-700">Tìm kiếm đơn hàng để sửa</Label>
+                                    <div className="flex gap-2 relative">
+                                        <div className="relative w-full">
+                                            <Input
+                                                placeholder="Nhập mã đơn hàng..."
+                                                value={searchQuery}
+                                                onChange={(e) => {
+                                                    setSearchQuery(e.target.value);
+                                                    setShowSuggestions(true);
+                                                }}
+                                                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                                onFocus={() => setShowSuggestions(true)}
+                                                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} // Delay to allow click
+                                            />
+                                            {showSuggestions && suggestions.length > 0 && (
+                                                <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-md shadow-lg mt-1 max-h-60 overflow-y-auto">
+                                                    {suggestions.map((s) => (
+                                                        <div
+                                                            key={s.order_code}
+                                                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                                                            onClick={() => selectSuggestion(s.order_code)}
+                                                        >
+                                                            <span className="font-medium text-blue-700">{s.order_code}</span>
+                                                            <span className="text-gray-500 ml-2">- {s.customer_name}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <Button onClick={() => handleSearch()} disabled={isSearching} className="bg-blue-600 hover:bg-blue-700 whitespace-nowrap">
+                                            {isSearching ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                                        </Button>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="nv-mkt">Nhân viên marketing</Label>
-                                        <Popover open={isMktOpen} onOpenChange={setIsMktOpen}>
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    variant="outline"
-                                                    className="w-full justify-between h-10 font-normal"
-                                                    disabled={loadingMkt}
-                                                    onClick={() => setIsMktOpen(!isMktOpen)}
-                                                >
-                                                    {selectedMkt ? (
-                                                        <span className="truncate">{selectedMkt}</span>
-                                                    ) : (
-                                                        <span className="text-gray-500">{loadingMkt ? "Đang tải..." : "Chọn nhân viên..."}</span>
+                                </div>
+                                <div className="flex-1 text-sm text-blue-600 italic">
+                                    Nhập mã đơn hàng chính xác để tải dữ liệu. Cẩn thận khi chỉnh sửa các trường quan trọng.
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Only show form if NOT Edit Mode OR (Edit Mode AND Order is Loaded) */}
+                    {(!isEdit || isOrderLoaded) && (
+                        <>
+                            {/* Tabs */}
+                            <div className="w-full">
+                                <div className="grid grid-cols-3 bg-gray-100 p-1 rounded-lg mb-4">
+                                    <button
+                                        onClick={() => setActiveTab("khach-hang")}
+                                        className={`py-3 px-4 rounded-md font-medium transition-colors ${activeTab === "khach-hang" ? "bg-[#2d7c2d] text-white" : "text-gray-700 hover:bg-gray-200"}`}
+                                    >
+                                        Thông tin khách hàng
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab("thong-tin-don")}
+                                        className={`py-3 px-4 rounded-md font-medium transition-colors ${activeTab === "thong-tin-don" ? "bg-[#2d7c2d] text-white" : "text-gray-700 hover:bg-gray-200"}`}
+                                    >
+                                        Thông tin đơn
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab("nhan-su")}
+                                        className={`py-3 px-4 rounded-md font-medium transition-colors ${activeTab === "nhan-su" ? "bg-[#2d7c2d] text-white" : "text-gray-700 hover:bg-gray-200"}`}
+                                    >
+                                        Thông tin nhân sự
+                                    </button>
+                                </div>
+
+                                {/* Tab: Thông tin khách hàng */}
+                                {activeTab === "khach-hang" && (
+                                    <Card>
+                                        <CardHeader className="pb-3 border-b mb-4">
+                                            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                                                <div className="w-1 h-6 bg-[#2d7c2d] rounded-full" />
+                                                Dữ liệu khách hàng
+                                            </CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="ngay-len-don">Ngày lên đơn*</Label>
+                                                <DatePicker value={date} onChange={setDate} className="w-full" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="nv-mkt">Nhân viên marketing</Label>
+                                                <Popover open={isMktOpen} onOpenChange={setIsMktOpen}>
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            variant="outline"
+                                                            className="w-full justify-between h-10 font-normal"
+                                                            disabled={loadingMkt}
+                                                            onClick={() => setIsMktOpen(!isMktOpen)}
+                                                        >
+                                                            {selectedMkt ? (
+                                                                <span className="truncate">{selectedMkt}</span>
+                                                            ) : (
+                                                                <span className="text-gray-500">{loadingMkt ? "Đang tải..." : "Chọn nhân viên..."}</span>
+                                                            )}
+                                                            <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    {isMktOpen && (
+                                                        <PopoverContent className="w-full p-0" align="start">
+                                                            <div className="flex flex-col">
+                                                                <div className="flex items-center border-b px-3">
+                                                                    <Search className="mr-2 h-4 w-4 opacity-50" />
+                                                                    <input
+                                                                        className="flex h-10 w-full bg-transparent py-3 text-sm outline-none"
+                                                                        placeholder="Tìm tên nhân viên..."
+                                                                        value={mktSearch}
+                                                                        onChange={(e) => setMktSearch(e.target.value)}
+                                                                    />
+                                                                </div>
+                                                                <div className="max-h-[300px] overflow-y-auto p-1">
+                                                                    {filteredMktEmployees.map((e, idx) => {
+                                                                        const empName = e['Họ_và_tên'] || e['Họ và tên'] || `NV ${idx}`;
+                                                                        const isSelected = selectedMkt === empName;
+                                                                        return (
+                                                                            <div
+                                                                                key={idx}
+                                                                                className={cn("flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-gray-100", isSelected && "bg-gray-100 font-medium")}
+                                                                                onClick={() => { setSelectedMkt(empName); setIsMktOpen(false); setMktSearch(""); }}
+                                                                            >
+                                                                                <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
+                                                                                <span className="truncate">{empName}</span>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        </PopoverContent>
                                                     )}
-                                                    <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
-                                                </Button>
-                                            </PopoverTrigger>
-                                            {isMktOpen && (
-                                                <PopoverContent className="w-full p-0" align="start">
-                                                    <div className="flex flex-col">
-                                                        <div className="flex items-center border-b px-3">
-                                                            <Search className="mr-2 h-4 w-4 opacity-50" />
-                                                            <input
-                                                                className="flex h-10 w-full bg-transparent py-3 text-sm outline-none"
-                                                                placeholder="Tìm tên nhân viên..."
-                                                                value={mktSearch}
-                                                                onChange={(e) => setMktSearch(e.target.value)}
-                                                            />
-                                                        </div>
-                                                        <div className="max-h-[300px] overflow-y-auto p-1">
-                                                            {filteredMktEmployees.map((e, idx) => {
-                                                                const empName = e['Họ_và_tên'] || e['Họ và tên'] || `NV ${idx}`;
-                                                                const isSelected = selectedMkt === empName;
-                                                                return (
-                                                                    <div
-                                                                        key={idx}
-                                                                        className={cn("flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-gray-100", isSelected && "bg-gray-100 font-medium")}
-                                                                        onClick={() => { setSelectedMkt(empName); setIsMktOpen(false); setMktSearch(""); }}
-                                                                    >
-                                                                        <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
-                                                                        <span className="truncate">{empName}</span>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                </PopoverContent>
-                                            )}
-                                        </Popover>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <Label htmlFor="ten-page">Tên page*</Label>
-                                            <button onClick={loadPageData} disabled={loadingPages} className="text-[10px] text-blue-600 flex items-center gap-1 hover:underline">
-                                                <RefreshCcw className={cn("w-3 h-3", loadingPages && "animate-spin")} /> Làm mới
-                                            </button>
-                                        </div>
-                                        <Popover open={isPageOpen} onOpenChange={setIsPageOpen}>
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    variant="outline"
-                                                    className="w-full justify-between h-10 font-normal"
-                                                    disabled={loadingPages}
-                                                    onClick={() => setIsPageOpen(!isPageOpen)}
-                                                >
-                                                    {selectedPage ? <span className="truncate">{selectedPage}</span> : <span className="text-gray-500">{loadingPages ? "Đang tải..." : "Chọn page..."}</span>}
-                                                    <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
-                                                </Button>
-                                            </PopoverTrigger>
-                                            {isPageOpen && (
-                                                <PopoverContent className="w-full p-0" align="start">
-                                                    <div className="flex flex-col">
-                                                        <div className="flex items-center border-b px-3">
-                                                            <Search className="mr-2 h-4 w-4 opacity-50" />
-                                                            <input className="flex h-10 w-full bg-transparent py-3 text-sm outline-none" placeholder="Tìm kiếm page..." value={pageSearch} onChange={(e) => setPageSearch(e.target.value)} />
-                                                        </div>
-                                                        <div className="max-h-[300px] overflow-y-auto p-1">
-                                                            {filteredPages.map((p, idx) => {
-                                                                const pageName = p.page_name || `Page ${idx}`;
-                                                                const isSelected = selectedPage === pageName;
-                                                                return (
-                                                                    <div key={idx} className={cn("flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-gray-100", isSelected && "bg-gray-100 font-medium")} onClick={() => {
-                                                                        setSelectedPage(pageName);
-                                                                        // Always update MKT: Set to staff name if exists, else clear it
-                                                                        setSelectedMkt(p.mkt_staff ? p.mkt_staff.toString().trim() : "");
-                                                                        setIsPageOpen(false);
-                                                                        setPageSearch("");
-                                                                    }}>
-                                                                        <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
-                                                                        <span className="truncate">{pageName}</span>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                </PopoverContent>
-                                            )}
-                                        </Popover>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="phone">Phone*</Label>
-                                        <Input id="phone" value={formData.phone} onChange={handleInputChange} placeholder="Số điện thoại..." />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="ten-kh">Tên*</Label>
-                                        <Input id="ten-kh" value={formData["ten-kh"]} onChange={handleInputChange} placeholder="Họ và tên khách hàng..." />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="add">Add*</Label>
-                                        <Input id="add" value={formData.add} onChange={handleInputChange} placeholder="Địa chỉ chi tiết..." />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Khu vực</Label>
-                                        <select id="area" value={formData.area} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2d7c2d]">
-                                            <option value="">Chọn khu vực...</option>
-                                            {AREA_LIST.map(a => <option key={a} value={a}>{a}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="flex gap-4">
-                                        <div className="space-y-2 flex-1">
-                                            <Label htmlFor="city">City</Label>
-                                            <Input id="city" value={formData.city} onChange={handleInputChange} placeholder="Thành phố..." />
-                                        </div>
-                                        <div className="space-y-2 flex-1">
-                                            <Label htmlFor="state">State</Label>
-                                            <Input id="state" value={formData.state} onChange={handleInputChange} placeholder="Tỉnh/Bang..." />
-                                        </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="zipcode">Zipcode</Label>
-                                        <Input id="zipcode" value={formData.zipcode} onChange={handleInputChange} placeholder="Mã bưu điện..." />
-                                    </div>
-
-                                    {/* Tracking Code & Date moved/added here for logical flow? Or separate tab? Keeping layout structure. */}
-                                    <div className="space-y-2 pt-4 border-t">
-                                        <Label htmlFor="tracking_code">Mã Tracking</Label>
-                                        <Input id="tracking_code" value={formData.tracking_code} onChange={handleInputChange} placeholder="Nhập mã vận đơn..." />
-                                    </div>
-                                    {/* Tracking Code end of card content */}
-                                </CardContent>
-                            </Card>
-                        )}
-
-                        {/* Tab: Thông tin đơn */}
-                        {activeTab === "thong-tin-don" && (
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                <Card className="lg:col-span-2">
-                                    <CardHeader className="pb-3 border-b mb-4">
-                                        <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                                            <div className="w-1 h-6 bg-[#2d7c2d] rounded-full" />
-                                            Chi tiết mặt hàng
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-6">
-                                        {/* Row 1: Main Product & Order Code */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                </Popover>
+                                            </div>
                                             <div className="space-y-2">
-                                                <Label>Mặt hàng (Chính)</Label>
-                                                <select id="productMain" value={formData.productMain} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2d7c2d]">
-                                                    <option value="">Chọn mặt hàng...</option>
-                                                    {visibleProducts.map(p => <option key={p} value={p}>{p}</option>)}
+                                                <div className="flex items-center justify-between">
+                                                    <Label htmlFor="ten-page">Tên page*</Label>
+                                                    <button onClick={loadPageData} disabled={loadingPages} className="text-[10px] text-blue-600 flex items-center gap-1 hover:underline">
+                                                        <RefreshCcw className={cn("w-3 h-3", loadingPages && "animate-spin")} /> Làm mới
+                                                    </button>
+                                                </div>
+                                                <Popover open={isPageOpen} onOpenChange={setIsPageOpen}>
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            variant="outline"
+                                                            className="w-full justify-between h-10 font-normal"
+                                                            disabled={loadingPages}
+                                                            onClick={() => setIsPageOpen(!isPageOpen)}
+                                                        >
+                                                            {selectedPage ? <span className="truncate">{selectedPage}</span> : <span className="text-gray-500">{loadingPages ? "Đang tải..." : "Chọn page..."}</span>}
+                                                            <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    {isPageOpen && (
+                                                        <PopoverContent className="w-full p-0" align="start">
+                                                            <div className="flex flex-col">
+                                                                <div className="flex items-center border-b px-3">
+                                                                    <Search className="mr-2 h-4 w-4 opacity-50" />
+                                                                    <input className="flex h-10 w-full bg-transparent py-3 text-sm outline-none" placeholder="Tìm kiếm page..." value={pageSearch} onChange={(e) => setPageSearch(e.target.value)} />
+                                                                </div>
+                                                                <div className="max-h-[300px] overflow-y-auto p-1">
+                                                                    {filteredPages.map((p, idx) => {
+                                                                        const pageName = p.page_name || `Page ${idx}`;
+                                                                        const isSelected = selectedPage === pageName;
+                                                                        return (
+                                                                            <div key={idx} className={cn("flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-gray-100", isSelected && "bg-gray-100 font-medium")} onClick={() => {
+                                                                                setSelectedPage(pageName);
+                                                                                // Always update MKT: Set to staff name if exists, else clear it
+                                                                                setSelectedMkt(p.mkt_staff ? p.mkt_staff.toString().trim() : "");
+                                                                                setIsPageOpen(false);
+                                                                                setPageSearch("");
+                                                                            }}>
+                                                                                <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
+                                                                                <span className="truncate">{pageName}</span>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        </PopoverContent>
+                                                    )}
+                                                </Popover>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="phone">Phone*</Label>
+                                                <Input id="phone" value={formData.phone} onChange={handleInputChange} placeholder="Số điện thoại..." />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="ten-kh">Tên*</Label>
+                                                <Input id="ten-kh" value={formData["ten-kh"]} onChange={handleInputChange} placeholder="Họ và tên khách hàng..." />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="add">Add*</Label>
+                                                <Input id="add" value={formData.add} onChange={handleInputChange} placeholder="Địa chỉ chi tiết..." />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Khu vực</Label>
+                                                <select id="area" value={formData.area} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2d7c2d]">
+                                                    <option value="">Chọn khu vực...</option>
+                                                    {AREA_LIST.map(a => <option key={a} value={a}>{a}</option>)}
                                                 </select>
                                             </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="ma-don">Mã đơn hàng (Tự sinh)</Label>
-                                                <Input id="ma-don" value={formData["ma-don"]} onChange={handleInputChange} placeholder="Để trống tự sinh..." />
-                                            </div>
-                                        </div>
-
-                                        {/* Row 2: Item 1 */}
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-3 rounded-md">
-                                            <div className="md:col-span-3 space-y-2">
-                                                <Label htmlFor="mathang1">Tên mặt hàng 1</Label>
-                                                <Input id="mathang1" value={formData.mathang1} onChange={handleInputChange} placeholder="Tự động..." />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="sl1">Số lượng 1</Label>
-                                                <Input id="sl1" type="number" value={formData.sl1} onChange={handleInputChange} />
-                                            </div>
-                                        </div>
-
-                                        {/* Row 3: Item 2 */}
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-3 rounded-md">
-                                            <div className="md:col-span-3 space-y-2">
-                                                <Label htmlFor="mathang2">Tên mặt hàng 2 (Auto)</Label>
-                                                <Input id="mathang2" value={formData.mathang2} onChange={handleInputChange} placeholder="Tự động..." />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="sl2">Số lượng 2</Label>
-                                                <Input id="sl2" type="number" value={formData.sl2 || ""} onChange={handleInputChange} />
-                                            </div>
-                                        </div>
-
-                                        {/* Row 4: Gift */}
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 border-t pt-4">
-                                            <div className="md:col-span-3 space-y-2">
-                                                <Label htmlFor="quatang">Quà tặng</Label>
-                                                <select id="quatang" value={formData.quatang} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2d7c2d]">
-                                                    <option value="">Không có quà...</option>
-                                                    {GIFT_LIST.map(g => <option key={g} value={g}>{g}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="slq">Số lượng quà</Label>
-                                                <Input id="slq" type="number" value={formData.slq || ""} onChange={handleInputChange} />
-                                            </div>
-                                        </div>
-
-                                        {/* FINANCIAL SECTION */}
-                                        <div className="border-t pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="sale_price">Giá bán (Ngoại tệ)</Label>
-                                                <Input id="sale_price" type="number" value={formData.sale_price || ""} onChange={handleInputChange} placeholder="0" />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label>Loại tiền</Label>
-                                                <select id="paymentType" value={formData.paymentType} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2d7c2d]">
-                                                    {CURRENCY_LIST.map(c => <option key={c} value={c}>{c}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="exchange_rate">Tỷ giá</Label>
-                                                <Input id="exchange_rate" type="number" value={formData.exchange_rate} onChange={handleInputChange} />
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label className="text-red-600 font-bold">Tổng tiền (VNĐ)</Label>
-                                                <div className="px-3 py-2 bg-gray-100 border rounded-md font-bold text-lg">
-                                                    {(parseFloat(formData["tong-tien"]) || 0).toLocaleString()} đ
+                                            <div className="flex gap-4">
+                                                <div className="space-y-2 flex-1">
+                                                    <Label htmlFor="city">City</Label>
+                                                    <Input id="city" value={formData.city} onChange={handleInputChange} placeholder="Thành phố..." />
+                                                </div>
+                                                <div className="space-y-2 flex-1">
+                                                    <Label htmlFor="state">State</Label>
+                                                    <Input id="state" value={formData.state} onChange={handleInputChange} placeholder="Tỉnh/Bang..." />
                                                 </div>
                                             </div>
                                             <div className="space-y-2">
-                                                <Label htmlFor="hinh-thuc">Hình thức thanh toán</Label>
-                                                <select id="hinh-thuc" value={formData["hinh-thuc"]} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2d7c2d]">
-                                                    <option value="">Chọn hình thức...</option>
-                                                    {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
-                                                </select>
+                                                <Label htmlFor="zipcode">Zipcode</Label>
+                                                <Input id="zipcode" value={formData.zipcode} onChange={handleInputChange} placeholder="Mã bưu điện..." />
                                             </div>
-                                        </div>
 
-                                        {/* Expandable Cost Details (Optional/Advanced) */}
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                                            <div>
-                                                <label>Tiền ship</label>
-                                                <input id="shipping_fee" type="number" className="w-full border rounded p-1" value={formData.shipping_fee || ""} onChange={handleInputChange} />
+                                            {/* Tracking Code & Date moved/added here for logical flow? Or separate tab? Keeping layout structure. */}
+                                            <div className="space-y-2 pt-4 border-t">
+                                                <Label htmlFor="tracking_code">Mã Tracking</Label>
+                                                <Input id="tracking_code" value={formData.tracking_code} onChange={handleInputChange} placeholder="Nhập mã vận đơn..." />
                                             </div>
-                                            <div>
-                                                <label>Phí ship (Thực)</label>
-                                                <input id="shipping_cost" type="number" className="w-full border rounded p-1" value={formData.shipping_cost || ""} onChange={handleInputChange} />
-                                            </div>
-                                            <div>
-                                                <label>Giá gốc</label>
-                                                <input id="base_price" type="number" className="w-full border rounded p-1" value={formData.base_price || ""} onChange={handleInputChange} />
-                                            </div>
-                                            <div>
-                                                <label>VNĐ Đối soát</label>
-                                                <input id="reconciled_vnd" type="number" className="w-full border rounded p-1" value={formData.reconciled_vnd || ""} onChange={handleInputChange} />
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
+                                            {/* Tracking Code end of card content */}
+                                        </CardContent>
+                                    </Card>
+                                )}
 
-                                <div className="space-y-6">
-                                    <Card className="border-yellow-200 bg-yellow-50/30">
-                                        <CardHeader className="pb-2">
-                                            <CardTitle className="text-sm font-bold text-yellow-700 flex items-center gap-2">
-                                                <AlertCircle className="w-4 h-4" />
-                                                Kiểm tra hệ thống
+                                {/* Tab: Thông tin đơn */}
+                                {activeTab === "thong-tin-don" && (
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                        <Card className="lg:col-span-2">
+                                            <CardHeader className="pb-3 border-b mb-4">
+                                                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                                                    <div className="w-1 h-6 bg-[#2d7c2d] rounded-full" />
+                                                    Chi tiết mặt hàng
+                                                </CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="space-y-6">
+                                                {/* Row 1: Main Product & Order Code */}
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                        <Label>Mặt hàng (Chính)</Label>
+                                                        <select id="productMain" value={formData.productMain} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2d7c2d]">
+                                                            <option value="">Chọn mặt hàng...</option>
+                                                            {visibleProducts.map(p => <option key={p} value={p}>{p}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="ma-don">Mã đơn hàng (Tự sinh)</Label>
+                                                        <Input id="ma-don" value={formData["ma-don"]} onChange={handleInputChange} placeholder="Để trống tự sinh..." disabled={isEdit} />
+                                                    </div>
+                                                </div>
+
+                                                {/* Row 2: Item 1 */}
+                                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-3 rounded-md">
+                                                    <div className="md:col-span-3 space-y-2">
+                                                        <Label htmlFor="mathang1">Tên mặt hàng 1</Label>
+                                                        <Input id="mathang1" value={formData.mathang1} onChange={handleInputChange} placeholder="Tự động..." />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="sl1">Số lượng 1</Label>
+                                                        <Input id="sl1" type="number" value={formData.sl1} onChange={handleInputChange} />
+                                                    </div>
+                                                </div>
+
+                                                {/* Row 3: Item 2 */}
+                                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-3 rounded-md">
+                                                    <div className="md:col-span-3 space-y-2">
+                                                        <Label htmlFor="mathang2">Tên mặt hàng 2 (Auto)</Label>
+                                                        <Input id="mathang2" value={formData.mathang2} onChange={handleInputChange} placeholder="Tự động..." />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="sl2">Số lượng 2</Label>
+                                                        <Input id="sl2" type="number" value={formData.sl2 || ""} onChange={handleInputChange} />
+                                                    </div>
+                                                </div>
+
+                                                {/* Row 4: Gift */}
+                                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 border-t pt-4">
+                                                    <div className="md:col-span-3 space-y-2">
+                                                        <Label htmlFor="quatang">Quà tặng</Label>
+                                                        <select id="quatang" value={formData.quatang} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2d7c2d]">
+                                                            <option value="">Không có quà...</option>
+                                                            {GIFT_LIST.map(g => <option key={g} value={g}>{g}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="slq">Số lượng quà</Label>
+                                                        <Input id="slq" type="number" value={formData.slq || ""} onChange={handleInputChange} />
+                                                    </div>
+                                                </div>
+
+                                                {/* FINANCIAL SECTION */}
+                                                <div className="border-t pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="sale_price">Giá bán (Ngoại tệ)</Label>
+                                                        <Input id="sale_price" type="number" value={formData.sale_price || ""} onChange={handleInputChange} placeholder="0" />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label>Loại tiền</Label>
+                                                        <select id="paymentType" value={formData.paymentType} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2d7c2d]">
+                                                            {CURRENCY_LIST.map(c => <option key={c} value={c}>{c}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="exchange_rate">Tỷ giá</Label>
+                                                        <Input id="exchange_rate" type="number" value={formData.exchange_rate} onChange={handleInputChange} />
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                        <Label className="text-red-600 font-bold">Tổng tiền (VNĐ)</Label>
+                                                        <div className="px-3 py-2 bg-gray-100 border rounded-md font-bold text-lg">
+                                                            {(parseFloat(formData["tong-tien"]) || 0).toLocaleString()} đ
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="hinh-thuc">Hình thức thanh toán</Label>
+                                                        <select id="hinh-thuc" value={formData["hinh-thuc"]} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2d7c2d]">
+                                                            <option value="">Chọn hình thức...</option>
+                                                            {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                {/* Expandable Cost Details (Optional/Advanced) */}
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600 bg-gray-50 p-2 rounded">
+                                                    <div>
+                                                        <label>Tiền ship</label>
+                                                        <input id="shipping_fee" type="number" className="w-full border rounded p-1" value={formData.shipping_fee || ""} onChange={handleInputChange} />
+                                                    </div>
+                                                    <div>
+                                                        <label>Phí ship (Thực)</label>
+                                                        <input id="shipping_cost" type="number" className="w-full border rounded p-1" value={formData.shipping_cost || ""} onChange={handleInputChange} />
+                                                    </div>
+                                                    <div>
+                                                        <label>Giá gốc</label>
+                                                        <input id="base_price" type="number" className="w-full border rounded p-1" value={formData.base_price || ""} onChange={handleInputChange} />
+                                                    </div>
+                                                    <div>
+                                                        <label>VNĐ Đối soát</label>
+                                                        <input id="reconciled_vnd" type="number" className="w-full border rounded p-1" value={formData.reconciled_vnd || ""} onChange={handleInputChange} />
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+
+                                        <div className="space-y-6">
+                                            <Card className="border-yellow-200 bg-yellow-50/30">
+                                                <CardHeader className="pb-2">
+                                                    <CardTitle className="text-sm font-bold text-yellow-700 flex items-center gap-2">
+                                                        <AlertCircle className="w-4 h-4" />
+                                                        Kiểm tra hệ thống
+                                                    </CardTitle>
+                                                </CardHeader>
+                                                <CardContent className="text-xs space-y-2 text-yellow-800">
+                                                    <p>• Cảnh báo Blacklist: <span className="font-semibold text-green-600">Sạch</span></p>
+                                                    <p>• Trùng đơn: <span className="font-semibold text-green-600">Không phát hiện</span></p>
+                                                </CardContent>
+                                            </Card>
+
+                                            <Card>
+                                                <CardHeader className="pb-2">
+                                                    <CardTitle className="text-sm font-bold">Ghi chú & Phản hồi</CardTitle>
+                                                </CardHeader>
+                                                <CardContent className="space-y-4">
+                                                    <div className="space-y-1">
+                                                        <Label htmlFor="ghi-chu" className="text-xs">Ghi chú</Label>
+                                                        <Textarea id="ghi-chu" value={formData["ghi-chu"]} onChange={handleInputChange} placeholder="Nhập ghi chú..." className="h-20" />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label htmlFor="ph-tc" className="text-xs text-green-600">Phản hồi tích cực</Label>
+                                                        <Textarea id="ph-tc" value={formData["ph-tc"]} onChange={handleInputChange} placeholder="..." className="h-16" />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label htmlFor="ph-tn" className="text-xs text-red-600">Phản hồi tiêu cực</Label>
+                                                        <Textarea id="ph-tn" value={formData["ph-tn"]} onChange={handleInputChange} placeholder="..." className="h-16" />
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Tab: Thông tin nhân sự */}
+                                {activeTab === "nhan-su" && (
+                                    <Card>
+                                        <CardHeader className="pb-3 border-b mb-4">
+                                            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                                                <div className="w-1 h-6 bg-[#2d7c2d] rounded-full" />
+                                                Xử lý bởi nhân viên
                                             </CardTitle>
                                         </CardHeader>
-                                        <CardContent className="text-xs space-y-2 text-yellow-800">
-                                            <p>• Cảnh báo Blacklist: <span className="font-semibold text-green-600">Sạch</span></p>
-                                            <p>• Trùng đơn: <span className="font-semibold text-green-600">Không phát hiện</span></p>
-                                        </CardContent>
-                                    </Card>
+                                        <CardContent className="space-y-8">
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                <div className="space-y-2">
+                                                    <Label>Nhân viên Sale</Label>
+                                                    <Popover open={isSaleOpen} onOpenChange={setIsSaleOpen}>
+                                                        <PopoverTrigger asChild>
+                                                            <Button variant="outline" className="w-full justify-between h-10 font-normal" disabled={loadingSale} onClick={() => setIsSaleOpen(!isSaleOpen)}>
+                                                                {selectedSale ? <span className="truncate">{selectedSale}</span> : <span className="text-gray-500">{loadingSale ? "Đang tải..." : "Chọn nhân viên..."}</span>}
+                                                                <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        {isSaleOpen && (
+                                                            <PopoverContent className="w-full p-0" align="start">
+                                                                <div className="flex flex-col">
+                                                                    <div className="flex items-center border-b px-3">
+                                                                        <Search className="mr-2 h-4 w-4 opacity-50" />
+                                                                        <input className="flex h-10 w-full bg-transparent py-3 text-sm outline-none" placeholder="Tìm tên nhân viên..." value={saleSearch} onChange={(e) => setSaleSearch(e.target.value)} />
+                                                                    </div>
+                                                                    <div className="max-h-[300px] overflow-y-auto p-1">
+                                                                        {filteredSaleEmployees.map((e, idx) => {
+                                                                            const empName = e['Họ_và_tên'] || e['Họ và tên'] || `NV ${idx}`;
+                                                                            const isSelected = selectedSale === empName;
+                                                                            return (
+                                                                                <div key={idx} className={cn("flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-gray-100", isSelected && "bg-gray-100 font-medium")} onClick={() => { setSelectedSale(empName); setIsSaleOpen(false); setSaleSearch(""); }}>
+                                                                                    <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
+                                                                                    <span className="truncate">{empName}</span>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                            </PopoverContent>
+                                                        )}
+                                                    </Popover>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>Phân loại khách hàng</Label>
+                                                    <select id="customerType" value={formData.customerType} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2d7c2d]">
+                                                        <option value="">Chọn phân loại...</option>
+                                                        <option value="moi">Khách mới</option>
+                                                        <option value="cu">Khách cũ</option>
+                                                        <option value="vip">VIP</option>
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>Trạng thái đơn</Label>
+                                                    <div className="flex gap-2">
+                                                        <Button type="button" variant={trangThaiDon === "hop-le" ? "default" : "outline"} className={cn("flex-1", trangThaiDon === "hop-le" && "bg-green-600 hover:bg-green-700")} onClick={() => setTrangThaiDon("hop-le")}>
+                                                            Đơn hợp lệ
+                                                        </Button>
+                                                        <Button type="button" variant={trangThaiDon === "xem-xet" ? "default" : "outline"} className={cn("flex-1", trangThaiDon === "xem-xet" && "bg-yellow-600 hover:bg-yellow-700")} onClick={() => setTrangThaiDon("xem-xet")}>
+                                                            Đơn xem xét
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </div>
 
-                                    <Card>
-                                        <CardHeader className="pb-2">
-                                            <CardTitle className="text-sm font-bold">Ghi chú & Phản hồi</CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="space-y-4">
-                                            <div className="space-y-1">
-                                                <Label htmlFor="ghi-chu" className="text-xs">Ghi chú</Label>
-                                                <Textarea id="ghi-chu" value={formData["ghi-chu"]} onChange={handleInputChange} placeholder="Nhập ghi chú..." className="h-20" />
+                                            <div className="space-y-2">
+                                                <Label htmlFor="dien-giai">Diễn giải</Label>
+                                                <Textarea id="dien-giai" value={formData["dien-giai"]} onChange={handleInputChange} placeholder="Nhập diễn giải chi tiết về đơn hàng hoặc khách hàng..." className="h-24" />
                                             </div>
-                                            <div className="space-y-1">
-                                                <Label htmlFor="ph-tc" className="text-xs text-green-600">Phản hồi tích cực</Label>
-                                                <Textarea id="ph-tc" value={formData["ph-tc"]} onChange={handleInputChange} placeholder="..." className="h-16" />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <Label htmlFor="ph-tn" className="text-xs text-red-600">Phản hồi tiêu cực</Label>
-                                                <Textarea id="ph-tn" value={formData["ph-tn"]} onChange={handleInputChange} placeholder="..." className="h-16" />
+
+                                            <div className="space-y-4 border-t pt-6">
+                                                <Label className="text-base font-bold text-[#2d7c2d]">Lưu ý</Label>
+                                                <div className="text-sm text-gray-600">
+                                                    Vui lòng kiểm tra kỹ thông tin trước khi lưu. Đơn hàng sẽ được chuyển sang trạng thái "Chờ xử lý".
+                                                </div>
                                             </div>
                                         </CardContent>
                                     </Card>
-                                </div>
+                                )}
                             </div>
-                        )}
+                        </>
+                    )}
 
-                        {/* Tab: Thông tin nhân sự */}
-                        {activeTab === "nhan-su" && (
-                            <Card>
-                                <CardHeader className="pb-3 border-b mb-4">
-                                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                                        <div className="w-1 h-6 bg-[#2d7c2d] rounded-full" />
-                                        Xử lý bởi nhân viên
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-8">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        <div className="space-y-2">
-                                            <Label>Nhân viên Sale</Label>
-                                            <Popover open={isSaleOpen} onOpenChange={setIsSaleOpen}>
-                                                <PopoverTrigger asChild>
-                                                    <Button variant="outline" className="w-full justify-between h-10 font-normal" disabled={loadingSale} onClick={() => setIsSaleOpen(!isSaleOpen)}>
-                                                        {selectedSale ? <span className="truncate">{selectedSale}</span> : <span className="text-gray-500">{loadingSale ? "Đang tải..." : "Chọn nhân viên..."}</span>}
-                                                        <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                {isSaleOpen && (
-                                                    <PopoverContent className="w-full p-0" align="start">
-                                                        <div className="flex flex-col">
-                                                            <div className="flex items-center border-b px-3">
-                                                                <Search className="mr-2 h-4 w-4 opacity-50" />
-                                                                <input className="flex h-10 w-full bg-transparent py-3 text-sm outline-none" placeholder="Tìm tên nhân viên..." value={saleSearch} onChange={(e) => setSaleSearch(e.target.value)} />
-                                                            </div>
-                                                            <div className="max-h-[300px] overflow-y-auto p-1">
-                                                                {filteredSaleEmployees.map((e, idx) => {
-                                                                    const empName = e['Họ_và_tên'] || e['Họ và tên'] || `NV ${idx}`;
-                                                                    const isSelected = selectedSale === empName;
-                                                                    return (
-                                                                        <div key={idx} className={cn("flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-gray-100", isSelected && "bg-gray-100 font-medium")} onClick={() => { setSelectedSale(empName); setIsSaleOpen(false); setSaleSearch(""); }}>
-                                                                            <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
-                                                                            <span className="truncate">{empName}</span>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    </PopoverContent>
-                                                )}
-                                            </Popover>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>Phân loại khách hàng</Label>
-                                            <select id="customerType" value={formData.customerType} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2d7c2d]">
-                                                <option value="">Chọn phân loại...</option>
-                                                <option value="moi">Khách mới</option>
-                                                <option value="cu">Khách cũ</option>
-                                                <option value="vip">VIP</option>
-                                            </select>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>Trạng thái đơn</Label>
-                                            <div className="flex gap-2">
-                                                <Button type="button" variant={trangThaiDon === "hop-le" ? "default" : "outline"} className={cn("flex-1", trangThaiDon === "hop-le" && "bg-green-600 hover:bg-green-700")} onClick={() => setTrangThaiDon("hop-le")}>
-                                                    Đơn hợp lệ
-                                                </Button>
-                                                <Button type="button" variant={trangThaiDon === "xem-xet" ? "default" : "outline"} className={cn("flex-1", trangThaiDon === "xem-xet" && "bg-yellow-600 hover:bg-yellow-700")} onClick={() => setTrangThaiDon("xem-xet")}>
-                                                    Đơn xem xét
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="dien-giai">Diễn giải</Label>
-                                        <Textarea id="dien-giai" value={formData["dien-giai"]} onChange={handleInputChange} placeholder="Nhập diễn giải chi tiết về đơn hàng hoặc khách hàng..." className="h-24" />
-                                    </div>
-
-                                    <div className="space-y-4 border-t pt-6">
-                                        <Label className="text-base font-bold text-[#2d7c2d]">Lưu ý</Label>
-                                        <div className="text-sm text-gray-600">
-                                            Vui lòng kiểm tra kỹ thông tin trước khi lưu. Đơn hàng sẽ được chuyển sang trạng thái "Chờ xử lý".
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )}
-                    </div>
                 </div >
             </div >
         </div >
