@@ -191,7 +191,14 @@ const AdminTools = () => {
             const results = {};
 
             // 1. Check Supabase (Connection & Tables)
-            const tables = ['change_logs', 'detail_reports_view_copy', 'f3_data_snapshot', 'system_settings'];
+            const tables = [
+                // Core Data
+                'orders', 'detail_reports', 'blacklist',
+                // RBAC
+                'app_roles', 'app_user_roles', 'app_permissions',
+                // System & Logs
+                'change_logs', 'system_settings', 'f3_data_snapshot'
+            ];
             const startSupabase = performance.now();
 
             for (const table of tables) {
@@ -203,6 +210,8 @@ const AdminTools = () => {
                     // Ignore 404 for system_settings if it's new
                     if (table === 'system_settings' && error.code === '42P01') {
                         results[table] = { status: 'WARNING', message: 'Table not created yet', code: 'MISSING' };
+                    } else if (error.code === '42P01') { // Undefined Table
+                        results[table] = { status: 'ERROR', message: `MISSING TABLE: ${table}`, code: error.code };
                     } else {
                         results[table] = { status: 'ERROR', message: error.message, code: error.code };
                     }
@@ -258,19 +267,28 @@ const AdminTools = () => {
         setVerifying(true);
         setVerifyResult(null);
         try {
-            // Compare ORDERS (F3) vs DETAIL REPORTS (Snapshot)
-
-            // 1. Get Counts
-            const { count: countOrders, error: errOrders } = await supabase.from('orders').select('*', { count: 'exact', head: true });
-            const { count: countReports, error: errReports } = await supabase.from('detail_reports').select('*', { count: 'exact', head: true });
-
+            console.log("Starting comparison...");
+            const { data: supabaseOrders, error: errOrders } = await supabase.from('orders').select('order_code, created_at');
             if (errOrders) throw errOrders;
-            if (errReports) throw errReports;
+
+            const sheetData = await ApiService.fetchGoogleSheetData();
+
+            const supabaseCodes = new Set(supabaseOrders.map(o => o.order_code));
+            const sheetCodes = new Set(sheetData.map(r => r["Mã đơn hàng"]));
+
+            const missingInSupabase = sheetData.filter(r => !supabaseCodes.has(r["Mã đơn hàng"]));
+            const missingInSheet = supabaseOrders.filter(o => !sheetCodes.has(o.order_code));
 
             setVerifyResult({
-                orders: countOrders,
-                reports: countReports,
-                diff: countOrders - countReports
+                orders: supabaseOrders.length,
+                reports: sheetData.length,
+                diff: supabaseOrders.length - sheetData.length,
+                details: {
+                    missingInSupabase: missingInSupabase.length,
+                    missingInSheet: missingInSheet.length,
+                    sampleMissing: missingInSupabase.slice(0, 5).map(r => r["Mã đơn hàng"]),
+                    missingData: missingInSupabase // Store full data for sync
+                }
             });
             toast.success("Đối soát hoàn tất!");
         } catch (e) {
@@ -279,6 +297,49 @@ const AdminTools = () => {
         } finally {
             setVerifying(false);
         }
+    };
+
+    const handleSync = async () => {
+        if (!verifyResult || !verifyResult.details.missingData || verifyResult.details.missingData.length === 0) {
+            toast.info("Không có dữ liệu thiếu để đồng bộ.");
+            return;
+        }
+
+        if (!window.confirm(`Bạn có chắc muốn đồng bộ ${verifyResult.details.missingInSupabase} đơn hàng từ Sheet vào Web không?`)) return;
+
+        setVerifying(true);
+        try {
+            const dataToSync = verifyResult.details.missingData;
+            const CHUNK_SIZE = 50;
+            let processed = 0;
+
+            for (let i = 0; i < dataToSync.length; i += CHUNK_SIZE) {
+                const chunk = dataToSync.slice(i, i + CHUNK_SIZE);
+                await ApiService.updateBatch(chunk, user?.email || 'admin_sync_tool');
+                processed += chunk.length;
+                console.log(`Synced ${processed}/${dataToSync.length}`);
+            }
+
+            toast.success(`Đồng bộ thành công ${processed} đơn hàng!`);
+            await compareTables(); // Re-verify
+        } catch (e) {
+            console.error(e);
+            toast.error("Lỗi đồng bộ: " + e.message);
+        } finally {
+            setVerifying(false);
+        }
+    };
+
+    const handleSwitchToProd = () => {
+        if (!window.confirm("Bạn có chắc muốn chuyển hệ thống sang chế độ PRODUCTION (Dữ liệu thật)?")) return;
+        setSettings(prev => ({ ...prev, dataSource: 'prod' }));
+        // Also save immediately
+        const newSettings = { ...settings, dataSource: 'prod' };
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
+        toast.success("Đã chuyển sang chế độ PRODUCTION!");
+        // We should probably save to DB too? But this is System Settings managed in localStorage (and synced to DB via another effect maybe).
+        // For now localstorage update. 'handleSaveSettings' does DB save.
+        handleSaveSettings(newSettings);
     };
 
     // Ensure products in settings are always visible in the list, even if not in history
@@ -313,6 +374,15 @@ const AdminTools = () => {
                     <div className="flex items-center gap-2">
                         <Settings size={18} />
                         Cài đặt hệ thống
+                    </div>
+                </button>
+                <button
+                    onClick={() => setActiveTab('verification')}
+                    className={`pb-3 px-4 font-medium transition-all ${activeTab === 'verification' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                    <div className="flex items-center gap-2">
+                        <GitCompare size={18} />
+                        Đối soát dữ liệu
                     </div>
                 </button>
                 <button
@@ -415,14 +485,19 @@ const AdminTools = () => {
                                 </>
                             ) : (
                                 <>
-                                    <Database size={20} />
-                                    <span>Kiểm tra Kết nối Ngay</span>
+                                    <Activity size={20} />
+                                    <span>Quét lỗi toàn hệ thống</span>
                                 </>
                             )}
                         </button>
 
                         {dbStatus && (
-                            <div className="space-y-2 border-t pt-4">
+                            <div className="space-y-4 border-t pt-4">
+                                {/* SUMMARY HEADER */}
+                                <div className="flex items-center justify-between pb-2 border-b">
+                                    <h3 className="font-bold text-gray-700">Kết quả quét hệ thống</h3>
+                                    <span className="text-xs text-gray-500">{new Date().toLocaleString()}</span>
+                                </div>
                                 {Object.entries(dbStatus).map(([key, result]) => {
                                     let statusColor = 'text-gray-500';
                                     let Icon = CheckCircle;
@@ -475,37 +550,97 @@ const AdminTools = () => {
                     </div>
 
                     <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <h3 className="font-semibold text-gray-700 mb-2">So sánh Orders (F3) vs Detail Reports (Snapshot)</h3>
+                        <h3 className="font-semibold text-gray-700 mb-2">So sánh App Sheet (Google Sheet) vs Web Orders (Supabase)</h3>
                         <p className="text-sm text-gray-600 mb-4">Kiểm tra xem số lượng đơn hàng có khớp giữa dữ liệu nhập (Orders) và dữ liệu báo cáo (Reports) hay không.</p>
 
-                        <button
-                            onClick={compareTables}
-                            disabled={verifying}
-                            className="bg-teal-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-teal-700 transition"
-                        >
-                            {verifying ? <RefreshCw className="animate-spin w-4 h-4" /> : <GitCompare className="w-4 h-4" />}
-                            Thực hiện Đối soát
-                        </button>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={compareTables}
+                                disabled={verifying}
+                                className="bg-teal-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-teal-700 transition"
+                            >
+                                {verifying ? <RefreshCw className="animate-spin w-4 h-4" /> : <GitCompare className="w-4 h-4" />}
+                                Thực hiện Đối soát
+                            </button>
+                        </div>
 
                         {verifyResult && (
-                            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="p-4 bg-white border rounded shadow-sm">
-                                    <div className="text-sm text-gray-500">Tổng Orders</div>
-                                    <div className="text-2xl font-bold text-blue-600">{verifyResult.orders}</div>
-                                </div>
-                                <div className="p-4 bg-white border rounded shadow-sm">
-                                    <div className="text-sm text-gray-500">Tổng Reports</div>
-                                    <div className="text-2xl font-bold text-indigo-600">{verifyResult.reports}</div>
-                                </div>
-                                <div className={`p-4 bg-white border rounded shadow-sm ${verifyResult.diff === 0 ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
-                                    <div className="text-sm text-gray-500">Chênh lệch</div>
-                                    <div className={`text-2xl font-bold ${verifyResult.diff === 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                        {verifyResult.diff > 0 ? `+${verifyResult.diff}` : verifyResult.diff}
+                            <div className="mt-6 space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="p-4 bg-white border rounded shadow-sm">
+                                        <div className="text-sm text-gray-500">Google Sheet (Gốc)</div>
+                                        <div className="text-2xl font-bold text-blue-600">{verifyResult.reports}</div>
                                     </div>
-                                    <div className="text-xs mt-1">
-                                        {verifyResult.diff === 0 ? '✅ Dữ liệu khớp hoàn toàn' : '⚠️ Có sự chênh lệch dữ liệu'}
+                                    <div className="p-4 bg-white border rounded shadow-sm">
+                                        <div className="text-sm text-gray-500">Web Orders (Supabase)</div>
+                                        <div className="text-2xl font-bold text-indigo-600">{verifyResult.orders}</div>
+                                    </div>
+                                    <div className={`p-4 bg-white border rounded shadow-sm ${verifyResult.diff === 0 ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                                        <div className="text-sm text-gray-500">Chênh lệch</div>
+                                        <div className={`text-2xl font-bold ${verifyResult.diff === 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {verifyResult.diff > 0 ? `+${verifyResult.diff} (Web dư)` : verifyResult.diff}
+                                        </div>
+                                        <div className="text-xs mt-1">
+                                            {verifyResult.diff === 0 ? '✅ Khớp số lượng tổng' : '⚠️ Có sự chênh lệch'}
+                                        </div>
                                     </div>
                                 </div>
+
+                                {/* Actions based on Result */}
+                                <div className="flex gap-4 items-center p-4 bg-gray-100 rounded border border-gray-200">
+                                    {verifyResult.details.missingInSupabase > 0 ? (
+                                        <div className="flex-1 flex gap-4 items-center justify-between">
+                                            <span className="text-orange-700 font-medium">⚠️ Phát hiện {verifyResult.details.missingInSupabase} đơn thiếu trên Web.</span>
+                                            <button
+                                                onClick={handleSync}
+                                                disabled={verifying}
+                                                className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded shadow flex items-center gap-2"
+                                            >
+                                                <RefreshCw size={16} className={verifying ? "animate-spin" : ""} />
+                                                Đồng bộ {verifyResult.details.missingInSupabase} đơn này về Web
+                                            </button>
+                                        </div>
+                                    ) : verifyResult.diff === 0 ? (
+                                        <div className="flex-1 flex gap-4 items-center justify-between">
+                                            <span className="text-green-700 font-medium">✅ Dữ liệu đã khớp hoàn toàn. Hệ thống sẵn sàng!</span>
+                                            {settings.dataSource === 'test' && (
+                                                <button
+                                                    onClick={handleSwitchToProd}
+                                                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow flex items-center gap-2 animate-pulse"
+                                                >
+                                                    <CheckCircle size={16} />
+                                                    Chuyển sang Chế độ PRODUCTION
+                                                </button>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <span className="text-gray-500 italic">Vui lòng kiểm tra lại sự chênh lệch (Có thể do đơn mới trên web chưa có trên sheet).</span>
+                                    )}
+                                </div>
+
+
+                                {/* Detailed Diff */}
+                                {verifyResult.details && (verifyResult.details.missingInSupabase > 0 || verifyResult.details.missingInSheet > 0) && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                        {verifyResult.details.missingInSupabase > 0 && (
+                                            <div className="bg-orange-50 p-3 rounded border border-orange-100 text-sm">
+                                                <h4 className="font-bold text-orange-700 mb-2">Thiếu trên Web (Có tại Sheet): {verifyResult.details.missingInSupabase} đơn</h4>
+                                                <ul className="list-disc list-inside text-gray-600 max-h-32 overflow-y-auto">
+                                                    {verifyResult.details.sampleMissing.map(code => (
+                                                        <li key={code}>{code}</li>
+                                                    ))}
+                                                    {verifyResult.details.missingInSupabase > 5 && <li>... và {verifyResult.details.missingInSupabase - 5} đơn khác</li>}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        {verifyResult.details.missingInSheet > 0 && (
+                                            <div className="bg-blue-50 p-3 rounded border border-blue-100 text-sm">
+                                                <h4 className="font-bold text-blue-700 mb-2">Mới trên Web (Chưa có tại Sheet): {verifyResult.details.missingInSheet} đơn</h4>
+                                                <p className="text-gray-600 italic">Có thể là đơn mới tạo trên Web chưa đồng bộ ngược?</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

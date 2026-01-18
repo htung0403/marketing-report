@@ -25,6 +25,7 @@ import {
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { usePermissions } from "../hooks/usePermissions";
+import { supabase } from "../supabase/config";
 
 function Home() {
   const navigate = useNavigate();
@@ -254,7 +255,7 @@ function Home() {
       subItems: [
         {
           id: "hr-management",
-          label: "Quản lý nhân sự",
+          label: "Bảng tin nội bộ",
           icon: <Users className="w-4 h-4" />,
           path: "/nhan-su",
         },
@@ -598,7 +599,7 @@ function Home() {
       title: "QUẢN LÝ NHÂN SỰ",
       items: [
         {
-          title: "Quản lý nhân sự",
+          title: "Bảng tin nội bộ",
           icon: <Users className="w-8 h-8" />,
           color: "bg-pink-500",
           path: "/nhan-su",
@@ -802,6 +803,81 @@ function Home() {
     ),
   }));
 
+  // --- NEWS FEED LOGIC ---
+  const [news, setNews] = useState([]);
+  const [isAddNewsOpen, setIsAddNewsOpen] = useState(false);
+  const [newPost, setNewPost] = useState({ title: '', content: '', type: 'normal', image_url: '' });
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+
+  useEffect(() => {
+    fetchNews();
+  }, []);
+
+  const fetchNews = async () => {
+    const { data, error } = await supabase
+      .from('news')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (!error && data) {
+      setNews(data);
+    }
+  };
+
+  const handleImageUpload = async (file) => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { data, error } = await supabase.storage
+        .from('news-images')
+        .upload(filePath, file);
+
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('news-images')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Upload error:', error);
+      throw error;
+    }
+  };
+
+  const handleAddNews = async () => {
+    if (!newPost.title) return alert("Vui lòng nhập tiêu đề");
+    setNewsLoading(true);
+    try {
+      let finalImageUrl = newPost.image_url;
+
+      // Upload image file if provided
+      if (imageFile) {
+        finalImageUrl = await handleImageUpload(imageFile);
+      }
+
+      const { error } = await supabase.from('news').insert([{
+        ...newPost,
+        image_url: finalImageUrl,
+        created_by: userRole // simplified
+      }]);
+      if (error) throw error;
+      alert("Đăng tin thành công!");
+      setIsAddNewsOpen(false);
+      setNewPost({ title: '', content: '', type: 'normal', image_url: '' });
+      setImageFile(null);
+      fetchNews();
+    } catch (e) {
+      alert("Lỗi đăng tin: " + e.message);
+    } finally {
+      setNewsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
@@ -892,6 +968,145 @@ function Home() {
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-7xl mx-auto px-6 py-8">
+          {/* Bảng tin Section */}
+          <div className="mb-12">
+            <div className="flex justify-between items-center mb-6">
+              <h1 className="text-2xl font-bold text-red-600">Bảng tin</h1>
+              <button onClick={() => setIsAddNewsOpen(true)} className="text-sm bg-red-50 text-red-600 px-3 py-1 rounded hover:bg-red-100 flex items-center gap-1">
+                <PlusCircle size={16} /> Đăng tin
+              </button>
+            </div>
+
+            {/* News Add Modal */}
+            {isAddNewsOpen && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-white p-6 rounded-lg w-full max-w-md">
+                  <h3 className="text-lg font-bold mb-4">Đăng tin mới</h3>
+                  <select
+                    className="w-full border p-2 rounded mb-3"
+                    value={newPost.type}
+                    onChange={e => setNewPost({ ...newPost, type: e.target.value })}
+                  >
+                    <option value="normal">Tin thường</option>
+                    <option value="featured">Tin nổi bật (Có ảnh lớn)</option>
+                  </select>
+
+                  {newPost.type === 'featured' && (
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Ảnh tin</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="w-full border p-2 rounded mb-2"
+                        onChange={e => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            setImageFile(file);
+                            setNewPost({ ...newPost, image_url: '' });
+                          }
+                        }}
+                      />
+                      {imageFile && (
+                        <div className="mt-2 p-2 bg-gray-50 rounded border border-gray-200">
+                          <p className="text-xs text-gray-600">📎 {imageFile.name}</p>
+                          <button
+                            onClick={() => setImageFile(null)}
+                            className="text-xs text-red-500 hover:underline mt-1"
+                          >
+                            Xóa
+                          </button>
+                        </div>
+                      )}
+                      <div className="text-xs text-gray-500 mt-2">Hoặc dán link ảnh:</div>
+                      <input
+                        className="w-full border p-2 rounded mt-1"
+                        placeholder="https://..."
+                        value={newPost.image_url}
+                        onChange={e => {
+                          setNewPost({ ...newPost, image_url: e.target.value });
+                          setImageFile(null);
+                        }}
+                        disabled={!!imageFile}
+                      />
+                    </div>
+                  )}
+
+                  <input
+                    className="w-full border p-2 rounded mb-3"
+                    placeholder="Tiêu đề tin..."
+                    value={newPost.title}
+                    onChange={e => setNewPost({ ...newPost, title: e.target.value })}
+                  />
+
+                  <textarea
+                    className="w-full border p-2 rounded mb-3"
+                    placeholder="Nội dung tóm tắt..."
+                    rows={3}
+                    value={newPost.content}
+                    onChange={e => setNewPost({ ...newPost, content: e.target.value })}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setIsAddNewsOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Hủy</button>
+                    <button onClick={handleAddNews} disabled={newsLoading} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                      {newsLoading ? 'Đang đăng...' : 'Đăng tin'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {news.length === 0 ? (
+              <div className="bg-white p-6 rounded shadow text-center text-gray-500">Chưa có tin tức nào. Hãy bấm "Đăng tin" để tạo mới.</div>
+            ) : (
+              <div className="flex flex-col lg:flex-row gap-6 items-start">
+                {/* Find Featured News (First 'featured' or just first item) */}
+                {(() => {
+                  const featured = news.find(n => n.type === 'featured') || news[0];
+                  const others = news.filter(n => n.id !== featured.id).slice(0, 5);
+
+                  return (
+                    <>
+                      {/* Block 1: Featured Image + Title */}
+                      <div className="flex-1 lg:w-1/3 flex flex-col">
+                        <h3 className="font-bold text-red-600 mb-2 px-1" title={featured.title}>{featured.title}</h3>
+                        <div className="bg-white border border-red-200 rounded-lg h-64 flex items-center justify-center shadow-sm overflow-hidden group">
+                          {featured.image_url ? (
+                            <img src={featured.image_url} alt="Cover" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center text-gray-400 bg-gray-100 w-full h-full">
+                              <Megaphone size={32} className="mb-2 opacity-50" />
+                              <span className="text-xs">(Chưa có ảnh)</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Block 2: Detailed Content for Featured (or Second Item) */}
+                      <div className="flex-1 lg:w-1/3 bg-white border border-red-200 rounded-lg p-6 h-64 shadow-sm overflow-y-auto">
+                        <h3 className="font-bold text-lg text-red-700 mb-2">{featured.title}</h3>
+                        <p className="text-gray-600 text-sm whitespace-pre-wrap">{featured.content}</p>
+                      </div>
+
+                      {/* Block 3: Latest/Other News */}
+                      <div className="flex-1 lg:w-1/3 bg-white border border-red-200 rounded-lg p-4 h-64 shadow-sm relative overflow-y-auto">
+                        <h3 className="text-lg font-bold text-red-600 mb-4 sticky top-0 bg-white pb-2 border-b border-red-100">Tin tức khác</h3>
+                        <ul className="space-y-3">
+                          {others.map(item => (
+                            <li key={item.id} className="border-b border-gray-50 pb-2 last:border-0 hover:bg-gray-50 p-1 rounded transition">
+                              <div className="font-medium text-red-500 text-sm">{item.title}</div>
+                              <div className="text-xs text-gray-400 truncate">{item.created_at?.slice(0, 10)}</div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </>
+                  );
+                })()}
+
+              </div>
+            )}
+          </div>
+
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-2">

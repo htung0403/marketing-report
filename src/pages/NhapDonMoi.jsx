@@ -763,6 +763,17 @@ export default function NhapDonMoi({ isEdit = false }) {
             // Remove undefined keys
             Object.keys(orderPayload).forEach(key => orderPayload[key] === undefined && delete orderPayload[key]);
 
+            // check Data Source Mode
+            const settingsJson = localStorage.getItem('system_settings');
+            const settings = settingsJson ? JSON.parse(settingsJson) : {};
+            if (settings.dataSource === 'test') {
+                console.log("🔶 [TEST MODE] Skipping DB Save. Payload:", orderPayload);
+                await new Promise(r => setTimeout(r, 800)); // Fake delay
+                alert(isEdit ? "✅ [TEST MODE] Giả lập cập nhật đơn hàng thành công!" : "✅ [TEST MODE] Giả lập lưu đơn hàng thành công!");
+                if (!isEdit) handleReset();
+                return;
+            }
+
             const query = supabase.from('orders');
             let result;
 

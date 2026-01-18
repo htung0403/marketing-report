@@ -524,3 +524,17 @@ export const fetchVanDon = async (options = {}) => {
         };
     }
 };
+
+export const fetchGoogleSheetData = async () => {
+    try {
+        console.log('Fetching RAW Google Sheet data from:', DATA_API_URL);
+        const response = await fetch(DATA_API_URL);
+        if (!response.ok) throw new Error(`API Error ${response.status}`);
+        const json = await response.json();
+        const data = json.rows || json.data || json;
+        return Array.isArray(data) ? data : [];
+    } catch (error) {
+        console.error('fetchGoogleSheetData error:', error);
+        return [];
+    }
+};
