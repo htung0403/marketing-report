@@ -70,10 +70,49 @@ export const AVAILABLE_RESOURCES = [
     { code: 'MODULE_ADMIN', name: 'Admin Tools (Cấu hình)' },
 ];
 
-export const AVAILABLE_COLUMNS = {
-    'MODULE_MKT': ['ngay', 'nhan_vien', 'chi_phi', 'doanh_so', 'so_luong_don'],
-    'MODULE_RND': ['ngay', 'ten_san_pham', 'team', 'chi_phi_ads', 'doanh_so', 'loi_nhuan'],
-    'MODULE_SALE': ['ngay', 'nhan_vien', 'so_luong_don', 'doanh_so', 'ti_le_chot'],
-    'MODULE_ORDERS': ['ma_don_hang', 'khach_hang', 'so_dien_thoai', 'dia_chi', 'trang_thai', 'ngay_dat'],
-    // Add more as needed or fetch dynamically if we implement introspection later
+// Detailed column definitions for each module
+export const COLUMN_DEFINITIONS = {
+    'MODULE_MKT': [
+        'Ngày', 'Email', 'Tên', 'Team', 'Sản_phẩm', 'Thị_trường', 'CPQC',
+        'Số_Mess_Cmt', 'Số đơn', 'Doanh số', 'DS sau hoàn hủy', 'Số đơn hoàn hủy',
+        'Doanh số sau ship', 'Doanh số TC', 'KPIs', 'TKQC', 'id_NS', 'CPQC theo TKQC',
+        'Báo cáo theo Page', 'Trạng thái', 'Cảnh báo'
+    ],
+    'MODULE_RND': [
+        'Ngày', 'Email', 'Tên', 'Team', 'Sản_phẩm', 'Thị_trường', 'CPQC',
+        'Số_Mess_Cmt', 'Số đơn', 'Doanh số', 'DS sau hoàn hủy', 'KPIs',
+        'Doanh số sau ship', 'Chi_phí_ads', 'Lợi_nhuận'
+    ],
+    'MODULE_SALE': [
+        'Ngày', 'Nhân_viên', 'Team', 'Số_đơn', 'Doanh_số', 'Doanh_số_sau_hoàn_hủy',
+        'Số_đơn_hoàn_hủy', 'Tỷ_lệ_chốt', 'KPIs', 'Mã_tracking', 'Trạng_thái'
+    ],
+    'MODULE_ORDERS': [
+        'Mã đơn hàng', 'Ngày lên đơn', 'Name*', 'Phone*', 'Add', 'City', 'State',
+        'Khu vực', 'Zipcode', 'Mặt hàng', 'Tên mặt hàng 1', 'Số lượng mặt hàng 1',
+        'Tên mặt hàng 2', 'Số lượng mặt hàng 2', 'Quà tặng', 'Số lượng quà kèm',
+        'Giá bán', 'Loại tiền thanh toán', 'Tổng tiền VNĐ', 'Hình thức thanh toán',
+        'Ghi chú', 'Ghi chú vận đơn', 'Kết quả Check', 'Mã Tracking', 'Ngày đóng hàng',
+        'Trạng thái giao hàng', 'GHI CHÚ', 'Thời gian giao dự kiến', 'Nhân viên MKT',
+        'Nhân viên Sale', 'Team', 'NV Vận đơn', 'CSKH', 'Trạng thái thu tiền',
+        'Lý do', 'Phí ship nội địa Mỹ (usd)', 'Phí xử lý đơn đóng hàng-Lưu kho(usd)',
+        'Đơn vị vận chuyển', 'Số tiền của đơn hàng đã về TK Cty', 'Kế toán xác nhận thu tiền về',
+        'Ngày Kế toán đối soát với FFM lần 2'
+    ],
+    'MODULE_CSKH': [
+        'Mã đơn hàng', 'Ngày lên đơn', 'Name*', 'Phone*', 'Add', 'City', 'Mặt hàng',
+        'Tổng tiền VNĐ', 'Trạng thái giao hàng', 'Trạng thái thu tiền', 'CSKH',
+        'Kết quả Check', 'Lý do', 'Ghi chú', 'GHI CHÚ', 'Nhân viên Sale', 'Team'
+    ],
+    'MODULE_ADMIN': [
+        // Admin không giới hạn columns
+        '*'
+    ]
+};
+
+// Helper: Get column suggestions as comma-separated string for placeholder
+export const getColumnSuggestions = (resourceCode, maxCount = 5) => {
+    const cols = COLUMN_DEFINITIONS[resourceCode] || [];
+    if (cols[0] === '*') return '*';
+    return cols.slice(0, maxCount).join(', ') + (cols.length > maxCount ? '...' : '');
 };

@@ -1,9 +1,115 @@
-import { AlertCircle, Lock, Plus, Shield, Trash2, Users } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Check, ChevronDown, Lock, Plus, Shield, Trash2, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import * as rbacService from '../../services/rbacService';
 
+// Helper Component for Multi-Select Columns
+const MultiSelectColumn = ({ resourceCode, selectedColumns, onChange }) => {
+    // selectedColumns is array of strings e.g. ["*"] or ["col1", "col2"]
+    const allColumns = rbacService.COLUMN_DEFINITIONS[resourceCode] || [];
+    const isAllSelected = selectedColumns.includes("*");
+
+    // Filter out '*' from count if it exists (though strictly if '*' is there, it should be the only one ideally, or handled logically)
+    const selectedCount = isAllSelected ? allColumns.length : selectedColumns.length;
+
+    const toggleColumn = (col) => {
+        let newSelection = [...selectedColumns];
+
+        if (isAllSelected) {
+            // If currently All, switching to specific means we start with All minus the toggled one? 
+            // Or usually: Unchecking one from All -> Switch to list of (All - 1)
+            newSelection = [...allColumns]; // Expand * to full list
+            newSelection = newSelection.filter(c => c !== col);
+        } else {
+            if (newSelection.includes(col)) {
+                newSelection = newSelection.filter(c => c !== col);
+            } else {
+                newSelection.push(col);
+            }
+        }
+
+        // Check if we effectively selected all again
+        if (newSelection.length === allColumns.length && allColumns.length > 0) {
+            onChange(["*"]);
+        } else if (newSelection.length === 0) {
+            onChange([]);
+        } else {
+            onChange(newSelection);
+        }
+    };
+
+    const toggleAll = () => {
+        if (isAllSelected) {
+            onChange([]); // Deselect All
+        } else {
+            onChange(["*"]); // Select All
+        }
+    };
+
+    return (
+        <Popover>
+            <PopoverTrigger asChild>
+                <Button variant="outline" className="h-8 text-xs font-normal border-dashed justify-start w-full md:w-[300px] overflow-hidden">
+                    {isAllSelected ? (
+                        <span className="flex items-center text-blue-600 font-semibold"><Check className="w-3 h-3 mr-1" /> Tất cả ({allColumns.length} cột)</span>
+                    ) : selectedCount > 0 ? (
+                        <span className="flex items-center text-gray-800">Đã chọn {selectedCount} cột</span>
+                    ) : (
+                        <span className="text-gray-400 italic">Chọn cột cho phép...</span>
+                    )}
+                    <ChevronDown className="ml-auto w-3 h-3 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[300px] p-0 bg-white shadow-md border" align="start">
+                <div className="p-2 border-b bg-gray-50 flex items-center justify-between sticky top-0 z-10">
+                    <span className="text-xs font-semibold text-gray-500">Danh sách cột</span>
+                    <Button variant="ghost" size="sm" className="h-6 text-xs text-blue-600 px-2" onClick={toggleAll}>
+                        {isAllSelected ? "Bỏ chọn hết" : "Chọn tất cả"}
+                    </Button>
+                </div>
+                <ScrollArea className="h-[250px] p-2">
+                    <div className="space-y-1">
+                        {allColumns.map(col => {
+                            const isChecked = isAllSelected || selectedColumns.includes(col);
+                            return (
+                                <div key={col} className="flex items-center space-x-2 p-1 hover:bg-gray-100 rounded cursor-pointer" onClick={() => toggleColumn(col)}>
+                                    <Checkbox
+                                        checked={isChecked}
+                                        onCheckedChange={() => toggleColumn(col)}
+                                        id={`col-${resourceCode}-${col}`}
+                                    />
+                                    <label
+                                        htmlFor={`col-${resourceCode}-${col}`}
+                                        className="text-sm cursor-pointer flex-1 user-select-none"
+                                    >
+                                        {col}
+                                    </label>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </ScrollArea>
+                <div className="p-2 border-t bg-gray-50 text-[10px] text-gray-400 text-center">
+                    Cột được chọn sẽ hiển thị với nhân viên
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+};
+
 const PermissionManager = () => {
+    const DEPARTMENTS = ["SALE", "MKT", "RND", "CSKH", "KHO", "HR", "ADMIN", "ACCOUNTANT"];
+    const POSITIONS = [
+        { code: "LEADER", label: "Trưởng nhóm" },
+        { code: "MEMBER", label: "Nhân viên" },
+        { code: "MANAGER", label: "Trưởng phòng" },
+        { code: "DIRECTOR", label: "Giám đốc" },
+        { code: "INTERN", label: "Thực tập sinh" }
+    ];
     const [roles, setRoles] = useState([]);
     const [userRoles, setUserRoles] = useState([]);
     const [permissions, setPermissions] = useState([]);
@@ -171,22 +277,57 @@ const PermissionManager = () => {
                 {activeTab === 'roles' && (
                     <div className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-blue-50 p-4 rounded-lg">
-                            <input
+                            <select
                                 className="border p-2 rounded text-sm"
-                                placeholder="Mã (VD: SALE_LEADER)"
-                                value={newRole.code}
-                                onChange={e => setNewRole({ ...newRole, code: e.target.value.toUpperCase() })}
-                            />
-                            <input
+                                value={newRole.department}
+                                onChange={e => {
+                                    const dept = e.target.value;
+                                    const pos = newRole.position || "";
+                                    const posLabel = POSITIONS.find(p => p.code === pos)?.label || "";
+
+                                    // Auto-gen Code: DEPT_POS
+                                    const code = (dept && pos) ? `${dept}_${pos}` : (dept ? dept + "_" : "");
+                                    // Auto-gen Name: Position Label + Dept
+                                    const name = (dept && posLabel) ? `${posLabel} ${dept}` : "";
+
+                                    setNewRole(prev => ({ ...prev, department: dept, code, name }));
+                                }}
+                            >
+                                <option value="">-- Chọn Phòng Ban --</option>
+                                {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+
+                            <select
                                 className="border p-2 rounded text-sm md:col-span-2"
-                                placeholder="Tên hiển thị (VD: Trưởng nhóm Sale)"
-                                value={newRole.name}
-                                onChange={e => setNewRole({ ...newRole, name: e.target.value })}
-                            />
+                                value={newRole.position || ""}
+                                onChange={e => {
+                                    const pos = e.target.value;
+                                    const dept = newRole.department || "";
+                                    const posLabel = POSITIONS.find(p => p.code === pos)?.label || "";
+
+                                    // Auto-gen Code: DEPT_POS
+                                    const code = (dept && pos) ? `${dept}_${pos}` : (dept ? dept + "_" : "");
+                                    // Auto-gen Name: Position Label + Dept
+                                    const name = (dept && posLabel) ? `${posLabel} ${dept}` : "";
+
+                                    setNewRole(prev => ({ ...prev, position: pos, code, name }));
+                                }}
+                            >
+                                <option value="">-- Chọn Vị Trí --</option>
+                                {POSITIONS.map(p => <option key={p.code} value={p.code}>{p.label}</option>)}
+                            </select>
+
                             <button onClick={handleCreateRole} className="bg-blue-600 text-white rounded px-4 py-2 text-sm font-medium hover:bg-blue-700 flex items-center justify-center gap-2">
                                 <Plus size={16} /> Thêm Mới
                             </button>
                         </div>
+                        {/* Preview computed values */}
+                        {(newRole.code || newRole.name) && (
+                            <div className="flex gap-4 text-xs text-gray-500 px-2">
+                                <span>Mã: <b className="text-blue-600">{newRole.code}</b></span>
+                                <span>Tên: <b className="text-blue-600">{newRole.name}</b></span>
+                            </div>
+                        )}
 
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left border rounded-lg">
@@ -301,8 +442,6 @@ const PermissionManager = () => {
                                         <tr>
                                             <th className="p-3 border-b w-64">Module (Resource)</th>
                                             <th className="p-3 border-b text-center w-20">Xem</th>
-                                            <th className="p-3 border-b text-center w-20">Sửa</th>
-                                            <th className="p-3 border-b text-center w-20">Xóa</th>
                                             <th className="p-3 border-b">Cột được phép (Nhập tên cột, cách nhau dấu phẩy)</th>
                                         </tr>
                                     </thead>
@@ -323,40 +462,12 @@ const PermissionManager = () => {
                                                             onChange={e => handlePermissionChange(res.code, 'can_view', e.target.checked)}
                                                         />
                                                     </td>
-                                                    <td className="p-3 text-center border-r">
-                                                        <input
-                                                            type="checkbox"
-                                                            className="w-5 h-5 text-orange-500 rounded"
-                                                            checked={!!perm.can_edit}
-                                                            onChange={e => handlePermissionChange(res.code, 'can_edit', e.target.checked)}
-                                                        />
-                                                    </td>
-                                                    <td className="p-3 text-center border-r">
-                                                        <input
-                                                            type="checkbox"
-                                                            className="w-5 h-5 text-red-600 rounded"
-                                                            checked={!!perm.can_delete}
-                                                            onChange={e => handlePermissionChange(res.code, 'can_delete', e.target.checked)}
-                                                        />
-                                                    </td>
                                                     <td className="p-3">
-                                                        <div className="flex gap-2 items-center">
-                                                            <input
-                                                                type="text"
-                                                                className="border rounded px-2 py-1 w-full text-xs font-mono"
-                                                                defaultValue={colString}
-                                                                onBlur={e => handleColumnChange(res.code, e.target.value)}
-                                                                placeholder="*, hoặc id, name, status..."
-                                                            />
-                                                            <div className="group relative">
-                                                                <AlertCircle size={16} className="text-gray-400 cursor-help" />
-                                                                <div className="absolute right-0 bottom-full mb-2 w-64 p-2 bg-black text-white text-xs rounded hidden group-hover:block z-50">
-                                                                    Nhập dấu * để xem tất cả. <br />
-                                                                    Hoặc nhập tên cột cách nhau bởi dấu phẩy.<br />
-                                                                    VD: <code>name, email, phone</code>
-                                                                </div>
-                                                            </div>
-                                                        </div>
+                                                        <MultiSelectColumn
+                                                            resourceCode={res.code}
+                                                            selectedColumns={cols}
+                                                            onChange={(newCols) => handlePermissionChange(res.code, 'allowed_columns', newCols)}
+                                                        />
                                                     </td>
                                                 </tr>
                                             );
