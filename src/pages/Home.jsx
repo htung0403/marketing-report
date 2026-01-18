@@ -27,6 +27,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 
 function Home() {
   const navigate = useNavigate();
+  const { canView } = usePermissions();
   const [userRole, setUserRole] = useState("user");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const location = useLocation();
@@ -45,7 +46,7 @@ function Home() {
     setUserRole(role);
   }, []);
 
-  const menuItems = [
+  const allMenuItems = [
     {
       id: "home",
       label: "Menu chức năng",
@@ -388,7 +389,7 @@ function Home() {
     },
   ];
 
-  const contentSections = [
+  const allContentSections = [
     {
       title: "DASHBOARD ĐIỀU HÀNH",
       items: [
@@ -762,11 +763,43 @@ function Home() {
     },
   ];
 
-  const filteredMenuItems = menuItems.filter(
-    (item) => !item.adminOnly || userRole === "admin"
+  const RBAC_MAP = {
+    'rnd': 'MODULE_RND',
+    'sale': 'MODULE_SALE',
+    'delivery': 'MODULE_ORDERS',
+    'crm': 'MODULE_CSKH',
+    'settings': 'MODULE_ADMIN',
+    'marketing': 'MODULE_MKT',
+    'hr': 'MODULE_ADMIN',
+    'finance': 'MODULE_ADMIN'
+  };
+
+  const isVisible = (id) => {
+    const resCode = RBAC_MAP[id];
+    if (!resCode) return true;
+    return canView(resCode);
+  };
+
+  const filteredMenuItems = allMenuItems.filter(
+    (item) => isVisible(item.id) && (!item.adminOnly || userRole === "admin")
   );
 
-  const filteredSections = contentSections.map((section) => ({
+  const SECTION_RBAC_MAP = {
+    "QUẢN LÝ R&D": 'MODULE_RND',
+    "QUẢN LÝ MARKETING": 'MODULE_MKT',
+    "QUẢN LÝ SALE & ORDER": 'MODULE_SALE',
+    "QUẢN LÝ GIAO HÀNG": 'MODULE_ORDERS',
+    "CSKH & CRM": 'MODULE_CSKH',
+    "CÀI ĐẶT HỆ THỐNG": 'MODULE_ADMIN',
+    "QUẢN LÝ TÀI CHÍNH": 'MODULE_ADMIN',
+    "QUẢN LÝ NHÂN SỰ": 'MODULE_ADMIN'
+  };
+
+  const filteredSections = allContentSections.filter(section => {
+    const resCode = SECTION_RBAC_MAP[section.title];
+    if (!resCode) return true;
+    return canView(resCode);
+  }).map((section) => ({
     ...section,
     items: section.items.filter(
       (item) => !item.adminOnly || userRole === "admin"

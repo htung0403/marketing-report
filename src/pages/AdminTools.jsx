@@ -1,6 +1,7 @@
-import { Activity, AlertCircle, AlertTriangle, CheckCircle, Clock, Database, GitCompare, Globe, RefreshCw, Save, Settings, Tag, Trash2 } from 'lucide-react';
+import { Activity, AlertCircle, AlertTriangle, CheckCircle, Clock, Database, GitCompare, Globe, RefreshCw, Save, Settings, Shield, Tag, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
+import PermissionManager from '../components/admin/PermissionManager';
 import { performEndOfShiftSnapshot } from '../services/snapshotService';
 import { supabase } from '../supabase/config';
 
@@ -312,6 +313,15 @@ const AdminTools = () => {
                     <div className="flex items-center gap-2">
                         <Settings size={18} />
                         Cài đặt hệ thống
+                    </div>
+                </button>
+                <button
+                    onClick={() => setActiveTab('permissions')}
+                    className={`pb-3 px-4 font-medium transition-all ${activeTab === 'permissions' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                    <div className="flex items-center gap-2">
+                        <Shield size={18} />
+                        Phân quyền (RBAC)
                     </div>
                 </button>
             </div>
@@ -798,6 +808,11 @@ const AdminTools = () => {
                     </div>
                 </div>
             )}
+            {/* TAB CONTENT: PERMISSIONS */}
+            {activeTab === 'permissions' && (
+                <PermissionManager />
+            )}
+
         </div>
     );
 };

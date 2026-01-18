@@ -6,6 +6,7 @@ import { COLUMN_MAPPING, PRIMARY_KEY_COLUMN } from '../types';
 import { isDateInRange, parseSmartDate } from '../utils/dateParsing';
 
 function BaoCaoChiTietRnD() {
+    const { isColumnAllowed } = usePermissions();
     const [allData, setAllData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchText, setSearchText] = useState('');
@@ -81,8 +82,8 @@ function BaoCaoChiTietRnD() {
         const startDefaults = defaultColumns.filter(col => !pinnedEndColumns.includes(col) && allKeys.has(col));
         const otherCols = Array.from(allKeys).filter(key => !defaultColumns.includes(key)).sort();
         const endCols = pinnedEndColumns.filter(col => allKeys.has(col));
-        return [...startDefaults, ...otherCols, ...endCols];
-    }, [allData]);
+        return [...startDefaults, ...otherCols, ...endCols].filter(col => isColumnAllowed('MODULE_RND', col));
+    }, [allData, isColumnAllowed]);
 
     const [visibleColumns, setVisibleColumns] = useState(() => {
         const saved = localStorage.getItem('baoCaoChiTietRnD_visibleColumns');
