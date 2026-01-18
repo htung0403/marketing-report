@@ -46,9 +46,9 @@ export const usePermissions = () => {
                         .from('app_user_roles')
                         .select('role_code')
                         .eq('email', userEmail)
-                        .single();
+                        .maybeSingle();
 
-                    if (urError && urError.code !== 'PGRST116') { // Ignore "no rows found"
+                    if (urError) {
                         console.error("Error fetching user role", urError);
                     }
 

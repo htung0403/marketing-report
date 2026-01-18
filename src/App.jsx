@@ -46,60 +46,64 @@ import XemBaoCaoRnD from './pages/XemBaoCaoRnD';
 
 /* Header component extracted to `src/components/Header.jsx` */
 
+import ErrorBoundary from './components/ErrorBoundary';
+
 function App() {
   return (
     <Router>
       <ScrollToTop />
       <div className="min-h-screen bg-gray-50">
-        <Header />
+        <ErrorBoundary>
+          <Header />
 
-        {/* Routes */}
-        <Routes>
-          <Route path="/dang-nhap" element={<Login />} />
-          <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-          <Route path="/trang-chu" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-          <Route path="/bao-cao-chi-tiet" element={<ProtectedRoute><BaoCaoChiTiet /></ProtectedRoute>} />
-          <Route path="/bang-bao-cao" element={<ProtectedRoute><ReportDashboard /></ProtectedRoute>} />
-          <Route path="/bao-cao-kpi" element={<ProtectedRoute><KPIReport /></ProtectedRoute>} />
-          <Route path="/hieu-qua-mkt" element={<ProtectedRoute><HieuQuaMarketing /></ProtectedRoute>} />
-          <Route path="/bao-cao-marketing" element={<ProtectedRoute><BaoCaoMarketing /></ProtectedRoute>} />
-          <Route path="/bao-cao-sale" element={<ProtectedRoute><BaoCaoSale /></ProtectedRoute>} />
-          <Route path="/sale-nhap-bao-cao" element={<ProtectedRoute><NhapBaoCaoSale /></ProtectedRoute>} />
-          <Route path="/xem-bao-cao-sale" element={<ProtectedRoute><BaoCaoSale /></ProtectedRoute>} />
-          <Route path="/bao-cao-f3" element={<ProtectedRoute><F3Report /></ProtectedRoute>} />
-          <Route path="/bao-cao-hieu-suat-kpi" element={<ProtectedRoute><BaoCaoHieuSuatKPI /></ProtectedRoute>} />
-          <Route path="/nhan-su" element={<ProtectedRoute><NhanSu /></ProtectedRoute>} />
-          <Route path="/hr-dashboard" element={<ProtectedRoute><HRDashboard /></ProtectedRoute>} />
-          <Route path="/finance-dashboard" element={<ProtectedRoute><FinanceDashboard /></ProtectedRoute>} />
+          {/* Routes */}
+          <Routes>
+            <Route path="/dang-nhap" element={<Login />} />
+            <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="/trang-chu" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="/bao-cao-chi-tiet" element={<ProtectedRoute><BaoCaoChiTiet /></ProtectedRoute>} />
+            <Route path="/bang-bao-cao" element={<ProtectedRoute><ReportDashboard /></ProtectedRoute>} />
+            <Route path="/bao-cao-kpi" element={<ProtectedRoute><KPIReport /></ProtectedRoute>} />
+            <Route path="/hieu-qua-mkt" element={<ProtectedRoute><HieuQuaMarketing /></ProtectedRoute>} />
+            <Route path="/bao-cao-marketing" element={<ProtectedRoute><BaoCaoMarketing /></ProtectedRoute>} />
+            <Route path="/bao-cao-sale" element={<ProtectedRoute><BaoCaoSale /></ProtectedRoute>} />
+            <Route path="/sale-nhap-bao-cao" element={<ProtectedRoute><NhapBaoCaoSale /></ProtectedRoute>} />
+            <Route path="/xem-bao-cao-sale" element={<ProtectedRoute><BaoCaoSale /></ProtectedRoute>} />
+            <Route path="/bao-cao-f3" element={<ProtectedRoute><F3Report /></ProtectedRoute>} />
+            <Route path="/bao-cao-hieu-suat-kpi" element={<ProtectedRoute><BaoCaoHieuSuatKPI /></ProtectedRoute>} />
+            <Route path="/nhan-su" element={<ProtectedRoute><NhanSu /></ProtectedRoute>} />
+            <Route path="/hr-dashboard" element={<ProtectedRoute><HRDashboard /></ProtectedRoute>} />
+            <Route path="/finance-dashboard" element={<ProtectedRoute><FinanceDashboard /></ProtectedRoute>} />
 
-          <Route path="/ho-so" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-          <Route path="/van-don" element={<ProtectedRoute><VanDon /></ProtectedRoute>} />
-          <Route path="/bao-cao-van-don" element={<ProtectedRoute><BaoCaoVanDon /></ProtectedRoute>} />
-          <Route path="/danh-sach-don" element={<ProtectedRoute><DanhSachDon /></ProtectedRoute>} />
-          <Route path="/danh-sach-page" element={<ProtectedRoute><DanhSachPage /></ProtectedRoute>} />
-          <Route path="/nhap-don" element={<ProtectedRoute><NhapDonMoi /></ProtectedRoute>} />
-          <Route path="/chinh-sua-don" element={<ProtectedRoute><NhapDonMoi isEdit={true} /></ProtectedRoute>} />
-          <Route path="/quan-ly-cskh" element={<ProtectedRoute><QuanLyCSKH /></ProtectedRoute>} />
-          <Route path="/don-chia-cskh" element={<ProtectedRoute><DonChiaCSKH /></ProtectedRoute>} />
-          <Route path="/xem-bao-cao-mkt" element={<ProtectedRoute><XemBaoCaoMKT /></ProtectedRoute>} />
-          <Route path="/ffm" element={<ProtectedRoute><FFM /></ProtectedRoute>} />
-          <Route path="/lenh-san-xuat" element={<ProtectedRoute><LenHSanXuat /></ProtectedRoute>} />
+            <Route path="/ho-so" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/van-don" element={<ProtectedRoute><VanDon /></ProtectedRoute>} />
+            <Route path="/bao-cao-van-don" element={<ProtectedRoute><BaoCaoVanDon /></ProtectedRoute>} />
+            <Route path="/danh-sach-don" element={<ProtectedRoute><DanhSachDon /></ProtectedRoute>} />
+            <Route path="/danh-sach-page" element={<ProtectedRoute><DanhSachPage /></ProtectedRoute>} />
+            <Route path="/nhap-don" element={<ProtectedRoute><NhapDonMoi /></ProtectedRoute>} />
+            <Route path="/chinh-sua-don" element={<ProtectedRoute><NhapDonMoi isEdit={true} /></ProtectedRoute>} />
+            <Route path="/quan-ly-cskh" element={<ProtectedRoute><QuanLyCSKH /></ProtectedRoute>} />
+            <Route path="/don-chia-cskh" element={<ProtectedRoute><DonChiaCSKH /></ProtectedRoute>} />
+            <Route path="/xem-bao-cao-mkt" element={<ProtectedRoute><XemBaoCaoMKT /></ProtectedRoute>} />
+            <Route path="/ffm" element={<ProtectedRoute><FFM /></ProtectedRoute>} />
+            <Route path="/lenh-san-xuat" element={<ProtectedRoute><LenHSanXuat /></ProtectedRoute>} />
 
-          {/* RD Module Routes */}
-          <Route path="/bao-cao-rd" element={<ProtectedRoute><BaoCaoRnD /></ProtectedRoute>} />
-          <Route path="/xem-bao-cao-rd" element={<ProtectedRoute><XemBaoCaoRnD /></ProtectedRoute>} />
-          <Route path="/bao-cao-chi-tiet-rd" element={<ProtectedRoute><BaoCaoChiTietRnD /></ProtectedRoute>} />
-          <Route path="/danh-sach-page-rd" element={<ProtectedRoute><DanhSachPageRnD /></ProtectedRoute>} />
+            {/* RD Module Routes */}
+            <Route path="/bao-cao-rd" element={<ProtectedRoute><BaoCaoRnD /></ProtectedRoute>} />
+            <Route path="/xem-bao-cao-rd" element={<ProtectedRoute><XemBaoCaoRnD /></ProtectedRoute>} />
+            <Route path="/bao-cao-chi-tiet-rd" element={<ProtectedRoute><BaoCaoChiTietRnD /></ProtectedRoute>} />
+            <Route path="/danh-sach-page-rd" element={<ProtectedRoute><DanhSachPageRnD /></ProtectedRoute>} />
 
-          {/* History Routes */}
-          <Route path="/lich-su-thay-doi" element={<ProtectedRoute><ChangeLogViewer /></ProtectedRoute>} />
-          <Route path="/lich-su-van-don" element={<ProtectedRoute><BillOfLadingHistoryPage /></ProtectedRoute>} />
-          <Route path="/lich-su-sale-order" element={<ProtectedRoute><SalesOrderHistoryPage /></ProtectedRoute>} />
-          <Route path="/lich-su-cskh" element={<ProtectedRoute><CskhCrmHistoryPage /></ProtectedRoute>} />
+            {/* History Routes */}
+            <Route path="/lich-su-thay-doi" element={<ProtectedRoute><ChangeLogViewer /></ProtectedRoute>} />
+            <Route path="/lich-su-van-don" element={<ProtectedRoute><BillOfLadingHistoryPage /></ProtectedRoute>} />
+            <Route path="/lich-su-sale-order" element={<ProtectedRoute><SalesOrderHistoryPage /></ProtectedRoute>} />
+            <Route path="/lich-su-cskh" element={<ProtectedRoute><CskhCrmHistoryPage /></ProtectedRoute>} />
 
-          <Route path="/admin-tools" element={<ProtectedRoute><AdminTools /></ProtectedRoute>} />
-          <Route path="/external-view" element={<ProtectedRoute><ExternalView /></ProtectedRoute>} />
-        </Routes>
+            <Route path="/admin-tools" element={<ProtectedRoute><AdminTools /></ProtectedRoute>} />
+            <Route path="/external-view" element={<ProtectedRoute><ExternalView /></ProtectedRoute>} />
+          </Routes>
+        </ErrorBoundary>
 
         {/* Toast notifications */}
         <ToastContainer

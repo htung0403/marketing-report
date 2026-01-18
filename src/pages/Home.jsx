@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { usePermissions } from "../hooks/usePermissions";
 
 function Home() {
   const navigate = useNavigate();
@@ -306,13 +307,7 @@ function Home() {
           path: "https://hr-management-self.vercel.app/attendance",
           isExternal: true,
         },
-        {
-          id: "hr-honor",
-          label: "Tôn vinh",
-          icon: <Medal className="w-4 h-4" />,
-          path: "https://hr-management-self.vercel.app/honor",
-          isExternal: true,
-        },
+
       ],
     },
     {
@@ -674,6 +669,7 @@ function Home() {
           status: "Mở ứng dụng",
           isExternal: true,
         },
+
 
 
       ],
