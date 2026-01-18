@@ -570,29 +570,29 @@ function Home() {
       items: [
         {
           title: "Nhập báo cáo",
-          icon: <TrendingUp className="w-8 h-8" />,
-          color: "bg-pink-600",
+          icon: <TrendingUp className="w-7 h-7" />,
+          color: "bg-gradient-to-br from-pink-500 to-rose-600",
           path: "/bao-cao-rd",
           status: "Mở ứng dụng",
         },
         {
           title: "Xem báo cáo R&D",
-          icon: <BarChart3 className="w-8 h-8" />,
-          color: "bg-pink-600",
+          icon: <BarChart3 className="w-7 h-7" />,
+          color: "bg-gradient-to-br from-pink-500 to-rose-600",
           path: "/xem-bao-cao-rd",
           status: "Mở ứng dụng",
         },
         {
           title: "Danh sách đơn",
-          icon: <ClipboardList className="w-8 h-8" />,
-          color: "bg-pink-600",
+          icon: <ClipboardList className="w-7 h-7" />,
+          color: "bg-gradient-to-br from-purple-500 to-pink-600",
           path: "/bao-cao-chi-tiet-rd",
           status: "Mở ứng dụng",
         },
         {
           title: "Danh sách Page",
-          icon: <ListTodo className="w-8 h-8" />,
-          color: "bg-pink-600",
+          icon: <ListTodo className="w-7 h-7" />,
+          color: "bg-gradient-to-br from-orange-400 to-pink-500",
           path: "/danh-sach-page-rd",
           status: "Mở ứng dụng",
         },
@@ -891,23 +891,23 @@ function Home() {
                       <div
                         key={itemIndex}
                         onClick={() => navigate(`/external-view?url=${encodeURIComponent(item.path)}`)}
-                        className={`group relative bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 p-6 border border-gray-200 hover:border-gray-300 cursor-pointer ${item.comingSoon ? "opacity-75" : ""
+                        className={`group relative bg-white rounded-xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-6 border border-gray-100 hover:border-gray-200 cursor-pointer ${item.comingSoon ? "opacity-75" : ""
                           }`}
                       >
                         <div className="flex items-start gap-4">
                           <div
-                            className={`${item.color} text-white p-3 rounded-lg flex-shrink-0`}
+                            className={`${item.color} text-white p-3.5 rounded-2xl shadow-lg shadow-gray-200 group-hover:scale-110 transition-transform duration-300 flex-shrink-0`}
                           >
                             {item.icon}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-base font-semibold text-gray-900 mb-1">
+                          <div className="flex-1 min-w-0 pt-1">
+                            <h3 className="text-base font-bold text-gray-800 mb-1 group-hover:text-pink-600 transition-colors">
                               {item.title}
                             </h3>
                             <p
                               className={`text-xs font-medium ${item.comingSoon
                                 ? "text-gray-400"
-                                : "text-[#F37021]"
+                                : "text-gray-500"
                                 }`}
                             >
                               {item.status}
@@ -924,23 +924,23 @@ function Home() {
                       <Link
                         key={itemIndex}
                         to={item.path}
-                        className={`group relative bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 p-6 border border-gray-200 hover:border-gray-300 ${item.comingSoon ? "opacity-75" : ""
+                        className={`group relative bg-white rounded-xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-6 border border-gray-100 hover:border-gray-200 ${item.comingSoon ? "opacity-75" : ""
                           }`}
                       >
                         <div className="flex items-start gap-4">
                           <div
-                            className={`${item.color} text-white p-3 rounded-lg flex-shrink-0`}
+                            className={`${item.color} text-white p-3.5 rounded-2xl shadow-lg shadow-gray-200 group-hover:scale-110 transition-transform duration-300 flex-shrink-0`}
                           >
                             {item.icon}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-base font-semibold text-gray-900 mb-1">
+                          <div className="flex-1 min-w-0 pt-1">
+                            <h3 className="text-base font-bold text-gray-800 mb-1 group-hover:text-pink-600 transition-colors">
                               {item.title}
                             </h3>
                             <p
                               className={`text-xs font-medium ${item.comingSoon
                                 ? "text-gray-400"
-                                : "text-[#F37021]"
+                                : "text-gray-500"
                                 }`}
                             >
                               {item.status}

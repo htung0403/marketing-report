@@ -1,4 +1,5 @@
 export const PRIMARY_KEY_COLUMN = "Mã đơn hàng";
+export const SETTINGS_KEY = 'system_settings';
 export const TEAM_COLUMN_NAME = "Team";
 
 // --- VIEW 1: ORDER MANAGEMENT COLUMNS (Original) ---

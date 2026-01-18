@@ -1,4 +1,4 @@
-import { Activity, AlertCircle, AlertTriangle, CheckCircle, Clock, Database, Globe, Save, Settings, Tag } from 'lucide-react';
+import { Activity, AlertCircle, AlertTriangle, CheckCircle, Clock, Database, GitCompare, Globe, RefreshCw, Save, Settings, Tag, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { performEndOfShiftSnapshot } from '../services/snapshotService';
@@ -279,6 +279,13 @@ const AdminTools = () => {
             setVerifying(false);
         }
     };
+
+    // Ensure products in settings are always visible in the list, even if not in history
+    const displayedProducts = Array.from(new Set([
+        ...availableProducts,
+        ...settings.rndProducts,
+        ...settings.keyProducts
+    ])).sort();
 
     return (
         <div className="p-6 max-w-6xl mx-auto min-h-screen bg-gray-50">
@@ -576,69 +583,215 @@ const AdminTools = () => {
                             </div>
                         </div>
 
-                        {/* 2. R&D Products */}
+
+                        {/* 2 & 3. UNIFIED PRODUCT MANAGEMENT */}
                         <div className="space-y-4">
                             <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                                 <Tag className="w-5 h-5 text-purple-600" />
-                                2. Định nghĩa Sản phẩm R&D
+                                2. Quản lý Danh sách Sản phẩm
                             </h3>
-                            <p className="text-sm text-gray-500">Các sản phẩm này sẽ bị ẩn với Sale thông thường, chỉ hiện với nhân viên có quyền R&D.</p>
-                            <div className="border rounded-lg p-4 bg-gray-50 max-h-60 overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                                {availableProducts.map(p => (
-                                    <label key={p} className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${settings.rndProducts.includes(p) ? 'bg-purple-100 border border-purple-300' : 'hover:bg-gray-200'}`}>
-                                        <input
-                                            type="checkbox"
-                                            checked={settings.rndProducts.includes(p)}
-                                            onChange={() => toggleItem('rndProducts', p)}
-                                            className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                                        />
-                                        <span className="text-sm">{p}</span>
-                                    </label>
-                                ))}
+                            <p className="text-sm text-gray-500">
+                                Quản lý danh sách sản phẩm, định nghĩa sản phẩm R&D (SP test) và sản phẩm trọng điểm.
+                            </p>
+
+                            <div className="bg-white border rounded-lg shadow-sm overflow-hidden">
+                                <div className="max-h-[500px] overflow-y-auto">
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="bg-gray-50 text-gray-700 font-semibold sticky top-0 z-10">
+                                            <tr>
+                                                <th className="px-4 py-3 border-b w-16 text-center">STT</th>
+                                                <th className="px-4 py-3 border-b">Tên sản phẩm</th>
+                                                <th className="px-4 py-3 border-b w-48">Loại sản phẩm</th>
+                                                <th className="px-4 py-3 border-b w-24 text-center">Hành động</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {displayedProducts.map((product, index) => {
+                                                const isRnd = settings.rndProducts.includes(product);
+                                                const isKey = settings.keyProducts.includes(product);
+                                                let currentType = 'normal';
+                                                if (isRnd) currentType = 'test';
+                                                else if (isKey) currentType = 'key';
+
+                                                return (
+                                                    <tr key={product} className="hover:bg-gray-50">
+                                                        <td className="px-4 py-2 text-center text-gray-500">{index + 1}</td>
+                                                        <td className="px-4 py-2 font-medium">{product}</td>
+                                                        <td className="px-4 py-2">
+                                                            <select
+                                                                value={currentType}
+                                                                onChange={(e) => {
+                                                                    const newType = e.target.value;
+                                                                    setSettings(prev => {
+                                                                        let newRnd = prev.rndProducts.filter(p => p !== product);
+                                                                        let newKey = prev.keyProducts.filter(p => p !== product);
+
+                                                                        if (newType === 'test') newRnd.push(product);
+                                                                        if (newType === 'key') newKey.push(product);
+
+                                                                        return { ...prev, rndProducts: newRnd, keyProducts: newKey };
+                                                                    });
+                                                                }}
+                                                                className={`w-full text-xs py-1 px-2 rounded border focus:outline-none focus:ring-2 
+                                                                    ${currentType === 'test' ? 'bg-purple-50 text-purple-700 border-purple-200 focus:ring-purple-500' :
+                                                                        currentType === 'key' ? 'bg-indigo-50 text-indigo-700 border-indigo-200 focus:ring-indigo-500' :
+                                                                            'bg-white text-gray-700 border-gray-300 focus:ring-gray-500'}`}
+                                                            >
+                                                                <option value="normal">SP thường</option>
+                                                                <option value="test">SP Test (R&D)</option>
+                                                                <option value="key">SP Trọng điểm</option>
+                                                            </select>
+                                                        </td>
+                                                        <td className="px-4 py-2 text-center">
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (window.confirm(`Bạn có chắc muốn xóa sản phẩm "${product}" khỏi danh sách?`)) {
+                                                                        setAvailableProducts(prev => prev.filter(p => p !== product));
+                                                                        setSettings(prev => ({
+                                                                            ...prev,
+                                                                            rndProducts: prev.rndProducts.filter(p => p !== product),
+                                                                            keyProducts: prev.keyProducts.filter(p => p !== product)
+                                                                        }));
+                                                                    }
+                                                                }}
+                                                                className="text-gray-400 hover:text-red-600 transition-colors p-1"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Add Product Footer */}
+                                <div className="bg-gray-50 p-3 border-t flex gap-2">
+                                    <input
+                                        type="text"
+                                        list="product-suggestions"
+                                        placeholder="Nhập tên sản phẩm mới..."
+                                        className="flex-1 text-sm border-gray-300 rounded px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                const val = e.target.value.trim();
+                                                if (val && !availableProducts.includes(val)) {
+                                                    setAvailableProducts(prev => [...prev, val].sort());
+                                                    e.target.value = '';
+                                                } else if (availableProducts.includes(val)) {
+                                                    toast.warning('Sản phẩm này đã có trong danh sách!');
+                                                }
+                                            }
+                                        }}
+                                        id="new-product-input"
+                                    />
+                                    <datalist id="product-suggestions">
+                                        {availableProducts.map(p => <option key={p} value={p} />)}
+                                    </datalist>
+                                    <button
+                                        onClick={() => {
+                                            const input = document.getElementById('new-product-input');
+                                            const val = input.value.trim();
+                                            if (val && !availableProducts.includes(val)) {
+                                                setAvailableProducts(prev => [...prev, val].sort());
+                                                input.value = '';
+                                                toast.success('Đã thêm sản phẩm mới');
+                                            } else if (availableProducts.includes(val)) {
+                                                toast.warning('Sản phẩm này đã có trong danh sách!');
+                                            }
+                                        }}
+                                        className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-700"
+                                    >
+                                        Thêm
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
-                        {/* 3. Key Products */}
-                        <div className="space-y-4">
-                            <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                                <Tag className="w-5 h-5 text-indigo-600" />
-                                3. Sản phẩm trọng điểm
-                            </h3>
-                            <p className="text-sm text-gray-500">Các sản phẩm này sẽ được ưu tiên hiển thị trong báo cáo doanh số.</p>
-                            <div className="border rounded-lg p-4 bg-gray-50 max-h-60 overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                                {availableProducts.map(p => (
-                                    <label key={p} className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${settings.keyProducts.includes(p) ? 'bg-indigo-100 border border-indigo-300' : 'hover:bg-gray-200'}`}>
-                                        <input
-                                            type="checkbox"
-                                            checked={settings.keyProducts.includes(p)}
-                                            onChange={() => toggleItem('keyProducts', p)}
-                                            className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                                        />
-                                        <span className="text-sm">{p}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* 4. Key Markets */}
+                        {/* 4. Market Management */}
                         <div className="space-y-4">
                             <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                                 <Globe className="w-5 h-5 text-teal-600" />
-                                4. Thị trường trọng điểm
+                                3. Quản lý Thị trường Trọng điểm
                             </h3>
-                            <p className="text-sm text-gray-500">Các thị trường (Khu vực) chính cần theo dõi.</p>
-                            <div className="border rounded-lg p-4 bg-gray-50 max-h-60 overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                                {availableMarkets.map(m => (
-                                    <label key={m} className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${settings.keyMarkets.includes(m) ? 'bg-teal-100 border border-teal-300' : 'hover:bg-gray-200'}`}>
-                                        <input
-                                            type="checkbox"
-                                            checked={settings.keyMarkets.includes(m)}
-                                            onChange={() => toggleItem('keyMarkets', m)}
-                                            className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
-                                        />
-                                        <span className="text-sm">{m}</span>
-                                    </label>
-                                ))}
+                            <p className="text-sm text-gray-500">Các thị trường (Khu vực) chính cần theo dõi trong báo cáo.</p>
+
+                            <div className="bg-white border rounded-lg shadow-sm overflow-hidden">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-gray-50 text-gray-700 font-semibold sticky top-0">
+                                        <tr>
+                                            <th className="px-4 py-3 border-b w-16 text-center">STT</th>
+                                            <th className="px-4 py-3 border-b">Tên Thị trường</th>
+                                            <th className="px-4 py-3 border-b w-24 text-center">Hành động</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {settings.keyMarkets.map((market, index) => (
+                                            <tr key={market} className="hover:bg-gray-50">
+                                                <td className="px-4 py-2 text-center text-gray-500">{index + 1}</td>
+                                                <td className="px-4 py-2 font-medium">{market}</td>
+                                                <td className="px-4 py-2 text-center">
+                                                    <button
+                                                        onClick={() => {
+                                                            if (window.confirm(`Xóa thị trường "${market}"?`)) {
+                                                                setSettings(prev => ({
+                                                                    ...prev,
+                                                                    keyMarkets: prev.keyMarkets.filter(m => m !== market)
+                                                                }));
+                                                            }
+                                                        }}
+                                                        className="text-gray-400 hover:text-red-600 transition-colors p-1"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+
+                                {/* Add Market Footer */}
+                                <div className="bg-gray-50 p-3 border-t flex gap-2">
+                                    <input
+                                        type="text"
+                                        list="market-suggestions"
+                                        placeholder="Nhập tên thị trường mới..."
+                                        className="flex-1 text-sm border-gray-300 rounded px-3 py-1.5 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                const val = e.target.value.trim();
+                                                if (val && !settings.keyMarkets.includes(val)) {
+                                                    setSettings(prev => ({ ...prev, keyMarkets: [...prev.keyMarkets, val].sort() }));
+                                                    // Also add to availableMarkets if not there
+                                                    if (!availableMarkets.includes(val)) setAvailableMarkets(prev => [...prev, val].sort());
+                                                    e.target.value = '';
+                                                }
+                                            }
+                                        }}
+                                        id="new-market-input"
+                                    />
+                                    <datalist id="market-suggestions">
+                                        {availableMarkets.map(m => <option key={m} value={m} />)}
+                                    </datalist>
+                                    <button
+                                        onClick={() => {
+                                            const input = document.getElementById('new-market-input');
+                                            const val = input.value.trim();
+                                            if (val && !settings.keyMarkets.includes(val)) {
+                                                setSettings(prev => ({ ...prev, keyMarkets: [...prev.keyMarkets, val].sort() }));
+                                                if (!availableMarkets.includes(val)) setAvailableMarkets(prev => [...prev, val].sort());
+                                                input.value = '';
+                                                toast.success('Đã thêm thị trường mới');
+                                            } else if (settings.keyMarkets.includes(val)) {
+                                                toast.warning('Thị trường này đã có!');
+                                            }
+                                        }}
+                                        className="bg-teal-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-teal-700"
+                                    >
+                                        Thêm
+                                    </button>
+                                </div>
                             </div>
                         </div>
 

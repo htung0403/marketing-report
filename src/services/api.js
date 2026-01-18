@@ -1,4 +1,4 @@
-import { PRIMARY_KEY_COLUMN } from '../types';
+import { PRIMARY_KEY_COLUMN, SETTINGS_KEY } from '../types';
 
 const PROD_HOST = 'https://n-api-gamma.vercel.app';
 // const LOCAL_HOST = 'http://localhost:8081'; 
@@ -11,7 +11,59 @@ const TRANSFER_API_URL = `${MAIN_HOST}/sheet/MGT nội bộ/rows/batch`;
 const MGT_NOI_BO_ORDER_API_URL = `${MAIN_HOST}/sheet/MGT nội bộ/data`;
 const DATA_API_URL = `${MAIN_HOST}/sheet/${SHEET_NAME}/data`;
 
+const getDataSourceMode = () => {
+    try {
+        const s = localStorage.getItem(SETTINGS_KEY);
+        if (s) {
+            const parsed = JSON.parse(s);
+            // Default to 'prod' if undefined
+            return parsed.dataSource || 'prod';
+        }
+        return 'prod';
+    } catch {
+        return 'prod';
+    }
+};
+
 export const fetchOrders = async () => {
+    // 1. Check Data Source Mode
+    const mode = getDataSourceMode();
+    if (mode === 'test') {
+        console.log('🔶 [TEST MODE] Using Mock Data for fetchOrders');
+        return [
+            {
+                "Mã đơn hàng": "TEST-001",
+                "Name*": "Khách Hàng Test 1",
+                "Phone*": "0900000001",
+                "Add": "123 Đường Test, Quận 1",
+                "City": "Hồ Chí Minh",
+                "State": "HCM",
+                "Khu vực": "Hồ Chí Minh",
+                "Mặt hàng": "Glutathione Collagen",
+                "Giá bán": "1500000",
+                "Tổng tiền VNĐ": "1500000",
+                "Ghi chú": "Đây là dữ liệu test không có thật",
+                "Trạng thái giao hàng": "ĐANG GIAO",
+                "Ngày lên đơn": new Date().toISOString()
+            },
+            {
+                "Mã đơn hàng": "TEST-002",
+                "Name*": "Khách Hàng Test 2",
+                "Phone*": "0900000002",
+                "Add": "456 Phố Test, Quận Ba Đình",
+                "City": "Hà Nội",
+                "State": "Hà Nội",
+                "Khu vực": "Hà Nội",
+                "Mặt hàng": "Kem Body",
+                "Giá bán": "500000",
+                "Tổng tiền VNĐ": "500000",
+                "Ghi chú": "Đây cũng là dữ liệu test",
+                "Trạng thái giao hàng": "HOÀN",
+                "Ngày lên đơn": new Date(Date.now() - 86400000).toISOString()
+            }
+        ];
+    }
+
     try {
         console.log('Fetching data from:', DATA_API_URL);
 
@@ -156,6 +208,25 @@ export const fetchMGTNoiBoOrders = async () => {
 };
 
 export const fetchFFMOrders = async () => {
+    const mode = getDataSourceMode();
+    if (mode === 'test') {
+        console.log('🔶 [TEST MODE] Using Mock Data for fetchFFMOrders');
+        return [
+            {
+                "Mã đơn hàng": "TEST-FFM-01",
+                "Name*": "Khách FFM Test",
+                "Phone*": "0999888777",
+                "Add": "Kho FFM Test",
+                "City": "Hà Nội",
+                "team": "Hà Nội",
+                "shipping_unit": "MGT Express",
+                "Đơn vị vận chuyển": "MGT Express",
+                "Trạng thái giao hàng": "ĐANG GIAO",
+                "Ngày lên đơn": new Date().toISOString()
+            }
+        ];
+    }
+
     try {
         console.log('Fetching FFM orders from Supabase...');
 
@@ -341,6 +412,46 @@ export const fetchVanDon = async (options = {}) => {
         dateFrom,
         dateTo
     } = options;
+
+    const mode = getDataSourceMode();
+    if (mode === 'test') {
+        console.log('🔶 [TEST MODE] Using Mock Data for fetchVanDon');
+        // Return dummy response for Van Don
+        return {
+            data: [
+                {
+                    "Mã đơn hàng": "TEST-VD-01",
+                    "Name*": "Test Vận Đơn 1",
+                    "Phone*": "0912345678",
+                    "Add": "123 Đường Test",
+                    "City": "Hà Nội",
+                    "State": "HN",
+                    "Khu vực": "Hà Nội",
+                    "Mặt hàng": "Sản phẩm Test",
+                    "Trạng thái giao hàng NB": "Đang Giao",
+                    "Mã Tracking": "TEST-TRACK-123",
+                    "Ngày lên đơn": new Date().toISOString()
+                },
+                {
+                    "Mã đơn hàng": "TEST-VD-02",
+                    "Name*": "Test Vận Đơn 2",
+                    "Phone*": "0987654321",
+                    "Add": "456 Đường Mẫu",
+                    "City": "Đà Nẵng",
+                    "State": "ĐN",
+                    "Khu vực": "Miền Trung",
+                    "Mặt hàng": "Sản phẩm Test 2",
+                    "Trạng thái giao hàng NB": "Giao Thành Công",
+                    "Mã Tracking": "TEST-TRACK-456",
+                    "Ngày lên đơn": new Date(Date.now() - 172800000).toISOString()
+                }
+            ],
+            total: 2,
+            page: 1,
+            limit: limit,
+            totalPages: 1
+        };
+    }
 
     try {
         console.log('Fetching Van Don properties from Supabase...');

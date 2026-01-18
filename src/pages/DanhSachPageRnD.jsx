@@ -8,6 +8,10 @@ export default function DanhSachPageRnD() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
+    // System Settings for Dropdowns
+    const [settingProducts, setSettingProducts] = useState([]);
+    const [settingMarkets, setSettingMarkets] = useState([]);
+
     // Filters
     const [selectedMarket, setSelectedMarket] = useState('ALL');
     const [selectedStaff, setSelectedStaff] = useState('ALL');
@@ -31,6 +35,17 @@ export default function DanhSachPageRnD() {
 
     useEffect(() => {
         fetchPages();
+        // Load System Settings
+        try {
+            const savedSettings = localStorage.getItem(SETTINGS_KEY);
+            if (savedSettings) {
+                const parsed = JSON.parse(savedSettings);
+                setSettingProducts(parsed.rndProducts || []);
+                setSettingMarkets(parsed.keyMarkets || []);
+            }
+        } catch (e) {
+            console.error('Error loading settings:', e);
+        }
     }, []);
 
     const fetchPages = async () => {
@@ -163,10 +178,11 @@ export default function DanhSachPageRnD() {
 
     const startAdd = () => {
         setEditingId('NEW');
+        const currentUser = localStorage.getItem('username') || '';
         setEditForm({
             id: crypto.randomUUID(),
             page_name: '',
-            rd_staff: '',
+            rd_staff: currentUser, // Auto-populate
             product: '',
             market: '',
             pancake_id: '',
@@ -312,9 +328,42 @@ export default function DanhSachPageRnD() {
                                 <tr className="bg-pink-50">
                                     {visibleColumns.id && <td className="px-4 py-2 italic text-gray-500">Auto-generated</td>}
                                     {visibleColumns.page_name && <td className="px-4 py-2"><input className="w-full p-1 border rounded" value={editForm.page_name} onChange={e => setEditForm({ ...editForm, page_name: e.target.value })} autoFocus /></td>}
-                                    {visibleColumns.rd_staff && <td className="px-4 py-2"><input className="w-full p-1 border rounded" value={editForm.rd_staff} onChange={e => setEditForm({ ...editForm, rd_staff: e.target.value })} /></td>}
-                                    {visibleColumns.product && <td className="px-4 py-2"><input className="w-full p-1 border rounded" value={editForm.product} onChange={e => setEditForm({ ...editForm, product: e.target.value })} /></td>}
-                                    {visibleColumns.market && <td className="px-4 py-2"><input className="w-full p-1 border rounded" value={editForm.market} onChange={e => setEditForm({ ...editForm, market: e.target.value })} /></td>}
+
+                                    {/* Auto-populated Staff */}
+                                    {visibleColumns.rd_staff && <td className="px-4 py-2">
+                                        <input
+                                            className="w-full p-1 border rounded bg-gray-100 text-gray-600 cursor-not-allowed"
+                                            value={editForm.rd_staff}
+                                            readOnly
+                                        />
+                                    </td>}
+
+                                    {/* Product Dropdown */}
+                                    {visibleColumns.product && <td className="px-4 py-2">
+                                        <select
+                                            className="w-full p-1 border rounded"
+                                            value={editForm.product}
+                                            onChange={e => setEditForm({ ...editForm, product: e.target.value })}
+                                        >
+                                            <option value="">-- Chọn SP --</option>
+                                            {settingProducts.map(p => <option key={p} value={p}>{p}</option>)}
+                                        </select>
+                                    </td>}
+
+                                    {/* Market Dropdown */}
+                                    {visibleColumns.market && <td className="px-4 py-2">
+                                        <select
+                                            className="w-full p-1 border rounded"
+                                            value={editForm.market}
+                                            onChange={e => setEditForm({ ...editForm, market: e.target.value })}
+                                        >
+                                            <option value="">-- Chọn TT --</option>
+                                            {settingMarkets.map(m => (
+                                                <option key={m.name || m} value={m.name || m}>{m.name || m}</option>
+                                            ))}
+                                        </select>
+                                    </td>}
+
                                     {visibleColumns.pancake_id && <td className="px-4 py-2"><input className="w-full p-1 border rounded" value={editForm.pancake_id} onChange={e => setEditForm({ ...editForm, pancake_id: e.target.value })} /></td>}
                                     {visibleColumns.page_link && <td className="px-4 py-2"><input className="w-full p-1 border rounded" value={editForm.page_link} onChange={e => setEditForm({ ...editForm, page_link: e.target.value })} /></td>}
                                     {visibleColumns.actions && <td className="px-4 py-2 flex justify-center gap-2">
@@ -328,16 +377,50 @@ export default function DanhSachPageRnD() {
                                     {editingId === page.id ? (
                                         // Edit Mode Row
                                         <>
-                                            {visibleColumns.id && <td className="px-4 py-2 text-gray-500">{page.id}</td>}
-                                            {visibleColumns.page_name && <td className="px-4 py-2"><input className="w-full p-1 border rounded" value={editForm.page_name} onChange={e => setEditForm({ ...editForm, page_name: e.target.value })} /></td>}
-                                            {visibleColumns.rd_staff && <td className="px-4 py-2"><input className="w-full p-1 border rounded" value={editForm.rd_staff} onChange={e => setEditForm({ ...editForm, rd_staff: e.target.value })} /></td>}
-                                            {visibleColumns.product && <td className="px-4 py-2"><input className="w-full p-1 border rounded" value={editForm.product} onChange={e => setEditForm({ ...editForm, product: e.target.value })} /></td>}
-                                            {visibleColumns.market && <td className="px-4 py-2"><input className="w-full p-1 border rounded" value={editForm.market} onChange={e => setEditForm({ ...editForm, market: e.target.value })} /></td>}
+                                            {visibleColumns.id && <td className="px-4 py-2 text-gray-500">{editingId === 'NEW' ? 'Auto' : page.id}</td>}
+                                            {visibleColumns.page_name && <td className="px-4 py-2"><input className="w-full p-1 border rounded" value={editForm.page_name} onChange={e => setEditForm({ ...editForm, page_name: e.target.value })} autoFocus /></td>}
+
+                                            {/* Auto-populated Staff */}
+                                            {visibleColumns.rd_staff && <td className="px-4 py-2">
+                                                <input
+                                                    className="w-full p-1 border rounded bg-gray-100 text-gray-600 cursor-not-allowed"
+                                                    value={editForm.rd_staff}
+                                                    readOnly
+                                                    title="Tự động lấy theo tài khoản đăng nhập"
+                                                />
+                                            </td>}
+
+                                            {/* Product Dropdown */}
+                                            {visibleColumns.product && <td className="px-4 py-2">
+                                                <select
+                                                    className="w-full p-1 border rounded"
+                                                    value={editForm.product}
+                                                    onChange={e => setEditForm({ ...editForm, product: e.target.value })}
+                                                >
+                                                    <option value="">-- Chọn SP --</option>
+                                                    {settingProducts.map(p => <option key={p} value={p}>{p}</option>)}
+                                                </select>
+                                            </td>}
+
+                                            {/* Market Dropdown */}
+                                            {visibleColumns.market && <td className="px-4 py-2">
+                                                <select
+                                                    className="w-full p-1 border rounded"
+                                                    value={editForm.market}
+                                                    onChange={e => setEditForm({ ...editForm, market: e.target.value })}
+                                                >
+                                                    <option value="">-- Chọn TT --</option>
+                                                    {settingMarkets.map(m => (
+                                                        <option key={m.name || m} value={m.name || m}>{m.name || m}</option>
+                                                    ))}
+                                                </select>
+                                            </td>}
+
                                             {visibleColumns.pancake_id && <td className="px-4 py-2"><input className="w-full p-1 border rounded" value={editForm.pancake_id} onChange={e => setEditForm({ ...editForm, pancake_id: e.target.value })} /></td>}
                                             {visibleColumns.page_link && <td className="px-4 py-2"><input className="w-full p-1 border rounded" value={editForm.page_link} onChange={e => setEditForm({ ...editForm, page_link: e.target.value })} /></td>}
                                             {visibleColumns.actions && <td className="px-4 py-2 flex justify-center gap-2">
                                                 <button onClick={saveEdit} className="text-green-600 hover:text-green-800"><Save size={18} /></button>
-                                                <button onClick={() => setEditingId(null)} className="text-red-600 hover:text-red-800"><X size={18} /></button>
+                                                <button onClick={() => { setIsAdding(false); setEditingId(null); }} className="text-red-600 hover:text-red-800"><X size={18} /></button>
                                             </td>}
                                         </>
                                     ) : (
