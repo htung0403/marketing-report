@@ -40,6 +40,30 @@ export const removeUserRole = async (email) => {
     if (error) throw error;
 };
 
+// --- EMPLOYEES ---
+export const getEmployees = async () => {
+    try {
+        const response = await fetch('https://lumi-6dff7-default-rtdb.asia-southeast1.firebasedatabase.app/employees.json');
+        const data = await response.json();
+
+        if (!data) return [];
+
+        // Convert object to array and map fields
+        const employees = Object.values(data).map(emp => ({
+            email: emp.email,
+            'Họ Và Tên': emp.ho_va_ten,
+            position: emp.vi_tri,
+            department: emp.bo_phan // Map department
+        })).filter(emp => emp.email && emp['Họ Và Tên']); // Filter valid records
+
+        // Sort by Name
+        return employees.sort((a, b) => a['Họ Và Tên'].localeCompare(b['Họ Và Tên']));
+    } catch (error) {
+        console.error("Error fetching employees from Firebase:", error);
+        return [];
+    }
+};
+
 // --- PERMISSIONS ---
 export const getPermissions = async (role_code) => {
     const { data, error } = await supabase

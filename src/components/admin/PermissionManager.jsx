@@ -102,17 +102,13 @@ const MultiSelectColumn = ({ resourceCode, selectedColumns, onChange }) => {
 };
 
 const PermissionManager = () => {
-    const DEPARTMENTS = ["SALE", "MKT", "RND", "CSKH", "KHO", "HR", "ADMIN", "ACCOUNTANT"];
-    const POSITIONS = [
-        { code: "LEADER", label: "Trưởng nhóm" },
-        { code: "MEMBER", label: "Nhân viên" },
-        { code: "MANAGER", label: "Trưởng phòng" },
-        { code: "DIRECTOR", label: "Giám đốc" },
-        { code: "INTERN", label: "Thực tập sinh" }
-    ];
+    // Dynamic DEPARTMENTS derived from employees "department" field
+    // const DEPARTMENTS = ["SALE", "MKT", "RND", "CSKH", "KHO", "HR", "ADMIN", "ACCOUNTANT"];
+    // const POSITIONS = [...now derived from employees data...];
     const [roles, setRoles] = useState([]);
     const [userRoles, setUserRoles] = useState([]);
     const [permissions, setPermissions] = useState([]);
+    const [employees, setEmployees] = useState([]);
 
     const [activeTab, setActiveTab] = useState('roles'); // 'roles' | 'users' | 'matrix'
     const [loading, setLoading] = useState(false);
@@ -134,12 +130,14 @@ const PermissionManager = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [rData, uData] = await Promise.all([
+            const [rData, uData, eData] = await Promise.all([
                 rbacService.getRoles(),
-                rbacService.getUserRoles()
+                rbacService.getUserRoles(),
+                rbacService.getEmployees()
             ]);
             setRoles(rData || []);
             setUserRoles(uData || []);
+            setEmployees(eData || []);
         } catch (error) {
             console.error(error);
             toast.error("Lỗi tải dữ liệu phân quyền");
@@ -248,6 +246,26 @@ const PermissionManager = () => {
         }
     };
 
+    // --- CODE NORMALIZATION & DICTIONARY ---
+    const CODE_MAP = {
+        "TRUONG_NHOM": "LEADER",
+        "NHAN_VIEN": "MEMBER",
+        "TRUONG_PHONG": "MANAGER",
+        "GIAM_DOC": "DIRECTOR",
+        "THUC_TAP_SINH": "INTERN",
+        "LOGISTIC": "LOGISTICS",
+        "KE_TOAN": "ACCOUNTANT",
+        "VAN_DON": "ORDERS"
+    };
+
+    const getStandardizedCode = (str) => {
+        if (!str) return "";
+        const rawCode = str.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/đ/g, "d").replace(/Đ/g, "D")
+            .toUpperCase().replace(/\s+/g, "_");
+        return CODE_MAP[rawCode] || rawCode;
+    };
+
     return (
         <div className="bg-white rounded-xl shadow-md border border-gray-100 animate-fadeIn overflow-hidden">
             {/* SUB-TABS */}
@@ -283,18 +301,22 @@ const PermissionManager = () => {
                                 onChange={e => {
                                     const dept = e.target.value;
                                     const pos = newRole.position || "";
-                                    const posLabel = POSITIONS.find(p => p.code === pos)?.label || "";
+
+                                    const posCode = getStandardizedCode(pos);
+                                    const deptCode = getStandardizedCode(dept);
 
                                     // Auto-gen Code: DEPT_POS
-                                    const code = (dept && pos) ? `${dept}_${pos}` : (dept ? dept + "_" : "");
+                                    const code = (deptCode && posCode) ? `${deptCode}_${posCode}` : (deptCode ? deptCode + "_" : "");
                                     // Auto-gen Name: Position Label + Dept
-                                    const name = (dept && posLabel) ? `${posLabel} ${dept}` : "";
+                                    const name = (dept && pos) ? `${pos} ${dept}` : "";
 
                                     setNewRole(prev => ({ ...prev, department: dept, code, name }));
                                 }}
                             >
                                 <option value="">-- Chọn Phòng Ban --</option>
-                                {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                                {[...new Set(employees.map(e => e.department).filter(Boolean))].map(d => (
+                                    <option key={d} value={d}>{d}</option>
+                                ))}
                             </select>
 
                             <select
@@ -303,18 +325,22 @@ const PermissionManager = () => {
                                 onChange={e => {
                                     const pos = e.target.value;
                                     const dept = newRole.department || "";
-                                    const posLabel = POSITIONS.find(p => p.code === pos)?.label || "";
+
+                                    const posCode = getStandardizedCode(pos);
+                                    const deptCode = getStandardizedCode(dept);
 
                                     // Auto-gen Code: DEPT_POS
-                                    const code = (dept && pos) ? `${dept}_${pos}` : (dept ? dept + "_" : "");
+                                    const code = (deptCode && posCode) ? `${deptCode}_${posCode}` : (deptCode ? deptCode + "_" : "");
                                     // Auto-gen Name: Position Label + Dept
-                                    const name = (dept && posLabel) ? `${posLabel} ${dept}` : "";
+                                    const name = (dept && pos) ? `${pos} ${dept}` : "";
 
                                     setNewRole(prev => ({ ...prev, position: pos, code, name }));
                                 }}
                             >
                                 <option value="">-- Chọn Vị Trí --</option>
-                                {POSITIONS.map(p => <option key={p.code} value={p.code}>{p.label}</option>)}
+                                {[...new Set(employees.map(e => e.position).filter(Boolean))].map(p => (
+                                    <option key={p} value={p}>{p}</option>
+                                ))}
                             </select>
 
                             <button onClick={handleCreateRole} className="bg-blue-600 text-white rounded px-4 py-2 text-sm font-medium hover:bg-blue-700 flex items-center justify-center gap-2">
@@ -364,12 +390,40 @@ const PermissionManager = () => {
                         <div className="flex flex-col md:flex-row gap-4 bg-teal-50 p-4 rounded-lg items-end">
                             <div className="flex-1 w-full">
                                 <label className="text-xs font-semibold text-gray-500 mb-1 block">Email Nhân viên</label>
-                                <input
+                                <select
                                     className="border p-2 rounded text-sm w-full"
-                                    placeholder="nhanvien@marketing.com"
                                     value={assignEmail}
-                                    onChange={e => setAssignEmail(e.target.value)}
-                                />
+                                    onChange={e => {
+                                        const email = e.target.value;
+                                        setAssignEmail(email);
+
+                                        // Auto-suggest Role
+                                        const emp = employees.find(e => e.email === email);
+                                        if (emp && emp.department && emp.position) {
+                                            const deptCode = getStandardizedCode(emp.department);
+                                            const posCode = getStandardizedCode(emp.position);
+                                            const suggestedCode = `${deptCode}_${posCode}`;
+
+                                            // Try exact match or match with common prefix issues
+                                            // But standard is standard, we look for exact match
+                                            if (roles.some(r => r.code === suggestedCode)) {
+                                                setAssignRole(suggestedCode);
+                                            }
+                                        }
+                                    }}
+                                >
+                                    <option value="">-- Chọn Nhân viên --</option>
+                                    {employees
+                                        .filter(emp => !userRoles.some(ur => ur.email === emp.email))
+                                        .map(emp => (
+                                            <option key={emp.email} value={emp.email}>
+                                                {emp['Họ Và Tên']} ({emp.email})
+                                            </option>
+                                        ))}
+                                    {employees.filter(emp => !userRoles.some(ur => ur.email === emp.email)).length === 0 && (
+                                        <option disabled>Đã phân quyền hết nhân viên</option>
+                                    )}
+                                </select>
                             </div>
                             <div className="w-full md:w-64">
                                 <label className="text-xs font-semibold text-gray-500 mb-1 block">Chọn Vai Trò</label>
@@ -398,22 +452,25 @@ const PermissionManager = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                    {userRoles.map(ur => (
-                                        <tr key={ur.email} className="hover:bg-gray-50">
-                                            <td className="p-3 font-medium">{ur.email}</td>
-                                            <td className="p-3">
-                                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-semibold">
-                                                    {ur.role_code}
-                                                </span>
-                                            </td>
-                                            <td className="p-3 text-gray-500 text-xs">{new Date(ur.assigned_at).toLocaleDateString()}</td>
-                                            <td className="p-3 text-center">
-                                                <button onClick={() => handleRemoveUser(ur.email)} className="text-gray-400 hover:text-red-600 p-1">
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {userRoles.map(ur => {
+                                        const role = roles.find(r => r.code === ur.role_code);
+                                        return (
+                                            <tr key={ur.email} className="hover:bg-gray-50">
+                                                <td className="p-3 font-medium">{ur.email}</td>
+                                                <td className="p-3">
+                                                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-semibold">
+                                                        {role ? role.name : ur.role_code}
+                                                    </span>
+                                                </td>
+                                                <td className="p-3 text-gray-500 text-xs">{new Date(ur.assigned_at).toLocaleDateString()}</td>
+                                                <td className="p-3 text-center">
+                                                    <button onClick={() => handleRemoveUser(ur.email)} className="text-gray-400 hover:text-red-600 p-1">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
                                 </tbody>
                             </table>
                         </div>
