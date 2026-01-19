@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+
 import { isDateInRange } from '../utils/dateParsing';
 import './BaoCaoSale.css';
 
@@ -23,6 +24,7 @@ export default function BaoCaoSale() {
     // --- State ---
     const [loading, setLoading] = useState(true);
     const [rawData, setRawData] = useState([]);
+
     const [currentUserInfo, setCurrentUserInfo] = useState(null);
     const [isRestrictedView, setIsRestrictedView] = useState(false);
 
@@ -53,7 +55,12 @@ export default function BaoCaoSale() {
     });
 
     // Active Tab
-    const [activeTab, setActiveTab] = useState('sau-huy'); // 'sau-huy', 'chot', 'kpi-sale', 'van-don-sale', 'thu-cong'
+    // Active Tab
+    const [activeTab, setActiveTab] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get('tab');
+        return tab || 'sau-huy';
+    });
 
     // --- Effects ---
 
@@ -138,6 +145,9 @@ export default function BaoCaoSale() {
                 const res = await fetch(`${API_HOST}/report/generate?tableName=Báo cáo sale&startDate=${filters.startDate}&endDate=${filters.endDate}`);
                 const result = await res.json();
                 processFetchedData(result.data, result.employeeData);
+
+
+
             } catch (err) {
                 console.error(err);
                 setLoading(false); // Ensure loading is off on error
@@ -463,7 +473,6 @@ export default function BaoCaoSale() {
 
                     <div className="tabs-container">
                         <button className={`tab-button ${activeTab === 'sau-huy' ? 'active' : ''}`} onClick={() => setActiveTab('sau-huy')}>Sale đã trừ hủy</button>
-                        <button className={`tab-button ${activeTab === 'chot' ? 'active' : ''}`} onClick={() => setActiveTab('chot')}>Dữ liệu báo cáo tay</button>
                         <button className={`tab-button ${activeTab === 'kpi-sale' ? 'active' : ''}`} onClick={() => setActiveTab('kpi-sale')}>KPIs Sale</button>
                         <button className={`tab-button ${activeTab === 'van-don-sale' ? 'active' : ''}`} onClick={() => setActiveTab('van-don-sale')}>Vận đơn Sale</button>
                         {currentUserInfo && (
@@ -578,113 +587,6 @@ export default function BaoCaoSale() {
                         </div>
                     </div>
 
-                    {/* Tab 2: Chot (Manual Report) */}
-                    <div className={`tab-content ${activeTab === 'chot' ? 'active' : ''}`}>
-                        <div className="table-responsive-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>STT</th><th>Chi nhánh</th><th>Team</th><th>Sale</th>
-                                        <th>Số Mess</th><th>Phản hồi</th><th>Số Đơn</th><th>Số Đơn TT</th>
-                                        <th>DS Chốt</th><th>DS Chốt TT</th><th>Tỉ lệ chốt</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {/* Total Row */}
-                                    {(() => {
-                                        const totalRate = summaryTotal.mess ? summaryTotal.soDonThucTe / summaryTotal.mess : 0;
-                                        return (
-                                            <tr className="total-row">
-                                                <td className="total-label" colSpan={4}>TỔNG CỘNG</td>
-                                                <td className="total-value">{formatNumber(summaryTotal.mess)}</td>
-                                                <td className="total-value">{formatNumber(summaryTotal.phanHoi)}</td>
-                                                <td className="total-value">{formatNumber(summaryTotal.don)}</td>
-                                                <td className="total-value">{formatNumber(summaryTotal.soDonThucTe)}</td>
-                                                <td className="total-value">{formatCurrency(summaryTotal.chot)}</td>
-                                                <td className="total-value">{formatCurrency(summaryTotal.doanhThuChotThucTe)}</td>
-                                                <td className="total-value">{formatPercent(totalRate)}</td>
-                                            </tr>
-                                        )
-                                    })()}
-                                    {/* Rows */}
-                                    {summaryList.map((item, index) => {
-                                        const rate = item.mess ? item.soDonThucTe / item.mess : 0;
-                                        return (
-                                            <tr key={index} style={{ '--row-index': index }}>
-                                                <td className="text-center">{index + 1}</td>
-                                                <td className="text-left">{item.chiNhanh}</td>
-                                                <td className="text-left">{item.team}</td>
-                                                <td className="text-left">{item.name}</td>
-                                                <td>{formatNumber(item.mess)}</td>
-                                                <td>{formatNumber(item.phanHoi)}</td>
-                                                <td>{formatNumber(item.don)}</td>
-                                                <td>{formatNumber(item.soDonThucTe)}</td>
-                                                <td>{formatCurrency(item.chot)}</td>
-                                                <td>{formatCurrency(item.doanhThuChotThucTe)}</td>
-                                                <td className={getRateClass(rate)}>{formatPercent(rate)}</td>
-                                            </tr>
-                                        )
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Daily Breakdown for Tab 2 */}
-                        <div className="daily-breakdown">
-                            {dailyBreakdown.map((dayItem) => {
-                                const { total, flatList } = dayItem.data;
-                                const totalRate = total.mess ? total.soDonThucTe / total.mess : 0;
-
-                                return (
-                                    <div key={dayItem.date}>
-                                        <h3>Chi tiết ngày: {dayItem.date}</h3>
-                                        <div className="table-responsive-container">
-                                            <table>
-                                                <thead>
-                                                    <tr>
-                                                        <th>STT</th><th>Chi nhánh</th><th>Team</th><th>Sale</th>
-                                                        <th>Số Mess</th><th>Phản hồi</th><th>Số Đơn</th><th>Số Đơn TT</th>
-                                                        <th>DS Chốt</th><th>DS Chốt TT</th><th>Tỉ lệ chốt</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <tr className="total-row">
-                                                        <td className="total-label" colSpan={4}>TỔNG NGÀY {dayItem.date}</td>
-                                                        <td className="total-value">{formatNumber(total.mess)}</td>
-                                                        <td className="total-value">{formatNumber(total.phanHoi)}</td>
-                                                        <td className="total-value">{formatNumber(total.don)}</td>
-                                                        <td className="total-value">{formatNumber(total.soDonThucTe)}</td>
-                                                        <td className="total-value">{formatCurrency(total.chot)}</td>
-                                                        <td className="total-value">{formatCurrency(total.doanhThuChotThucTe)}</td>
-                                                        <td className="total-value">{formatPercent(totalRate)}</td>
-                                                    </tr>
-                                                    {flatList.map((item, index) => {
-                                                        const rate = item.mess ? item.soDonThucTe / item.mess : 0;
-                                                        return (
-                                                            <tr key={index}>
-                                                                <td className="text-center">{index + 1}</td>
-                                                                <td className="text-left">{item.chiNhanh}</td>
-                                                                <td className="text-left">{item.team}</td>
-                                                                <td className="text-left">{item.name}</td>
-                                                                <td>{formatNumber(item.mess)}</td>
-                                                                <td>{formatNumber(item.phanHoi)}</td>
-                                                                <td>{formatNumber(item.don)}</td>
-                                                                <td>{formatNumber(item.soDonThucTe)}</td>
-                                                                <td>{formatCurrency(item.chot)}</td>
-                                                                <td>{formatCurrency(item.doanhThuChotThucTe)}</td>
-                                                                <td className={getRateClass(rate)}>{formatPercent(rate)}</td>
-                                                            </tr>
-                                                        )
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    </div>
-
                     {/* Tab 3: KPI Sale */}
                     <div className={`tab-content ${activeTab === 'kpi-sale' ? 'active' : ''}`}>
                         <iframe
@@ -712,6 +614,8 @@ export default function BaoCaoSale() {
                             </div>
                         )
                     }
+
+
 
                 </div>
             </div>

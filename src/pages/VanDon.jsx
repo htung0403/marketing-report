@@ -17,7 +17,7 @@ import {
 
 // Lazy load heavy components
 const SyncPopover = lazy(() => import('../components/SyncPopover'));
-const QuickAddModal = lazy(() => import('../components/QuickAddModal'));
+
 
 const UPDATE_DELAY = 500;
 const BULK_THRESHOLD = 1;
@@ -35,7 +35,7 @@ function VanDon() {
   const [legacyChanges, setLegacyChanges] = useState(new Map());
   const [pendingChanges, setPendingChanges] = useState(new Map());
   const [syncPopoverOpen, setSyncPopoverOpen] = useState(false);
-  const [quickAddModalOpen, setQuickAddModalOpen] = useState(false);
+
 
   // --- Common Filter State ---
   const [filterValues, setFilterValues] = useState({
@@ -771,51 +771,7 @@ function VanDon() {
     }
   };
 
-  const handleQuickSync = (rows) => {
-    const newPending = new Map(pendingChanges);
-    // Phải khớp với COLUMNS trong QuickAddModal.tsx
-    const COL_KEYS = [
-      "Mã đơn hàng",           // index 0 - khóa chính
-      "Mã Tracking",           // index 1
-      "Ngày đóng hàng",        // index 2
-      "Trạng thái giao hàng",  // index 3
-      "GHI CHÚ",               // index 4
-      "Thời gian giao dự kiến", // index 5
-      "Phí ship nội địa Mỹ (usd)", // index 6
-      "Phí xử lý đơn đóng hàng-Lưu kho(usd)", // index 7
-      "Kết quả Check",         // index 8
-      "Ghi chú",               // index 9
-      "Đơn vị vận chuyển"      // index 10
-    ];
-    let updatedCount = 0;
-    let notFoundCount = 0;
-    rows.forEach(row => {
-      const orderId = row[0]?.trim();
-      if (!orderId) return;
-      const originalRow = allData.find(r => r[PRIMARY_KEY_COLUMN] === orderId);
-      if (!originalRow) {
-        notFoundCount++;
-        return;
-      }
-      COL_KEYS.forEach((colName, idx) => {
-        if (idx === 0) return;
-        const val = row[idx];
-        if (val !== undefined && val !== "") {
-          const dataKey = COLUMN_MAPPING[colName] || colName;
-          if (!newPending.has(orderId)) newPending.set(orderId, new Map());
-          const originalVal = originalRow[dataKey] ?? '';
-          if (String(originalVal) !== String(val)) {
-            newPending.get(orderId).set(dataKey, { newValue: String(val), originalValue: String(originalVal) });
-            updatedCount++;
-          }
-        }
-      });
-    });
-    setPendingChanges(newPending);
-    savePendingToLocalStorage(newPending, legacyChanges);
-    if (notFoundCount > 0) addToast(`Không tìm thấy ${notFoundCount} mã đơn hàng.`, 'error');
-    addToast(`Đã đồng bộ ${updatedCount} trường dữ liệu.`, 'success');
-  };
+
 
 
 
@@ -929,7 +885,7 @@ function VanDon() {
   // --- Paste Logic ---
   useEffect(() => {
     const handlePaste = (e) => {
-      if (quickAddModalOpen) return;
+
 
       const active = document.activeElement;
       // If focusing a filter input in header, allow normal paste
@@ -1029,13 +985,30 @@ function VanDon() {
       if (updatedCount > 0) {
         setPendingChanges(newPending);
         savePendingToLocalStorage(newPending, legacyChanges);
-        addToast(`Đã dán ${updatedCount} ô`, 'success');
+
+        // -- Auto-save logic --
+        // Push these changes to updateQueue for immediate processing
+        newPending.forEach((changes, orderId) => {
+          if (!updateQueue.current.has(orderId)) {
+            updateQueue.current.set(orderId, { changes: new Map(), hasDelete: false });
+          }
+          const qEntry = updateQueue.current.get(orderId);
+          if (qEntry.timeout) clearTimeout(qEntry.timeout); // Clear any pending debounce
+
+          changes.forEach((val, key) => {
+            qEntry.changes.set(key, val);
+          });
+        });
+
+        // Trigger immediate bulk update
+        addToast(`Đã dán ${updatedCount} ô. Đang tự động lưu...`, 'info', 1000);
+        processUpdateQueue(true);
       }
     };
 
     document.addEventListener('paste', handlePaste);
     return () => document.removeEventListener('paste', handlePaste);
-  }, [selection, quickAddModalOpen, pendingChanges, legacyChanges, paginatedData, currentColumns, getSelectionBounds]);
+  }, [selection, pendingChanges, legacyChanges, paginatedData, currentColumns, getSelectionBounds, processUpdateQueue, savePendingToLocalStorage]);
 
 
   // Calculated helpers for render
@@ -1313,9 +1286,7 @@ function VanDon() {
             <button onClick={handleUpdateAll} className="p-1 px-2 bg-[#F37021] hover:bg-[#e55f1a] text-white rounded text-xs font-bold transition-all flex items-center gap-1 shadow-sm">
               ✅ Cập nhật
             </button>
-            <button onClick={() => setQuickAddModalOpen(true)} className="p-1 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold transition-all flex items-center gap-1 shadow-sm">
-              ➕ Thêm nhanh
-            </button>
+
             <button onClick={() => setShowColumnSettings(true)} className="p-1 px-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-xs font-bold transition-all flex items-center gap-1">
               ⚙️ Cài đặt cột
             </button>
@@ -1604,13 +1575,7 @@ function VanDon() {
       </Suspense>
 
       {/* Quick Add Modal */}
-      <Suspense fallback={<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div></div>}>
-        <QuickAddModal
-          isOpen={quickAddModalOpen}
-          onClose={() => setQuickAddModalOpen(false)}
-          onSync={handleQuickSync}
-        />
-      </Suspense>
+
 
       {/* Column Settings Modal */}
       <ColumnSettingsModal

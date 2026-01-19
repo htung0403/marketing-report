@@ -92,6 +92,7 @@ export const AVAILABLE_RESOURCES = [
     { code: 'MODULE_ORDERS', name: 'Quản lý Đơn (Vận đơn / Kho)' },
     { code: 'MODULE_CSKH', name: 'CSKH & CRM' },
     { code: 'MODULE_ADMIN', name: 'Admin Tools (Cấu hình)' },
+    { code: 'MODULE_LUMI', name: 'Module Tôn vinh (LUmi)' },
 ];
 
 // Detailed column definitions for each module
@@ -130,6 +131,9 @@ export const COLUMN_DEFINITIONS = {
     ],
     'MODULE_ADMIN': [
         // Admin không giới hạn columns
+        '*'
+    ],
+    'MODULE_LUMI': [
         '*'
     ]
 };

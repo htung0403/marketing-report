@@ -1,4 +1,5 @@
 import {
+  Activity,
   Award,
   BarChart3,
   CalendarCheck,
@@ -92,6 +93,13 @@ function Home() {
           path: "#",
           disabled: true, // Custom flag if needed, or just path #
         },
+        {
+          id: "dashboard-ops",
+          label: "Dashboard Vận hành",
+          icon: <Activity className="w-4 h-4" />,
+          path: "https://dashboard-psi-six-69.vercel.app/",
+          isExternal: true,
+        },
       ],
     },
     {
@@ -117,6 +125,18 @@ function Home() {
           label: "Nhập đơn mới",
           icon: <PlusCircle className="w-4 h-4" />,
           path: "/nhap-don",
+        },
+        {
+          id: "crm-input-report",
+          label: "Nhập báo cáo",
+          icon: <Edit3 className="w-4 h-4" />,
+          path: "/nhap-bao-cao-cskh",
+        },
+        {
+          id: "crm-view-report",
+          label: "Xem báo cáo Sale",
+          icon: <BarChart3 className="w-4 h-4" />,
+          path: "/xem-bao-cao-cskh",
         },
         {
           id: "crm-history",
@@ -284,13 +304,14 @@ function Home() {
       label: "Quản lý nhân sự",
       icon: <Users className="w-5 h-5" />,
       path: "#",
-      adminOnly: true,
+      // adminOnly: true, // Removed to allow granular permissions
       subItems: [
         {
           id: "hr-management",
           label: "Bảng tin nội bộ",
           icon: <Users className="w-4 h-4" />,
           path: "/nhan-su",
+          adminOnly: true,
         },
         {
           id: "hr-records",
@@ -298,6 +319,7 @@ function Home() {
           icon: <ClipboardList className="w-4 h-4" />,
           path: "https://hr-management-self.vercel.app/employees",
           isExternal: true,
+          adminOnly: true,
         },
         {
           id: "hr-recruitment",
@@ -305,6 +327,7 @@ function Home() {
           icon: <UserPlus className="w-4 h-4" />,
           path: "https://hr-management-self.vercel.app/recruitment",
           isExternal: true,
+          adminOnly: true,
         },
         {
           id: "hr-salary",
@@ -312,6 +335,7 @@ function Home() {
           icon: <DollarSign className="w-4 h-4" />,
           path: "https://hr-management-self.vercel.app/salary",
           isExternal: true,
+          adminOnly: true,
         },
         {
           id: "hr-competency",
@@ -319,6 +343,7 @@ function Home() {
           icon: <Award className="w-4 h-4" />,
           path: "https://hr-management-self.vercel.app/competency",
           isExternal: true,
+          adminOnly: true,
         },
         {
           id: "hr-kpi",
@@ -326,6 +351,7 @@ function Home() {
           icon: <Target className="w-4 h-4" />,
           path: "https://hr-management-self.vercel.app/kpi",
           isExternal: true,
+          adminOnly: true,
         },
         {
           id: "hr-tasks",
@@ -333,6 +359,7 @@ function Home() {
           icon: <ListTodo className="w-4 h-4" />,
           path: "https://hr-management-self.vercel.app/tasks",
           isExternal: true,
+          adminOnly: true,
         },
         {
           id: "hr-attendance",
@@ -340,6 +367,7 @@ function Home() {
           icon: <CalendarCheck className="w-4 h-4" />,
           path: "https://hr-management-self.vercel.app/attendance",
           isExternal: true,
+          adminOnly: true,
         },
         {
           id: "hr-honor",
@@ -347,6 +375,7 @@ function Home() {
           icon: <Medal className="w-4 h-4" />,
           path: "https://hr-management-self.vercel.app/honor",
           isExternal: true,
+          permission: 'MODULE_LUMI',
         },
 
       ],
@@ -460,6 +489,14 @@ function Home() {
           path: "#",
           status: "Sắp ra mắt",
         },
+        {
+          title: "Dashboard Vận hành",
+          icon: <Activity className="w-8 h-8" />,
+          color: "bg-teal-600",
+          path: "https://dashboard-psi-six-69.vercel.app/",
+          status: "Mở ứng dụng",
+          isExternal: true,
+        },
       ],
     },
     {
@@ -484,6 +521,20 @@ function Home() {
           icon: <PlusCircle className="w-8 h-8" />,
           color: "bg-green-500",
           path: "/nhap-don",
+          status: "Mở ứng dụng",
+        },
+        {
+          title: "Nhập báo cáo",
+          icon: <Edit3 className="w-8 h-8" />,
+          color: "bg-blue-500",
+          path: "/nhap-bao-cao-cskh",
+          status: "Mở ứng dụng",
+        },
+        {
+          title: "Xem báo cáo Sale",
+          icon: <BarChart3 className="w-8 h-8" />,
+          color: "bg-orange-600",
+          path: "/xem-bao-cao-cskh",
           status: "Mở ứng dụng",
         },
         {
@@ -525,6 +576,13 @@ function Home() {
           icon: <BarChart3 className="w-8 h-8" />,
           color: "bg-orange-600",
           path: "/xem-bao-cao-sale",
+          status: "Mở ứng dụng",
+        },
+        {
+          title: "Ds báo cáo tay",
+          icon: <Database className="w-8 h-8" />,
+          color: "bg-cyan-600",
+          path: "/danh-sach-bao-cao-tay",
           status: "Mở ứng dụng",
         },
         {
@@ -607,6 +665,13 @@ function Home() {
           path: "/danh-sach-page",
           status: "Mở ứng dụng",
         },
+        {
+          title: "Ds báo cáo tay",
+          icon: <Database className="w-8 h-8" />,
+          color: "bg-teal-600",
+          path: "/danh-sach-bao-cao-tay-mkt",
+          status: "Mở ứng dụng",
+        },
       ],
     },
     {
@@ -674,6 +739,7 @@ function Home() {
           path: "https://hr-management-self.vercel.app/employees",
           status: "Mở ứng dụng",
           isExternal: true,
+          adminOnly: true,
         },
         {
           title: "Tuyển dụng",
@@ -682,6 +748,7 @@ function Home() {
           path: "https://hr-management-self.vercel.app/recruitment",
           status: "Mở ứng dụng",
           isExternal: true,
+          adminOnly: true,
         },
         {
           title: "Bậc lương & thăng tiến",
@@ -690,6 +757,7 @@ function Home() {
           path: "https://hr-management-self.vercel.app/salary",
           status: "Mở ứng dụng",
           isExternal: true,
+          adminOnly: true,
         },
         {
           title: "Năng lực nhân sự",
@@ -698,6 +766,7 @@ function Home() {
           path: "https://hr-management-self.vercel.app/competency",
           status: "Mở ứng dụng",
           isExternal: true,
+          adminOnly: true,
         },
         {
           title: "KPI",
@@ -706,6 +775,7 @@ function Home() {
           path: "https://hr-management-self.vercel.app/kpi",
           status: "Mở ứng dụng",
           isExternal: true,
+          adminOnly: true,
         },
         {
           title: "Giao việc",
@@ -714,6 +784,7 @@ function Home() {
           path: "https://hr-management-self.vercel.app/tasks",
           status: "Mở ứng dụng",
           isExternal: true,
+          adminOnly: true,
         },
         {
           title: "Chấm công & lương",
@@ -722,6 +793,7 @@ function Home() {
           path: "https://hr-management-self.vercel.app/attendance",
           status: "Mở ứng dụng",
           isExternal: true,
+          adminOnly: true,
         },
         {
           title: "Tôn vinh",
@@ -730,6 +802,7 @@ function Home() {
           path: "https://hr-management-self.vercel.app/honor",
           status: "Mở ứng dụng",
           isExternal: true,
+          permission: 'MODULE_LUMI',
         },
 
 
@@ -836,13 +909,14 @@ function Home() {
     'crm': 'MODULE_CSKH',
     'settings': 'MODULE_ADMIN',
     'marketing': 'MODULE_MKT',
-    'hr': 'MODULE_ADMIN',
+    'hr': ['MODULE_ADMIN', 'MODULE_LUMI'],
     'finance': 'MODULE_ADMIN'
   };
 
   const isVisible = (id) => {
     const resCode = RBAC_MAP[id];
     if (!resCode) return true;
+    if (Array.isArray(resCode)) return resCode.some(code => canView(code));
     return canView(resCode);
   };
 
@@ -858,17 +932,18 @@ function Home() {
     "CSKH & CRM": 'MODULE_CSKH',
     "CÀI ĐẶT HỆ THỐNG": 'MODULE_ADMIN',
     "QUẢN LÝ TÀI CHÍNH": 'MODULE_ADMIN',
-    "QUẢN LÝ NHÂN SỰ": 'MODULE_ADMIN'
+    "QUẢN LÝ NHÂN SỰ": ['MODULE_ADMIN', 'MODULE_LUMI']
   };
 
   const filteredSections = allContentSections.filter(section => {
     const resCode = SECTION_RBAC_MAP[section.title];
     if (!resCode) return true;
+    if (Array.isArray(resCode)) return resCode.some(code => canView(code));
     return canView(resCode);
   }).map((section) => ({
     ...section,
     items: section.items.filter(
-      (item) => !item.adminOnly || userRole === "admin"
+      (item) => (!item.adminOnly || userRole === "admin") && (!item.permission || canView(item.permission))
     ),
   }));
 
@@ -1005,7 +1080,11 @@ function Home() {
                 </div>
                 {!sidebarCollapsed && item.subItems && isExpanded && (
                   <div className="ml-4 mt-1 space-y-1">
-                    {item.subItems.map((subItem) => (
+                    {item.subItems.filter(subItem => {
+                      if (subItem.adminOnly && userRole !== 'admin') return false;
+                      if (subItem.permission && !canView(subItem.permission)) return false;
+                      return true;
+                    }).map((subItem) => (
                       subItem.isExternal ? (
                         <div
                           key={subItem.id}

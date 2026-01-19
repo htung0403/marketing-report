@@ -13,13 +13,17 @@ import BaoCaoVanDon from './pages/BaoCaoVanDon';
 import BillOfLadingHistoryPage from './pages/BillOfLadingHistoryPage';
 import ChangeLogViewer from './pages/ChangeLogViewer';
 import CskhCrmHistoryPage from './pages/CskhCrmHistoryPage';
+import NhapBaoCaoCSKH from './pages/NhapBaoCaoCSKH';
 import SalesOrderHistoryPage from './pages/SalesOrderHistoryPage';
+import XemBaoCaoCSKH from './pages/XemBaoCaoCSKH';
 
 // ... (existing imports)
 
 
 import BaoCaoChiTietRnD from './pages/BaoCaoChiTietRnD';
 import BaoCaoRnD from './pages/BaoCaoRnD';
+import DanhSachBaoCaoTay from './pages/DanhSachBaoCaoTay';
+import DanhSachBaoCaoTayMKT from './pages/DanhSachBaoCaoTayMKT';
 import DanhSachDon from './pages/DanhSachDon';
 import DanhSachPage from './pages/DanhSachPage';
 import DanhSachPageRnD from './pages/DanhSachPageRnD';
@@ -71,6 +75,7 @@ function App() {
             <Route path="/bao-cao-sale" element={<ProtectedRoute><BaoCaoSale /></ProtectedRoute>} />
             <Route path="/sale-nhap-bao-cao" element={<ProtectedRoute><NhapBaoCaoSale /></ProtectedRoute>} />
             <Route path="/xem-bao-cao-sale" element={<ProtectedRoute><BaoCaoSale /></ProtectedRoute>} />
+            <Route path="/danh-sach-bao-cao-tay" element={<ProtectedRoute><DanhSachBaoCaoTay /></ProtectedRoute>} />
             <Route path="/bao-cao-f3" element={<ProtectedRoute><F3Report /></ProtectedRoute>} />
             <Route path="/bao-cao-hieu-suat-kpi" element={<ProtectedRoute><BaoCaoHieuSuatKPI /></ProtectedRoute>} />
             <Route path="/nhan-su" element={<ProtectedRoute><NhanSu /></ProtectedRoute>} />
@@ -86,7 +91,10 @@ function App() {
             <Route path="/chinh-sua-don" element={<ProtectedRoute><NhapDonMoi isEdit={true} /></ProtectedRoute>} />
             <Route path="/quan-ly-cskh" element={<ProtectedRoute><QuanLyCSKH /></ProtectedRoute>} />
             <Route path="/don-chia-cskh" element={<ProtectedRoute><DonChiaCSKH /></ProtectedRoute>} />
+            <Route path="/xem-bao-cao-cskh" element={<ProtectedRoute><XemBaoCaoCSKH /></ProtectedRoute>} />
+            <Route path="/nhap-bao-cao-cskh" element={<ProtectedRoute><NhapBaoCaoCSKH /></ProtectedRoute>} />
             <Route path="/xem-bao-cao-mkt" element={<ProtectedRoute><XemBaoCaoMKT /></ProtectedRoute>} />
+            <Route path="/danh-sach-bao-cao-tay-mkt" element={<ProtectedRoute><DanhSachBaoCaoTayMKT /></ProtectedRoute>} />
             <Route path="/ffm" element={<ProtectedRoute><FFM /></ProtectedRoute>} />
             <Route path="/lenh-san-xuat" element={<ProtectedRoute><LenHSanXuat /></ProtectedRoute>} />
 

@@ -77,6 +77,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS sales_reports_updated_at_trigger ON public.sales_reports;
 CREATE TRIGGER sales_reports_updated_at_trigger
   BEFORE UPDATE ON public.sales_reports
   FOR EACH ROW
