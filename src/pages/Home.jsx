@@ -21,7 +21,8 @@ import {
   Target,
   TrendingUp,
   UserPlus,
-  Users
+  Users,
+  XCircle
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -84,6 +85,13 @@ function Home() {
           path: "https://redirect.zalo.me/v3/verifyv2/pc?token=P6BqnjfrMGXk3lx3rnrRPsWD_gdV7LDYO0Ft-uiMM6Gt1FsbWXaDF3KEhlRQ45yqPWpm-pTZP0&continue=https%3A%2F%2Fdashboard-lumiquantri.vercel.app%2F",
           isExternal: true,
         },
+        {
+          id: "dashboard-cancel",
+          label: "Dashboard Đơn hủy",
+          icon: <XCircle className="w-4 h-4" />,
+          path: "#",
+          disabled: true, // Custom flag if needed, or just path #
+        },
       ],
     },
     {
@@ -109,6 +117,12 @@ function Home() {
           label: "Nhập đơn mới",
           icon: <PlusCircle className="w-4 h-4" />,
           path: "/nhap-don",
+        },
+        {
+          id: "crm-history",
+          label: "Lịch sử thay đổi",
+          icon: <ClipboardList className="w-4 h-4" />,
+          path: "/lich-su-cskh",
         },
       ],
     },
@@ -142,6 +156,12 @@ function Home() {
           label: "Xem báo cáo Sale",
           icon: <BarChart3 className="w-4 h-4" />,
           path: "/xem-bao-cao-sale",
+        },
+        {
+          id: "sale-history",
+          label: "Lịch sử thay đổi",
+          icon: <ClipboardList className="w-4 h-4" />,
+          path: "/lich-su-sale-order",
         },
       ],
     },
@@ -245,6 +265,18 @@ function Home() {
           icon: <ListTodo className="w-4 h-4" />,
           path: "/danh-sach-page-rd",
         },
+        {
+          id: "rnd-sale-input",
+          label: "Nhập đơn mới",
+          icon: <TrendingUp className="w-4 h-4" />,
+          path: "/nhap-don",
+        },
+        {
+          id: "rnd-history",
+          label: "Lịch sử thay đổi",
+          icon: <ClipboardList className="w-4 h-4" />,
+          path: "/lich-su-sale-order",
+        },
       ],
     },
     {
@@ -307,6 +339,13 @@ function Home() {
           label: "Chấm công & lương",
           icon: <CalendarCheck className="w-4 h-4" />,
           path: "https://hr-management-self.vercel.app/attendance",
+          isExternal: true,
+        },
+        {
+          id: "hr-honor",
+          label: "Tôn vinh",
+          icon: <Medal className="w-4 h-4" />,
+          path: "https://hr-management-self.vercel.app/honor",
           isExternal: true,
         },
 
@@ -413,6 +452,13 @@ function Home() {
           path: "https://redirect.zalo.me/v3/verifyv2/pc?token=P6BqnjfrMGXk3lx3rnrRPsWD_gdV7LDYO0Ft-uiMM6Gt1FsbWXaDF3KEhlRQ45yqPWpm-pTZP0&continue=https%3A%2F%2Fdashboard-lumiquantri.vercel.app%2F",
           status: "Mở ứng dụng",
           isExternal: true,
+        },
+        {
+          title: "Dashboard Đơn hủy",
+          icon: <XCircle className="w-8 h-8" />,
+          color: "bg-red-600",
+          path: "#",
+          status: "Sắp ra mắt",
         },
       ],
     },
@@ -592,6 +638,20 @@ function Home() {
           icon: <ListTodo className="w-7 h-7" />,
           color: "bg-gradient-to-br from-orange-400 to-pink-500",
           path: "/danh-sach-page-rd",
+          status: "Mở ứng dụng",
+        },
+        {
+          title: "Nhập đơn mới",
+          icon: <TrendingUp className="w-7 h-7" />,
+          color: "bg-gradient-to-br from-green-500 to-emerald-600",
+          path: "/nhap-don",
+          status: "Mở ứng dụng",
+        },
+        {
+          title: "Lịch sử thay đổi",
+          icon: <ClipboardList className="w-7 h-7" />,
+          color: "bg-gray-600",
+          path: "/lich-su-sale-order",
           status: "Mở ứng dụng",
         },
       ],

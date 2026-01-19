@@ -281,6 +281,95 @@ export default function DonChiaCSKH() {
     setLoading(true);
     setError(null);
 
+    // --- TESTING MODE CHECK ---
+    try {
+      const settings = localStorage.getItem('system_settings');
+      if (settings) {
+        const parsed = JSON.parse(settings);
+        if (parsed.dataSource === 'test') {
+          console.log("🔶 [TEST MODE] Loading Mock Data for CSKH");
+          // Mock Data
+          const mockData = [
+            {
+              order_code: "TEST-CSKH-001",
+              order_date: new Date().toISOString(),
+              customer_name: "Khách Test 1",
+              customer_phone: "0900000001",
+              customer_address: "123 Đường Test, HCM",
+              area: "Hồ Chí Minh",
+              product_main: "Sản phẩm A",
+              total_vnd: 1500000,
+              cskh: "CSKH A",
+              created_by: "Sale A",
+              delivery_status: "Đã chia"
+            },
+            {
+              order_code: "TEST-CSKH-002",
+              order_date: new Date().toISOString(),
+              customer_name: "Khách Test 2",
+              customer_phone: "0900000002",
+              customer_address: "456 Đường Mẫu, HN",
+              area: "Hà Nội",
+              product_main: "Sản phẩm B",
+              total_vnd: 2000000,
+              cskh: "CSKH B",
+              created_by: "Sale B",
+              delivery_status: "Chưa chia"
+            },
+            {
+              order_code: "TEST-CSKH-003",
+              order_date: new Date(Date.now() - 86400000).toISOString(),
+              customer_name: "Khách Test 3",
+              customer_phone: "0900000003",
+              customer_address: "789 Đường Mẫu, ĐN",
+              area: "Đà Nẵng",
+              product_main: "Sản phẩm C",
+              total_vnd: 450000,
+              cskh: "CSKH A",
+              created_by: "Sale A",
+              delivery_status: "Đã chia"
+            }
+          ];
+
+          const normalized = mockData.map(item => ({
+            ...item,
+            'Mã đơn hàng': item.order_code,
+            'Mã_đơn_hàng': item.order_code,
+            'Ngày lên đơn': item.order_date,
+            'Ngày_lên_đơn': item.order_date,
+            'Name': item.customer_name,
+            'Phone': item.customer_phone,
+            'Add': item.customer_address,
+            'Khu vực': item.area,
+            'Khu_vực': item.area,
+            'Mặt hàng': item.product_main,
+            'Mặt_hàng': item.product_main,
+            'Tổng tiền VNĐ': item.total_vnd,
+            'Tổng_tiền_VNĐ': item.total_vnd,
+            'CSKH': item.cskh,
+            'Nhân viên Sale': item.created_by,
+            'Nhân_viên_Sale': item.created_by,
+            'Thời gian cutoff': item.delivery_status,
+            'Thời_gian_cutoff': item.delivery_status,
+          }));
+
+          setAllData(normalized);
+          // Extract options for filters
+          const statusSet = new Set(normalized.map(i => i['Thời gian cutoff'] || '').filter(Boolean));
+          const cskhSet = new Set(normalized.map(i => i['CSKH'] || '').filter(Boolean));
+
+          setTrangThaiOptions(Array.from(statusSet).sort());
+          setCskhOptions(Array.from(cskhSet).sort());
+
+          setLoading(false);
+          return; // EXIT EARLY
+        }
+      }
+    } catch (e) {
+      console.warn("Error checking test mode:", e);
+    }
+    // --------------------------
+
     try {
       // await loadHRData(); // Can re-enable if permissions needed
 

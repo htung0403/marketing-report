@@ -79,138 +79,185 @@ export default function BaoCaoSale() {
             if (!filters.startDate || !filters.endDate) return;
 
             setLoading(true);
+
+            // --- TESTING MODE CHECK ---
+            try {
+                const settings = localStorage.getItem('system_settings');
+                if (settings) {
+                    const parsed = JSON.parse(settings);
+                    if (parsed.dataSource === 'test') {
+                        console.log("🔶 [TEST MODE] Loading Mock Data for Sale Report");
+                        // Generate consistent mock data
+                        const mockData = [
+                            {
+                                'Chức vụ': 'Sale Leader', 'Tên': 'Sale Leader Test', 'Email': 'leader@test.com', 'Team': 'Team Test 1', 'Chi nhánh': 'Hà Nội',
+                                'Ngày': filters.endDate, 'Ca': 'Sáng', 'Sản phẩm': 'Sản phẩm A', 'Thị trường': 'VN',
+                                'Số Mess': 50, 'Đơn Mess': 10, 'Doanh số Mess': 15000000, 'Phản hồi': 40,
+                                'Doanh số đi': 15000000, 'Số đơn Hoàn huỷ': 2, 'Doanh số hoàn huỷ': 3000000,
+                                'Số đơn thành công': 8, 'Doanh số thành công': 12000000,
+                                'Số đơn thực tế': 10, 'Doanh thu chốt thực tế': 15000000,
+                                'Số đơn hoàn hủy thực tế': 2, 'Doanh số hoàn hủy thực tế': 3000000, 'Doanh số sau hoàn hủy thực tế': 12000000
+                            },
+                            {
+                                'Chức vụ': 'Sale Member', 'Tên': 'Sale Member 1', 'Email': 'member1@test.com', 'Team': 'Team Test 1', 'Chi nhánh': 'Hà Nội',
+                                'Ngày': filters.endDate, 'Ca': 'Chiều', 'Sản phẩm': 'Sản phẩm A', 'Thị trường': 'VN',
+                                'Số Mess': 30, 'Đơn Mess': 5, 'Doanh số Mess': 5000000, 'Phản hồi': 25,
+                                'Doanh số đi': 5000000, 'Số đơn Hoàn huỷ': 0, 'Doanh số hoàn huỷ': 0,
+                                'Số đơn thành công': 5, 'Doanh số thành công': 5000000,
+                                'Số đơn thực tế': 5, 'Doanh thu chốt thực tế': 5000000,
+                                'Số đơn hoàn hủy thực tế': 0, 'Doanh số hoàn hủy thực tế': 0, 'Doanh số sau hoàn hủy thực tế': 5000000
+                            },
+                            {
+                                'Chức vụ': 'Sale Member', 'Tên': 'Sale Member 2', 'Email': 'member2@test.com', 'Team': 'Team Test 2', 'Chi nhánh': 'Hồ Chí Minh',
+                                'Ngày': filters.endDate, 'Ca': 'Tối', 'Sản phẩm': 'Sản phẩm B', 'Thị trường': 'VN',
+                                'Số Mess': 40, 'Đơn Mess': 8, 'Doanh số Mess': 12000000, 'Phản hồi': 35,
+                                'Doanh số đi': 12000000, 'Số đơn Hoàn huỷ': 1, 'Doanh số hoàn huỷ': 1500000,
+                                'Số đơn thành công': 7, 'Doanh số thành công': 10500000,
+                                'Số đơn thực tế': 8, 'Doanh thu chốt thực tế': 12000000,
+                                'Số đơn hoàn hủy thực tế': 1, 'Doanh số hoàn hủy thực tế': 1500000, 'Doanh số sau hoàn hủy thực tế': 10500000
+                            }
+                        ];
+
+                        // Fake employee data for permissions check
+                        const mockEmployeeData = [
+                            { 'id': 'TEST-USER-ID', 'Họ Và Tên': 'Admin Test', 'Chức vụ': 'Admin', 'Email': 'admin@test.com', 'Team': 'All', 'Chi nhánh': 'All' }
+                        ];
+
+                        processFetchedData(mockData, mockEmployeeData);
+                        setLoading(false);
+                        return; // EXIT EARLY
+                    }
+                }
+            } catch (e) {
+                console.warn("Error checking test mode:", e);
+            }
+            // --------------------------
+
             try {
                 // Pass date params to API for server-side optimization if supported
                 const res = await fetch(`${API_HOST}/report/generate?tableName=Báo cáo sale&startDate=${filters.startDate}&endDate=${filters.endDate}`);
                 const result = await res.json();
-                const apiData = result.data;
-                const employeeData = result.employeeData;
-
-                // --- Permissions Logic based on URL Param 'id' ---
-                const params = new URLSearchParams(window.location.search);
-                const idFromUrl = params.get('id');
-
-                let newPermissions = { ...permissions };
-                let userInfo = null;
-
-                if (idFromUrl) {
-                    const currentUserRecord = employeeData.find(record => record['id'] === idFromUrl && record['Email']);
-                    if (currentUserRecord) {
-                        setIsRestrictedView(true);
-                        const cleanName = (currentUserRecord['Họ Và Tên'] || '').trim();
-                        const userRole = (currentUserRecord['Chức vụ'] || currentUserRecord['Vị trí'] || '').trim();
-                        const userBranch = (currentUserRecord['chi nhánh'] || currentUserRecord['Chi nhánh'] || '').trim() || 'Không xác định';
-                        const userTeam = (currentUserRecord['Team'] || '').trim();
-
-                        userInfo = { ten: cleanName, email: (currentUserRecord['Email'] || '').trim() };
-                        setCurrentUserInfo(userInfo);
-
-                        if (userRole === 'Sale Leader') {
-                            newPermissions = {
-                                allowedBranch: userBranch,
-                                allowedTeam: null,
-                                allowedNames: [],
-                                title: `DỮ LIỆU CHI NHÁNH - ${userBranch}`
-                            };
-                        } else if (userRole === 'Leader') {
-                            newPermissions = {
-                                allowedBranch: null,
-                                allowedTeam: userTeam ? userTeam.trim() : null,
-                                allowedNames: [],
-                                title: `DỮ LIỆU TEAM - ${userTeam}`
-                            };
-                        } else {
-                            // NV or others
-                            newPermissions = {
-                                allowedBranch: null,
-                                allowedTeam: null,
-                                allowedNames: [cleanName],
-                                title: `DỮ LIỆU CÁ NHÂN - ${cleanName}`
-                            };
-                        }
-                    } else {
-                        newPermissions.title = 'KHÔNG TÌM THẤY DỮ LIỆU NGƯỜI DÙNG';
-                    }
-                } else {
-                    setIsRestrictedView(false);
-                    newPermissions.title = 'DỮ LIỆU TỔNG HỢP';
-                }
-                setPermissions(newPermissions);
-
-                // --- Process Data ---
-                const processed = apiData
-                    .filter(r => r['Tên'] && String(r['Tên']).trim() !== '' && r['Team'] && String(r['Team']).trim() !== '')
-                    .map(r => ({
-                        chucVu: (r['Chức vụ'] || '').trim(),
-                        ten: (r['Tên'] || '').trim(),
-                        email: (r['Email'] || '').trim(),
-                        team: (r['Team'] || '').trim(),
-                        chiNhanh: (r['Chi nhánh'] || r['chi nhánh'] || '').trim() || 'Không xác định',
-                        ngay: r['Ngày'],
-                        ca: r['Ca'],
-                        sanPham: r['Sản phẩm'],
-                        thiTruong: r['Thị trường'],
-                        soMessCmt: Number(r['Số Mess']) || 0,
-                        soDon: Number(r['Đơn Mess']) || 0,
-                        dsChot: Number(r['Doanh số Mess']) || 0,
-                        phanHoi: Number(r['Phản hồi']) || 0,
-                        doanhSoDi: Number(r['Doanh số đi']) || 0,
-                        soDonHuy: Number(r['Số đơn Hoàn huỷ']) || 0,
-                        doanhSoHuy: Number(r['Doanh số hoàn huỷ']) || 0,
-                        soDonThanhCong: Number(r['Số đơn thành công']) || 0,
-                        doanhSoThanhCong: Number(r['Doanh số thành công']) || 0,
-                        soDonThucTe: Number(r['Số đơn thực tế']) || 0,
-                        doanhThuChotThucTe: Number(r['Doanh thu chốt thực tế']) || 0,
-                        doanhSoDiThucTe: Number(r['Doanh số đi thực tế']) || 0,
-                        soDonHoanHuyThucTe: Number(r['Số đơn hoàn hủy thực tế']) || 0,
-                        doanhSoHoanHuyThucTe: Number(r['Doanh số hoàn hủy thực tế']) || 0,
-                        doanhSoSauHoanHuyThucTe: Number(r['Doanh số sau hoàn hủy thực tế']) || 0,
-                        originalRecord: r // Keep ref if needed
-                    }));
-
-                // Pre-filter stats based on permission strictness? 
-                // The requirements say populate filters first.
-
-                // Extract unique options for filters
-                // Filter data primarily by Permissions FIRST before extracting options?
-                // The provided code populates options based on 'dataForFilters' 
-
-                let visibleData = processed;
-                if (isRestrictedView || idFromUrl) { // Logic from code: use isRestrictedView flag derived earlier
-                    visibleData = processed.filter(r => {
-                        if (newPermissions.allowedBranch && r.chiNhanh.toLowerCase() !== newPermissions.allowedBranch.toLowerCase()) return false;
-                        if (newPermissions.allowedTeam && r.team !== newPermissions.allowedTeam) return false;
-                        if (newPermissions.allowedNames.length > 0 && !newPermissions.allowedNames.includes(r.ten)) return false;
-                        return true;
-                    });
-                }
-
-                setRawData(visibleData);
-
-                // Populate Options
-                const unique = (key) => [...new Set(visibleData.map(d => d[key]).filter(Boolean))].sort();
-                setOptions({
-                    products: unique('sanPham'),
-                    markets: unique('thiTruong'),
-                    shifts: unique('ca'),
-                    teams: unique('team')
-                });
-
-                // Initial Select All (Only if filters are empty/first load?)
-                // Actually reset options when data reloads is safe
-                setFilters(prev => ({
-                    ...prev,
-                    products: unique('sanPham'),
-                    markets: unique('thiTruong'),
-                    shifts: unique('ca'),
-                    teams: unique('team')
-                }));
-
+                processFetchedData(result.data, result.employeeData);
             } catch (err) {
                 console.error(err);
-            } finally {
-                setLoading(false);
+                setLoading(false); // Ensure loading is off on error
             }
+        };
+
+        const processFetchedData = (apiData, employeeData) => {
+            // --- Permissions Logic based on URL Param 'id' ---
+            const params = new URLSearchParams(window.location.search);
+            const idFromUrl = params.get('id');
+
+            let newPermissions = { ...permissions };
+            let userInfo = null;
+
+            if (idFromUrl) {
+                const currentUserRecord = employeeData.find(record => record['id'] === idFromUrl && record['Email']);
+                if (currentUserRecord) {
+                    setIsRestrictedView(true);
+                    const cleanName = (currentUserRecord['Họ Và Tên'] || '').trim();
+                    const userRole = (currentUserRecord['Chức vụ'] || currentUserRecord['Vị trí'] || '').trim();
+                    const userBranch = (currentUserRecord['chi nhánh'] || currentUserRecord['Chi nhánh'] || '').trim() || 'Không xác định';
+                    const userTeam = (currentUserRecord['Team'] || '').trim();
+
+                    userInfo = { ten: cleanName, email: (currentUserRecord['Email'] || '').trim() };
+                    setCurrentUserInfo(userInfo);
+
+                    if (userRole === 'Sale Leader') {
+                        newPermissions = {
+                            allowedBranch: userBranch,
+                            allowedTeam: null,
+                            allowedNames: [],
+                            title: `DỮ LIỆU CHI NHÁNH - ${userBranch}`
+                        };
+                    } else if (userRole === 'Leader') {
+                        newPermissions = {
+                            allowedBranch: null,
+                            allowedTeam: userTeam ? userTeam.trim() : null,
+                            allowedNames: [],
+                            title: `DỮ LIỆU TEAM - ${userTeam}`
+                        };
+                    } else {
+                        // NV or others
+                        newPermissions = {
+                            allowedBranch: null,
+                            allowedTeam: null,
+                            allowedNames: [cleanName],
+                            title: `DỮ LIỆU CÁ NHÂN - ${cleanName}`
+                        };
+                    }
+                } else {
+                    newPermissions.title = 'KHÔNG TÌM THẤY DỮ LIỆU NGƯỜI DÙNG';
+                }
+            } else {
+                setIsRestrictedView(false);
+                newPermissions.title = 'DỮ LIỆU TỔNG HỢP';
+            }
+            setPermissions(newPermissions);
+
+            // --- Process Data ---
+            const processed = (apiData || [])
+                .filter(r => r['Tên'] && String(r['Tên']).trim() !== '' && r['Team'] && String(r['Team']).trim() !== '')
+                .map(r => ({
+                    chucVu: (r['Chức vụ'] || '').trim(),
+                    ten: (r['Tên'] || '').trim(),
+                    email: (r['Email'] || '').trim(),
+                    team: (r['Team'] || '').trim(),
+                    chiNhanh: (r['Chi nhánh'] || r['chi nhánh'] || '').trim() || 'Không xác định',
+                    ngay: r['Ngày'],
+                    ca: r['Ca'],
+                    sanPham: r['Sản phẩm'],
+                    thiTruong: r['Thị trường'],
+                    soMessCmt: Number(r['Số Mess']) || 0,
+                    soDon: Number(r['Đơn Mess']) || 0,
+                    dsChot: Number(r['Doanh số Mess']) || 0,
+                    phanHoi: Number(r['Phản hồi']) || 0,
+                    doanhSoDi: Number(r['Doanh số đi']) || 0,
+                    soDonHuy: Number(r['Số đơn Hoàn huỷ']) || 0,
+                    doanhSoHuy: Number(r['Doanh số hoàn huỷ']) || 0,
+                    soDonThanhCong: Number(r['Số đơn thành công']) || 0,
+                    doanhSoThanhCong: Number(r['Doanh số thành công']) || 0,
+                    soDonThucTe: Number(r['Số đơn thực tế']) || 0,
+                    doanhThuChotThucTe: Number(r['Doanh thu chốt thực tế']) || 0,
+                    doanhSoDiThucTe: Number(r['Doanh số đi thực tế']) || 0,
+                    soDonHoanHuyThucTe: Number(r['Số đơn hoàn hủy thực tế']) || 0,
+                    doanhSoHoanHuyThucTe: Number(r['Doanh số hoàn hủy thực tế']) || 0,
+                    doanhSoSauHoanHuyThucTe: Number(r['Doanh số sau hoàn hủy thực tế']) || 0,
+                    originalRecord: r // Keep ref if needed
+                }));
+
+            let visibleData = processed;
+            if (isRestrictedView || idFromUrl) {
+                visibleData = processed.filter(r => {
+                    if (newPermissions.allowedBranch && r.chiNhanh.toLowerCase() !== newPermissions.allowedBranch.toLowerCase()) return false;
+                    if (newPermissions.allowedTeam && r.team !== newPermissions.allowedTeam) return false;
+                    if (newPermissions.allowedNames.length > 0 && !newPermissions.allowedNames.includes(r.ten)) return false;
+                    return true;
+                });
+            }
+
+            setRawData(visibleData);
+
+            // Populate Options
+            const unique = (key) => [...new Set(visibleData.map(d => d[key]).filter(Boolean))].sort();
+            setOptions({
+                products: unique('sanPham'),
+                markets: unique('thiTruong'),
+                shifts: unique('ca'),
+                teams: unique('team')
+            });
+
+            // Initial Select All
+            setFilters(prev => ({
+                ...prev,
+                products: unique('sanPham'),
+                markets: unique('thiTruong'),
+                shifts: unique('ca'),
+                teams: unique('team')
+            }));
+
+            setLoading(false);
         };
 
         fetchData();

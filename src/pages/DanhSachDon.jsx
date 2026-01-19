@@ -166,8 +166,73 @@ function DanhSachDon() {
     try {
       console.log(`Loading data from Supabase (From: ${startDate} To: ${endDate})...`);
 
+      // --- TESTING MODE CHECK ---
+      try {
+        const settings = localStorage.getItem('system_settings');
+        if (settings) {
+          const parsed = JSON.parse(settings);
+          if (parsed.dataSource === 'test') {
+            console.log("🔶 [TEST MODE] Loading Mock Data for Order List");
+
+            const mockOrders = [
+              {
+                order_code: "TEST-001",
+                order_date: new Date().toISOString(),
+                customer_name: "Nguyễn Văn Test",
+                customer_phone: "0901234567",
+                customer_address: "123 Đường Test, Q1",
+                city: "Hồ Chí Minh",
+                country: "Hồ Chí Minh",
+                area: "Miền Nam",
+                product: "Sản phẩm A",
+                total_amount_vnd: 500000,
+                delivery_status: "ĐANG GIAO",
+                payment_status: "Chưa thanh toán"
+              },
+              {
+                order_code: "TEST-002",
+                order_date: new Date(Date.now() - 86400000).toISOString(),
+                customer_name: "Trần Thị Test",
+                customer_phone: "0909876543",
+                customer_address: "456 Phố Mẫu, HN",
+                city: "Hà Nội",
+                country: "Hà Nội",
+                area: "Miền Bắc",
+                product: "Sản phẩm B",
+                total_amount_vnd: 1200000,
+                delivery_status: "GIAO THÀNH CÔNG",
+                payment_status: "Đã thanh toán"
+              },
+              {
+                order_code: "TEST-003",
+                order_date: new Date(Date.now() - 172800000).toISOString(),
+                customer_name: "Lê Văn Mẫu",
+                customer_phone: "0911223344",
+                customer_address: "789 Đường Demo, ĐN",
+                city: "Đà Nẵng",
+                country: "Đà Nẵng",
+                area: "Miền Trung",
+                product: "Combo C",
+                total_amount_vnd: 2500000,
+                delivery_status: "HOÀN",
+                payment_status: "Có bill"
+              }
+            ];
+
+            const mappedMock = mockOrders.map(mapSupabaseToUI);
+            setAllData(mappedMock);
+            setLoading(false);
+            return; // EXIT EARLY
+          }
+        }
+      } catch (e) {
+        console.warn("Error checking test mode:", e);
+      }
+      // --------------------------
+
       // 1. Fetch Supabase Data with Date Filter
-      let query = supabase.from('orders').select('*');
+      // Exclude R&D orders (Isolation Rule: Data only appears in RD module)
+      let query = supabase.from('orders').select('*').neq('team', 'RD');
 
       if (startDate) {
         query = query.gte('order_date', startDate);
@@ -381,79 +446,28 @@ function DanhSachDon() {
 
           transformedBatch.forEach(newItem => {
             const oldItem = currentDataMap.get(String(newItem.order_code));
-            let oldStatus = oldItem ? (oldItem["Trạng thái giao hàng"] || '') : '';
-            let newStatus = newItem.delivery_status || '';
-            let changeMessage = '';
-            let isChange = false;
 
-            // Define fields to track changes for
-            const compareFields = [
-              { key: 'delivery_status', oldKey: 'Trạng thái giao hàng', label: 'Trạng thái' },
-              { key: 'total_amount_vnd', oldKey: 'Tổng tiền VNĐ', label: 'Tổng tiền' },
-              { key: 'payment_status', oldKey: 'Kết quả Check', label: 'Thanh toán' },
-              { key: 'note', oldKey: 'Ghi chú', label: 'Ghi chú' },
-              { key: 'marketing_staff', oldKey: 'Nhân viên Marketing', label: 'MKT' },
-              { key: 'sale_staff', oldKey: 'Nhân viên Sale', label: 'Sale' },
-              { key: 'customer_name', oldKey: 'Name*', label: 'Tên KH' },
-              { key: 'customer_phone', oldKey: 'Phone*', label: 'SĐT' },
-              { key: 'customer_address', oldKey: 'Add', label: 'Địa chỉ' }
-            ];
-
-            const changes = [];
-            const oldObj = {};
-            const newObj = {};
+            // POLICY: ONLY ADD NEW, DO NOT UPDATE
+            // So if oldItem exists, the DB upsert with ignoreDuplicates: true did NOTHING.
+            // Therefore, we should NOT log any changes for existing items.
 
             if (!oldItem) {
-              changes.push(`Đồng bộ đơn mới: Trạng thái "${newStatus}"`);
-              isChange = true;
-              // For new items, old is null/empty, new is the relevant fields
-              newObj['delivery_status'] = newStatus;
-            } else {
-              compareFields.forEach(field => {
-                let oldVal = String(oldItem[field.oldKey] || '').trim();
-                let newVal = String(newItem[field.key] || '').trim();
-
-                // Handle numeric comparisons for total amount (remove non-numeric chars for loose comparison or just trim)
-                if (field.key === 'total_amount_vnd') {
-                  oldVal = parseFloat(oldVal.replace(/[^0-9.-]+/g, "")) || 0;
-                  newVal = parseFloat(newVal) || 0;
-                  if (oldVal !== newVal) {
-                    changes.push(`${field.label}: "${new Intl.NumberFormat('vi-VN').format(oldVal)}" ➔ "${new Intl.NumberFormat('vi-VN').format(newVal)}"`);
-                    isChange = true;
-                    oldObj[field.label] = oldVal;
-                    newObj[field.label] = newVal;
-                  }
-                } else {
-                  if (oldVal !== newVal) {
-                    changes.push(`${field.label}: "${oldVal}" ➔ "${newVal}"`);
-                    isChange = true;
-                    oldObj[field.label] = oldVal;
-                    newObj[field.label] = newVal;
-                  }
-                }
-              });
-            }
-
-            if (isChange) {
-              changeMessage = changes.join('; ');
-            }
-
-            // Only log if there are actual changes
-            if (isChange) {
+              // Truly new item
               validLogEntries.push({
                 action: 'SYNC_F3',
                 table_name: 'orders',
                 record_id: newItem.order_code,
                 user_email: userEmail,
-                // Store structured diffs as JSON strings
-                old_value: !oldItem ? null : JSON.stringify(oldObj),
-                new_value: JSON.stringify(newObj),
+                old_value: null,
+                new_value: JSON.stringify(newItem),
                 details: {
-                  note: changeMessage,
+                  note: `Đồng bộ đơn mới: Trạng thái "${newItem.delivery_status || ''}"`,
                   orderCode: newItem.order_code
                 }
               });
             }
+            // Else: Item exists. Since ignoreDuplicates is TRUE, nothing happened in DB.
+            // LOG NOTHING.
           });
 
           Promise.all(validLogEntries.map(entry => logDataChange(entry)))

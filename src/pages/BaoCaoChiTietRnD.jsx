@@ -1,6 +1,7 @@
 import { ChevronLeft, Download, RefreshCw, Search, Settings, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { usePermissions } from '../hooks/usePermissions';
 import { supabase } from '../supabase/config';
 import { COLUMN_MAPPING, PRIMARY_KEY_COLUMN } from '../types';
 import { isDateInRange, parseSmartDate } from '../utils/dateParsing';
@@ -173,7 +174,8 @@ function BaoCaoChiTietRnD() {
             if (rdPageNames.size > 0) {
                 resultData = resultData.filter(item => {
                     const pName = item.page_name?.toLowerCase().trim();
-                    return pName && rdPageNames.has(pName);
+                    // Include if Page is R&D OR if Team is R&D (manually tagged)
+                    return (pName && rdPageNames.has(pName)) || item.team === 'RD' || item.team === 'R&D';
                 });
             } else {
                 // If no RD Pages defined, maybe show empty and alert?

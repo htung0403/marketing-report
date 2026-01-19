@@ -308,6 +308,33 @@ export default function BaoCaoMarketing() {
         return rowObject;
       });
 
+      // --- TESTING MODE CHECK ---
+      try {
+        const settings = localStorage.getItem('system_settings');
+        if (settings) {
+          const parsed = JSON.parse(settings);
+          if (parsed.dataSource === 'test') {
+            console.log("🔶 [TEST MODE] Simulating Submit for MKT Report");
+
+            // Simulate delay
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            setResponseMsg({
+              text: `✅ [TEST MODE] Giả lập gửi thành công ${rowsData.length} dòng! Dữ liệu KHÔNG lưu vào DB.`,
+              isSuccess: true,
+              visible: true,
+            });
+            updateStatus('Gửi báo cáo thành công (Giả lập).');
+            setTableRows([createRowData({ Tên: employeeNameFromUrl, Email: userEmail }, appData.employeeDetails)]);
+            setLoading(false);
+            return; // EXIT EARLY
+          }
+        }
+      } catch (e) {
+        console.warn("Error checking test mode:", e);
+      }
+      // --------------------------
+
       // Insert into Supabase
       const { data, error } = await supabase
         .from('detail_reports')

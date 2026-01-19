@@ -263,26 +263,6 @@ export default function NhapDonMoi({ isEdit = false }) {
         fetchBlacklist();
     }, []);
 
-    const RD_EXCLUSIVE_PRODUCTS = rdProducts;
-    const GIFT_LIST = [
-        "Serum Sâm", "Cream Sâm", "VIT C", "Dưỡng Tóc", "Kem Body",
-        "Cream Bakuchiol", "Serum Bakuchiol", "Kẹo Dâu Glu", "Dầu gội",
-        "Gel xương khớp", "Đường"
-    ];
-    const PAYMENT_METHODS = ["Zelle", "COD", "MO", "E-transfer", "Bank transfer", "Paypal", "Venmo", "Money Gram", "RIA", "CHECK", "Cash App"];
-    const CURRENCY_LIST = ["USD", "JPY", "KRW", "CAD", "AUD", "GBP", "VND"];
-    const EXCHANGE_RATES = {
-        "USD": 25500,
-        "JPY": 170,
-        "KRW": 18,
-        "CAD": 18000,
-        "AUD": 16500,
-        "GBP": 32000,
-        "VND": 1
-    };
-
-    // -------------------------------------------------------------------------
-
     // Check R&D Permission
     const hasRndPermission = useMemo(() => {
         if (!user) return false;
@@ -293,11 +273,34 @@ export default function NhapDonMoi({ isEdit = false }) {
         return String(permissions).includes("R&D");
     }, [user]);
 
+    // Used for filtering normal users
+    const RD_EXCLUSIVE_PRODUCTS = rdProducts;
+    const GIFT_LIST = [
+        "Serum Sâm", "Cream Sâm", "VIT C", "Dưỡng Tóc", "Kem Body",
+        "Cream Bakuchiol", "Serum Bakuchiol", "Kẹo Dâu Glu", "Dầu gội",
+        "Gel xương khớp", "Đường"
+    ];
+    const PAYMENT_METHODS = ["Zelle", "COD", "MO", "E-transfer", "Bank transfer", "Paypal", "Venmo", "Money Gram", "RIA", "CHECK", "Cash App"];
+    const CURRENCY_LIST = ["USD", "JPY", "KRW", "CAD", "AUD", "GBP", "VND"];
+    const EXCHANGE_RATES = {
+        "USD": 25500,
+        "JPY": 170, // Updated recent rate if needed, keeping consistency with user's old file
+        "KRW": 18,
+        "CAD": 18000,
+        "AUD": 16500,
+        "GBP": 32000,
+        "VND": 1
+    };
+
     // Filter Products
     const visibleProducts = useMemo(() => {
-        if (hasRndPermission) return PRODUCT_LIST;
+        if (hasRndPermission) {
+            // R&D User: Show ONLY 'SP Test' products (defined in settings)
+            return rdProducts.length > 0 ? rdProducts : PRODUCT_LIST;
+        }
+        // Normal User: Show Standard list excluding R&D products
         return PRODUCT_LIST.filter(p => !RD_EXCLUSIVE_PRODUCTS.includes(p));
-    }, [hasRndPermission, PRODUCT_LIST]);
+    }, [hasRndPermission, PRODUCT_LIST, rdProducts, RD_EXCLUSIVE_PRODUCTS]);
 
     const loadPageData = async () => {
         setLoadingPages(true);
@@ -757,7 +760,10 @@ export default function NhapDonMoi({ isEdit = false }) {
                 cskh: userName,
                 // Don't overwrite created_by on edit ideally, but here we just send it if new
 
-                note: `${formData["note_sale"] || ""} \nRef: ${formData.team || ""}`,
+                // FORCE R&D TAG if user is R&D
+                team: hasRndPermission ? "RD" : (formData.team || ""),
+
+                note: `${formData["note_sale"] || ""} \nRef: ${hasRndPermission ? "RD" : (formData.team || "")}`,
             };
 
             // Remove undefined keys

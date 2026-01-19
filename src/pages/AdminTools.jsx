@@ -13,6 +13,7 @@ const DEFAULT_SETTINGS = {
         inventoryLow: 10,
         shippingDelay: 3
     },
+    normalProducts: ["Bakuchiol Retinol", "Nám DR Hancy"], // List of manually added 'Normal' products
     rndProducts: ["Glutathione Collagen NEW", "Dragon Blood Cream", "Gel XK Thái", "Gel XK Phi"],
     keyProducts: ["Glutathione Collagen", "Kem Body", "DG", "Kẹo Táo"],
     keyMarkets: ["US", "Nhật Bản", "Hàn Quốc"],
@@ -44,8 +45,8 @@ const AdminTools = () => {
 
     // --- SETTINGS STATE ---
     const [settings, setSettings] = useState(DEFAULT_SETTINGS);
-    const [availableProducts, setAvailableProducts] = useState([]);
-    const [availableMarkets, setAvailableMarkets] = useState([]);
+    const [productSuggestions, setProductSuggestions] = useState([]); // Suggested from DB history
+    const [availableMarkets, setAvailableMarkets] = useState([]); // Managed + Suggested markets for autocomplete
     const [loadingData, setLoadingData] = useState(false);
     const [loadingSettings, setLoadingSettings] = useState(false);
 
@@ -104,13 +105,13 @@ const AdminTools = () => {
                 ["Glutathione Collagen", "Bakuchiol Retinol", "Nám DR Hancy", "Kem Body", "Glutathione Collagen NEW", "DG", "Dragon Blood Cream"].forEach(p => products.add(p));
                 ["US", "Nhật Bản", "Hàn Quốc", "Canada", "Úc", "Anh"].forEach(m => markets.add(m));
 
-                setAvailableProducts(Array.from(products).sort());
+                setProductSuggestions(Array.from(products).sort());
                 setAvailableMarkets(Array.from(markets).sort());
             }
         } catch (err) {
             console.error("Error fetching ref data", err);
             // Fallback
-            setAvailableProducts(["Glutathione Collagen", "Bakuchiol Retinol", "Nám DR Hancy", "Kem Body", "Glutathione Collagen NEW", "DG", "Dragon Blood Cream"]);
+            setProductSuggestions(["Glutathione Collagen", "Bakuchiol Retinol", "Nám DR Hancy", "Kem Body", "Glutathione Collagen NEW", "DG", "Dragon Blood Cream"]);
             setAvailableMarkets(["US", "Nhật Bản", "Hàn Quốc", "Canada", "Úc", "Anh"]);
         } finally {
             setLoadingData(false);
@@ -344,7 +345,7 @@ const AdminTools = () => {
 
     // Ensure products in settings are always visible in the list, even if not in history
     const displayedProducts = Array.from(new Set([
-        ...availableProducts,
+        ...(settings.normalProducts || []),
         ...settings.rndProducts,
         ...settings.keyProducts
     ])).sort();
@@ -704,26 +705,102 @@ const AdminTools = () => {
                                 <AlertCircle className="w-5 h-5 text-orange-500" />
                                 1. Ngưỡng cảnh báo chỉ số
                             </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-4 rounded-lg">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Cảnh báo tồn kho thấp (đơn vị)</label>
-                                    <input
-                                        type="number"
-                                        className="w-full border-gray-300 rounded-md shadow-sm p-2 border focus:ring-[#2d7c2d]"
-                                        value={settings.thresholds.inventoryLow}
-                                        onChange={(e) => setSettings({ ...settings, thresholds: { ...settings.thresholds, inventoryLow: parseInt(e.target.value) || 0 } })}
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">Hiện cảnh báo khi tồn kho dưới mức này.</p>
+                            <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+                                {/* Dynamic Threshold List */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {Object.entries(settings.thresholds).map(([key, val]) => {
+                                        const METRIC_LABELS = {
+                                            inventoryLow: "Cảnh báo tồn kho thấp (đơn vị)",
+                                            shippingDelay: "Cảnh báo giao hàng chậm (ngày)",
+                                            maxReturnRate: "Tỉ lệ hoàn tối đa (%)",
+                                            minProfitMargin: "Biên lợi nhuận tối thiểu (%)",
+                                            maxAdsBudget: "Ngân sách Ads tối đa (VND)",
+                                            kpiOrders: "KPI Đơn hàng / ngày"
+                                        };
+                                        return (
+                                            <div key={key} className="relative group">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <label className="block text-sm font-medium text-gray-700">
+                                                        {METRIC_LABELS[key] || key}
+                                                    </label>
+                                                    <button
+                                                        onClick={() => {
+                                                            if (window.confirm("Xóa chỉ số này?")) {
+                                                                const newT = { ...settings.thresholds };
+                                                                delete newT[key];
+                                                                setSettings({ ...settings, thresholds: newT });
+                                                            }
+                                                        }}
+                                                        className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        title="Xóa chỉ số"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                                <input
+                                                    type="number"
+                                                    className="w-full border-gray-300 rounded-md shadow-sm p-2 border focus:ring-[#2d7c2d]"
+                                                    value={val}
+                                                    onChange={(e) => setSettings({
+                                                        ...settings,
+                                                        thresholds: { ...settings.thresholds, [key]: parseInt(e.target.value) || 0 }
+                                                    })}
+                                                />
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Cảnh báo giao hàng chậm (ngày)</label>
-                                    <input
-                                        type="number"
-                                        className="w-full border-gray-300 rounded-md shadow-sm p-2 border focus:ring-[#2d7c2d]"
-                                        value={settings.thresholds.shippingDelay}
-                                        onChange={(e) => setSettings({ ...settings, thresholds: { ...settings.thresholds, shippingDelay: parseInt(e.target.value) || 0 } })}
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">Hiện cảnh báo khi đơn hàng chưa giao quá số ngày này.</p>
+
+                                {/* Add New Threshold */}
+                                <div className="border-t pt-4 mt-2">
+                                    <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Thêm chỉ số mới</label>
+                                    <div className="flex flex-wrap gap-2 items-end">
+                                        <div className="flex-1 min-w-[200px]">
+                                            <label className="text-xs text-gray-600 mb-1 block">Chọn chỉ số</label>
+                                            <select
+                                                id="new-metric-select"
+                                                className="w-full border-gray-300 rounded-md shadow-sm p-2 border focus:ring-[#2d7c2d] text-sm"
+                                            >
+                                                <option value="inventoryLow">Cảnh báo tồn kho thấp</option>
+                                                <option value="shippingDelay">Cảnh báo giao hàng chậm</option>
+                                                <option value="maxReturnRate">Tỉ lệ hoàn tối đa (%)</option>
+                                                <option value="minProfitMargin">Biên lợi nhuận tối thiểu (%)</option>
+                                                <option value="maxAdsBudget">Ngân sách Ads tối đa (VND)</option>
+                                                <option value="kpiOrders">KPI Đơn hàng / ngày</option>
+                                            </select>
+                                        </div>
+                                        <div className="w-32">
+                                            <label className="text-xs text-gray-600 mb-1 block">Giá trị ngưỡng</label>
+                                            <input
+                                                id="new-metric-value"
+                                                type="number"
+                                                placeholder="0"
+                                                className="w-full border-gray-300 rounded-md shadow-sm p-2 border focus:ring-[#2d7c2d] text-sm"
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                const select = document.getElementById('new-metric-select');
+                                                const input = document.getElementById('new-metric-value');
+                                                const key = select.value;
+                                                const val = parseInt(input.value);
+
+                                                if (!isNaN(val)) {
+                                                    setSettings(prev => ({
+                                                        ...prev,
+                                                        thresholds: { ...prev.thresholds, [key]: val }
+                                                    }));
+                                                    input.value = '';
+                                                    toast.success("Đã thêm chỉ số cảnh báo mới");
+                                                } else {
+                                                    toast.error("Vui lòng nhập giá trị hợp lệ");
+                                                }
+                                            }}
+                                            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm font-medium shadow-sm flex items-center gap-1"
+                                        >
+                                            <Activity size={16} /> Thêm
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -768,13 +845,15 @@ const AdminTools = () => {
                                                                 onChange={(e) => {
                                                                     const newType = e.target.value;
                                                                     setSettings(prev => {
+                                                                        let newNormal = (prev.normalProducts || []).filter(p => p !== product);
                                                                         let newRnd = prev.rndProducts.filter(p => p !== product);
                                                                         let newKey = prev.keyProducts.filter(p => p !== product);
 
+                                                                        if (newType === 'normal') newNormal.push(product);
                                                                         if (newType === 'test') newRnd.push(product);
                                                                         if (newType === 'key') newKey.push(product);
 
-                                                                        return { ...prev, rndProducts: newRnd, keyProducts: newKey };
+                                                                        return { ...prev, normalProducts: newNormal, rndProducts: newRnd, keyProducts: newKey };
                                                                     });
                                                                 }}
                                                                 className={`w-full text-xs py-1 px-2 rounded border focus:outline-none focus:ring-2 
@@ -791,9 +870,9 @@ const AdminTools = () => {
                                                             <button
                                                                 onClick={() => {
                                                                     if (window.confirm(`Bạn có chắc muốn xóa sản phẩm "${product}" khỏi danh sách?`)) {
-                                                                        setAvailableProducts(prev => prev.filter(p => p !== product));
                                                                         setSettings(prev => ({
                                                                             ...prev,
+                                                                            normalProducts: (prev.normalProducts || []).filter(p => p !== product),
                                                                             rndProducts: prev.rndProducts.filter(p => p !== product),
                                                                             keyProducts: prev.keyProducts.filter(p => p !== product)
                                                                         }));
@@ -821,10 +900,13 @@ const AdminTools = () => {
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter') {
                                                 const val = e.target.value.trim();
-                                                if (val && !availableProducts.includes(val)) {
-                                                    setAvailableProducts(prev => [...prev, val].sort());
+                                                if (val && !displayedProducts.includes(val)) {
+                                                    setSettings(prev => ({
+                                                        ...prev,
+                                                        normalProducts: [...(prev.normalProducts || []), val].sort()
+                                                    }));
                                                     e.target.value = '';
-                                                } else if (availableProducts.includes(val)) {
+                                                } else if (displayedProducts.includes(val)) {
                                                     toast.warning('Sản phẩm này đã có trong danh sách!');
                                                 }
                                             }
@@ -832,17 +914,20 @@ const AdminTools = () => {
                                         id="new-product-input"
                                     />
                                     <datalist id="product-suggestions">
-                                        {availableProducts.map(p => <option key={p} value={p} />)}
+                                        {productSuggestions.map(p => <option key={p} value={p} />)}
                                     </datalist>
                                     <button
                                         onClick={() => {
                                             const input = document.getElementById('new-product-input');
                                             const val = input.value.trim();
-                                            if (val && !availableProducts.includes(val)) {
-                                                setAvailableProducts(prev => [...prev, val].sort());
+                                            if (val && !displayedProducts.includes(val)) {
+                                                setSettings(prev => ({
+                                                    ...prev,
+                                                    normalProducts: [...(prev.normalProducts || []), val].sort()
+                                                }));
                                                 input.value = '';
                                                 toast.success('Đã thêm sản phẩm mới');
-                                            } else if (availableProducts.includes(val)) {
+                                            } else if (displayedProducts.includes(val)) {
                                                 toast.warning('Sản phẩm này đã có trong danh sách!');
                                             }
                                         }}

@@ -55,6 +55,72 @@ export default function XemBaoCaoMKT() {
     setLoading(true);
     try {
       // Fetch Detail Reports
+
+      // --- TESTING MODE CHECK ---
+      try {
+        const settings = localStorage.getItem('system_settings');
+        if (settings) {
+          const parsed = JSON.parse(settings);
+          if (parsed.dataSource === 'test') {
+            console.log("🔶 [TEST MODE] Loading Mock Data for MKT Detailed Report");
+            const mockReports = [
+              {
+                'Ngày': new Date().toISOString(),
+                'Team': 'Team Test',
+                'Tên': 'MKT Test User 1',
+                'Sản_phẩm': 'Sản phẩm A',
+                'Thị_trường': 'Hà Nội',
+                'CPQC': 1000000,
+                'Số_Mess_Cmt': 50,
+                'Số đơn': 10,
+                'Doanh số': 3000000,
+                'Số đơn thực tế': 8,
+                'Doanh thu chốt thực tế': 2400000,
+                'Số đơn hoàn hủy': 2,
+                'Số đơn hoàn hủy thực tế': 1,
+                'Doanh số hoàn hủy thực tế': 300000,
+                'DS sau hoàn hủy': 2400000,
+                'Doanh số sau hoàn hủy thực tế': 2100000,
+                'Doanh số sau ship': 2000000,
+                'Doanh số TC': 2000000,
+                'KPIs': 10000000
+              },
+              {
+                'Ngày': new Date().toISOString(),
+                'Team': 'Team Test',
+                'Tên': 'MKT Test User 2',
+                'Sản_phẩm': 'Sản phẩm B',
+                'Thị_trường': 'Hồ Chí Minh',
+                'CPQC': 800000,
+                'Số_Mess_Cmt': 40,
+                'Số đơn': 8,
+                'Doanh số': 2400000,
+                'Số đơn thực tế': 8,
+                'Doanh thu chốt thực tế': 2400000,
+                'Số đơn hoàn hủy': 0,
+                'Số đơn hoàn hủy thực tế': 0,
+                'Doanh số hoàn hủy thực tế': 0,
+                'DS sau hoàn hủy': 2400000,
+                'Doanh số sau hoàn hủy thực tế': 2400000,
+                'Doanh số sau ship': 2300000,
+                'Doanh số TC': 2300000,
+                'KPIs': 8000000
+              }
+            ];
+
+            setData(mockReports);
+            setTeams(['Team Test']);
+            setProducts(['Sản phẩm A', 'Sản phẩm B']);
+            setMarkets(['Hà Nội', 'Hồ Chí Minh']);
+            setLoading(false);
+            return; // EXIT EARLY
+          }
+        }
+      } catch (e) {
+        console.warn("Error checking test mode:", e);
+      }
+      // --------------------------
+
       let query = supabase
         .from('detail_reports')
         .select('*');
