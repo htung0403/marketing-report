@@ -1037,6 +1037,18 @@ function Home() {
                         }}
                         disabled={!!imageFile}
                       />
+
+                      {/* Image Preview */}
+                      {(imageFile || newPost.image_url) && (
+                        <div className="mt-2 w-full h-32 bg-gray-100 rounded border border-dashed border-gray-300 flex items-center justify-center overflow-hidden">
+                          <img
+                            src={imageFile ? URL.createObjectURL(imageFile) : newPost.image_url}
+                            alt="Preview"
+                            className="h-full w-full object-contain"
+                            onError={(e) => e.target.style.display = 'none'}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1077,10 +1089,13 @@ function Home() {
                     <>
                       {/* Block 1: Featured Image + Title */}
                       <div className="flex-1 lg:w-1/3 flex flex-col">
-                        <h3 className="font-bold text-red-600 mb-2 px-1" title={featured.title}>{featured.title}</h3>
-                        <div className="bg-white border border-red-200 rounded-lg h-64 flex items-center justify-center shadow-sm overflow-hidden group">
+                        <div className="bg-black/5 border border-red-200 rounded-lg h-64 flex items-center justify-center shadow-sm overflow-hidden group relative">
                           {featured.image_url ? (
-                            <img src={featured.image_url} alt="Cover" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                            <img
+                              src={featured.image_url}
+                              alt="Cover"
+                              className="w-full h-full object-contain p-1 transition-transform duration-500 group-hover:scale-105"
+                            />
                           ) : (
                             <div className="flex flex-col items-center justify-center text-gray-400 bg-gray-100 w-full h-full">
                               <Megaphone size={32} className="mb-2 opacity-50" />
@@ -1091,9 +1106,21 @@ function Home() {
                       </div>
 
                       {/* Block 2: Detailed Content for Featured (or Second Item) */}
-                      <div className="flex-1 lg:w-1/3 bg-white border border-red-200 rounded-lg p-6 h-64 shadow-sm overflow-y-auto">
-                        <h3 className="font-bold text-lg text-red-700 mb-2">{featured.title}</h3>
-                        <p className="text-gray-600 text-sm whitespace-pre-wrap">{featured.content}</p>
+                      <div className="flex-1 lg:w-1/3 bg-white border border-red-200 rounded-lg p-4 h-64 shadow-sm relative overflow-y-auto">
+                        <h3 className="text-lg font-bold text-red-600 mb-2 sticky top-0 bg-white pb-2 border-b border-red-100">Nội dung</h3>
+                        <h3 className="font-bold text-base text-gray-800 mb-2">{featured.title}</h3>
+                        <div className="text-gray-600 text-sm whitespace-pre-wrap leading-relaxed">
+                          {featured.content.length > 200 ? (
+                            <>
+                              {featured.content.slice(0, 200)}...
+                              <Link to={`/news/${featured.id}`} className="text-red-500 hover:underline font-medium ml-1">
+                                xem thêm
+                              </Link>
+                            </>
+                          ) : (
+                            featured.content
+                          )}
+                        </div>
                       </div>
 
                       {/* Block 3: Latest/Other News */}
@@ -1101,9 +1128,13 @@ function Home() {
                         <h3 className="text-lg font-bold text-red-600 mb-4 sticky top-0 bg-white pb-2 border-b border-red-100">Tin tức khác</h3>
                         <ul className="space-y-3">
                           {others.map(item => (
-                            <li key={item.id} className="border-b border-gray-50 pb-2 last:border-0 hover:bg-gray-50 p-1 rounded transition">
-                              <div className="font-medium text-red-500 text-sm">{item.title}</div>
-                              <div className="text-xs text-gray-400 truncate">{item.created_at?.slice(0, 10)}</div>
+                            <li key={item.id} className="border-b border-gray-50 pb-2 last:border-0 hover:bg-gray-50 p-2 rounded transition cursor-pointer">
+                              <Link to={`/news/${item.id}`} className="block">
+                                <div className="font-medium text-gray-800 text-sm mb-1 hover:text-red-600 transition-colors">
+                                  {item.title}
+                                </div>
+                                {/* Optional: Add date back if user wants, but currently keeping it minimal as requested */}
+                              </Link>
                             </li>
                           ))}
                         </ul>

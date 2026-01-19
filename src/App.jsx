@@ -35,6 +35,7 @@ import HRDashboard from './pages/HRDashboard';
 import KPIReport from './pages/KPIReport';
 import LenHSanXuat from './pages/LenHSanXuat';
 import Login from './pages/Login';
+import NewsDetail from './pages/NewsDetail';
 import NhanSu from './pages/NhanSu';
 import NhapBaoCaoSale from './pages/NhapBaoCaoSale';
 import NhapDonMoi from './pages/NhapDonMoi';
@@ -104,6 +105,7 @@ function App() {
             {/* Admin Tools & System */}
             <Route path="/admin-tools" element={<ProtectedRoute><AdminTools /></ProtectedRoute>} />
             <Route path="/f3-backups" element={<ProtectedRoute><F3BackupDashboard /></ProtectedRoute>} />
+            <Route path="/news/:id" element={<ProtectedRoute><NewsDetail /></ProtectedRoute>} />
             <Route path="/external-view" element={<ProtectedRoute><ExternalView /></ProtectedRoute>} />
           </Routes>
         </ErrorBoundary>
