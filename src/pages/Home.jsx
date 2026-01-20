@@ -728,6 +728,7 @@ function Home() {
     {
       title: "QUẢN LÝ R&D",
       items: [
+        // --- R&D SPECIFIC ---
         {
           title: "Nhập báo cáo",
           icon: <TrendingUp className="w-7 h-7" />,
@@ -783,6 +784,90 @@ function Home() {
           path: "/lich-su-sale-order",
           status: "Mở ứng dụng",
           permission: 'RND_HISTORY',
+        },
+
+        // --- SALE DUPLICATES FOR R&D ---
+        {
+          title: "Sale: Danh sách đơn",
+          icon: <ClipboardList className="w-8 h-8" />,
+          color: "bg-purple-500",
+          path: "/danh-sach-don?team=RD",
+          status: "Mở ứng dụng",
+          permission: 'SALE_ORDERS',
+        },
+        {
+          title: "Sale: Nhập đơn mới",
+          icon: <PlusCircle className="w-8 h-8" />,
+          color: "bg-purple-500",
+          path: "/nhap-don?team=RD",
+          status: "Mở ứng dụng",
+          permission: 'SALE_NEW_ORDER',
+        },
+        {
+          title: "Sale: Nhập báo cáo",
+          icon: <TrendingUp className="w-8 h-8" />,
+          color: "bg-blue-600",
+          path: "/sale-nhap-bao-cao?team=RD",
+          status: "Mở ứng dụng",
+          permission: 'SALE_INPUT',
+        },
+        {
+          title: "Sale: Xem báo cáo",
+          icon: <BarChart3 className="w-8 h-8" />,
+          color: "bg-orange-600",
+          path: "/xem-bao-cao-sale?team=RD",
+          status: "Mở ứng dụng",
+          permission: 'SALE_VIEW',
+        },
+        {
+          title: "Sale: Ds báo cáo tay",
+          icon: <Database className="w-8 h-8" />,
+          color: "bg-cyan-600",
+          path: "/danh-sach-bao-cao-tay?team=RD",
+          status: "Mở ứng dụng",
+          permission: 'SALE_MANUAL',
+        },
+
+        // --- MARKETING DUPLICATES FOR R&D ---
+        {
+          title: "MKT: Nhập báo cáo",
+          icon: <TrendingUp className="w-8 h-8" />,
+          color: "bg-green-500",
+          path: "/bao-cao-marketing?team=RD",
+          status: "Mở ứng dụng",
+          permission: 'MKT_INPUT',
+        },
+        {
+          title: "MKT: Xem báo cáo",
+          icon: <BarChart3 className="w-8 h-8" />,
+          color: "bg-orange-500",
+          path: "/xem-bao-cao-mkt?team=RD",
+          status: "Mở ứng dụng",
+          permission: 'MKT_VIEW',
+        },
+        {
+          title: "MKT: Danh sách đơn",
+          icon: <ClipboardList className="w-8 h-8" />,
+          color: "bg-blue-500",
+          path: "/bao-cao-chi-tiet?team=RD",
+          status: "Mở ứng dụng",
+          permission: 'MKT_ORDERS',
+        },
+        {
+          title: "MKT: Danh sách Page",
+          icon: <ListTodo className="w-8 h-8" />,
+          color: "bg-purple-600",
+          path: "/danh-sach-page?team=RD",
+          status: "Mở ứng dụng",
+          permission: 'MKT_PAGES',
+        },
+        {
+          title: "MKT: Ds báo cáo tay",
+          icon: <Database className="w-8 h-8" />,
+          color: "bg-teal-600",
+          path: "/danh-sach-bao-cao-tay-mkt?team=RD",
+          status: "Mở ứng dụng",
+          permission: 'MKT_MANUAL',
         },
       ],
     },
@@ -1078,6 +1163,57 @@ function Home() {
     }
   };
 
+  // Helper to render card
+  const renderCard = (item, index) => {
+    if (item.isExternal) {
+      return (
+        <div
+          key={index}
+          onClick={() => navigate(`/external-view?url=${encodeURIComponent(item.path)}`)}
+          className={`group relative bg-white rounded-xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-6 border border-gray-100 hover:border-gray-200 cursor-pointer ${item.comingSoon ? "opacity-75" : ""}`}
+        >
+          <div className="flex items-start gap-4">
+            <div className={`${item.color} text-white p-3.5 rounded-2xl shadow-lg shadow-gray-200 group-hover:scale-110 transition-transform duration-300 flex-shrink-0`}>
+              {item.icon}
+            </div>
+            <div className="flex-1 min-w-0 pt-1">
+              <h3 className="text-base font-bold text-gray-800 mb-1 group-hover:text-pink-600 transition-colors">
+                {item.title}
+              </h3>
+              <p className={`text-xs font-medium ${item.comingSoon ? "text-gray-400" : "text-gray-500"}`}>
+                {item.status}
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <Link
+        key={index}
+        to={item.path}
+        className={`group relative bg-white rounded-xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-6 border border-gray-100 hover:border-gray-200 ${item.comingSoon ? "opacity-75" : ""}`}
+      >
+        <div className="flex items-start gap-4">
+          <div className={`${item.color} text-white p-3.5 rounded-2xl shadow-lg shadow-gray-200 group-hover:scale-110 transition-transform duration-300 flex-shrink-0`}>
+            {item.icon}
+          </div>
+          <div className="flex-1 min-w-0 pt-1">
+            <h3 className="text-base font-bold text-gray-800 mb-1 group-hover:text-pink-600 transition-colors">
+              {item.title}
+            </h3>
+            <p className={`text-xs font-medium ${item.comingSoon ? "text-gray-400" : "text-gray-500"}`}>
+              {item.status}
+            </p>
+          </div>
+        </div>
+      </Link>
+    );
+  };
+
+
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
@@ -1357,7 +1493,6 @@ function Home() {
             </div>
           </div>
 
-          {/* Content Sections */}
           {filteredSections.map((section, sectionIndex) => (
             section.items.length > 0 && (
               <div key={sectionIndex} className="mb-8">
@@ -1365,75 +1500,7 @@ function Home() {
                   {section.title}
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {section.items.map((item, itemIndex) => (
-                    item.isExternal ? (
-                      <div
-                        key={itemIndex}
-                        onClick={() => navigate(`/external-view?url=${encodeURIComponent(item.path)}`)}
-                        className={`group relative bg-white rounded-xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-6 border border-gray-100 hover:border-gray-200 cursor-pointer ${item.comingSoon ? "opacity-75" : ""
-                          }`}
-                      >
-                        <div className="flex items-start gap-4">
-                          <div
-                            className={`${item.color} text-white p-3.5 rounded-2xl shadow-lg shadow-gray-200 group-hover:scale-110 transition-transform duration-300 flex-shrink-0`}
-                          >
-                            {item.icon}
-                          </div>
-                          <div className="flex-1 min-w-0 pt-1">
-                            <h3 className="text-base font-bold text-gray-800 mb-1 group-hover:text-pink-600 transition-colors">
-                              {item.title}
-                            </h3>
-                            <p
-                              className={`text-xs font-medium ${item.comingSoon
-                                ? "text-gray-400"
-                                : "text-gray-500"
-                                }`}
-                            >
-                              {item.status}
-                            </p>
-                          </div>
-                          {item.comingSoon && (
-                            <div className="absolute top-2 right-2 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
-                              <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <Link
-                        key={itemIndex}
-                        to={item.path}
-                        className={`group relative bg-white rounded-xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-6 border border-gray-100 hover:border-gray-200 ${item.comingSoon ? "opacity-75" : ""
-                          }`}
-                      >
-                        <div className="flex items-start gap-4">
-                          <div
-                            className={`${item.color} text-white p-3.5 rounded-2xl shadow-lg shadow-gray-200 group-hover:scale-110 transition-transform duration-300 flex-shrink-0`}
-                          >
-                            {item.icon}
-                          </div>
-                          <div className="flex-1 min-w-0 pt-1">
-                            <h3 className="text-base font-bold text-gray-800 mb-1 group-hover:text-pink-600 transition-colors">
-                              {item.title}
-                            </h3>
-                            <p
-                              className={`text-xs font-medium ${item.comingSoon
-                                ? "text-gray-400"
-                                : "text-gray-500"
-                                }`}
-                            >
-                              {item.status}
-                            </p>
-                          </div>
-                          {item.comingSoon && (
-                            <div className="absolute top-2 right-2 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
-                              <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                            </div>
-                          )}
-                        </div>
-                      </Link>
-                    )
-                  ))}
+                  {section.items.map((item, itemIndex) => renderCard(item, itemIndex))}
                 </div>
               </div>
             )

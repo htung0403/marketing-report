@@ -1,13 +1,17 @@
 import { Download, RefreshCw, Search, Settings, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { logDataChange } from '../services/logging';
 import { supabase } from '../supabase/config';
 import { COLUMN_MAPPING, PRIMARY_KEY_COLUMN } from '../types';
 import { isDateInRange, parseSmartDate } from '../utils/dateParsing';
 
 function DanhSachDon() {
-  const [allData, setAllData] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const teamFilter = searchParams.get('team'); // e.g. 'RD'
+
+
   const [searchText, setSearchText] = useState('');
   const [debouncedSearchText, setDebouncedSearchText] = useState('');
   const [filterMarket, setFilterMarket] = useState([]);
@@ -233,7 +237,16 @@ function DanhSachDon() {
 
       // 1. Fetch Supabase Data with Date Filter
       // Exclude R&D orders (Isolation Rule: Data only appears in RD module)
-      let query = supabase.from('orders').select('*').neq('team', 'RD');
+      // UPDATED: Logic to support R&D context
+      let query = supabase.from('orders').select('*');
+
+      if (teamFilter === 'RD') {
+        // If context is R&D, ONLY show R&D data
+        query = query.eq('team', 'RD');
+      } else {
+        // If context is standard (Sale/MKT), EXCLUDE R&D data
+        query = query.neq('team', 'RD');
+      }
 
       if (startDate) {
         query = query.gte('order_date', startDate);

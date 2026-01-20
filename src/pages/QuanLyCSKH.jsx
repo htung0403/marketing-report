@@ -2,11 +2,13 @@ import { Download, Edit, Eye, RefreshCw, Search, Settings, Trash2, X } from 'luc
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { usePermissions } from '../hooks/usePermissions';
 import { supabase } from '../supabase/config';
 import { COLUMN_MAPPING, PRIMARY_KEY_COLUMN } from '../types';
 
 function QuanLyCSKH() {
   const navigate = useNavigate(); // Add hook for navigation if needed, or just use Link
+  const { canEdit, canDelete } = usePermissions();
   const [allData, setAllData] = useState([]);
 
   const [loading, setLoading] = useState(false);
@@ -498,6 +500,10 @@ function QuanLyCSKH() {
 
   // Open Edit modal
   const openEditModal = (order) => {
+    if (!canEdit('CSKH_LIST')) {
+      toast.error("Bạn không có quyền sửa đơn hàng này!");
+      return;
+    }
     setEditingOrder({ ...order });
     setIsViewing(false);
     setIsEditModalOpen(true);
@@ -519,6 +525,8 @@ function QuanLyCSKH() {
   // Save Updates
   const handleUpdateOrder = async () => {
     if (!editingOrder) return;
+    if (!canEdit('CSKH_LIST')) return toast.error("Không có quyền sửa!");
+
     setIsUpdating(true);
     try {
       const { error } = await supabase
@@ -560,6 +568,10 @@ function QuanLyCSKH() {
 
   // Handle Delete
   const handleDelete = async (id) => {
+    if (!canDelete('CSKH_LIST')) {
+      toast.error("Bạn không có quyền xóa đơn hàng này!");
+      return;
+    }
     if (!window.confirm("Bạn có chắc chắn muốn xóa đơn hàng này? Hành động này không thể hoàn tác!")) return;
 
     try {
@@ -831,22 +843,26 @@ function QuanLyCSKH() {
                           </button>
 
                           {/* Edit - Open Modal */}
-                          <button
-                            onClick={() => openEditModal(row)}
-                            className="p-1.5 text-orange-600 hover:bg-orange-50 rounded transition-colors"
-                            title="Chỉnh sửa nhanh"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
+                          {canEdit('CSKH_LIST') && (
+                            <button
+                              onClick={() => openEditModal(row)}
+                              className="p-1.5 text-orange-600 hover:bg-orange-50 rounded transition-colors"
+                              title="Chỉnh sửa nhanh"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
 
                           {/* Delete */}
-                          <button
-                            onClick={() => handleDelete(row.id)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                            title="Xóa đơn hàng"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {canDelete('CSKH_LIST') && (
+                            <button
+                              onClick={() => handleDelete(row.id)}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title="Xóa đơn hàng"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
