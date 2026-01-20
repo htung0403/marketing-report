@@ -793,7 +793,7 @@ function Home() {
           color: "bg-purple-500",
           path: "/danh-sach-don?team=RD",
           status: "Mở ứng dụng",
-          permission: 'SALE_ORDERS',
+          permission: 'RND_ORDERS',
         },
         {
           title: "Sale: Nhập đơn mới",
@@ -801,7 +801,7 @@ function Home() {
           color: "bg-purple-500",
           path: "/nhap-don?team=RD",
           status: "Mở ứng dụng",
-          permission: 'SALE_NEW_ORDER',
+          permission: 'RND_NEW_ORDER',
         },
         {
           title: "Sale: Nhập báo cáo",
@@ -809,7 +809,7 @@ function Home() {
           color: "bg-blue-600",
           path: "/sale-nhap-bao-cao?team=RD",
           status: "Mở ứng dụng",
-          permission: 'SALE_INPUT',
+          permission: 'RND_INPUT',
         },
         {
           title: "Sale: Xem báo cáo",
@@ -817,7 +817,7 @@ function Home() {
           color: "bg-orange-600",
           path: "/xem-bao-cao-sale?team=RD",
           status: "Mở ứng dụng",
-          permission: 'SALE_VIEW',
+          permission: 'RND_VIEW',
         },
         {
           title: "Sale: Ds báo cáo tay",
@@ -825,7 +825,7 @@ function Home() {
           color: "bg-cyan-600",
           path: "/danh-sach-bao-cao-tay?team=RD",
           status: "Mở ứng dụng",
-          permission: 'SALE_MANUAL',
+          permission: 'RND_MANUAL',
         },
 
         // --- MARKETING DUPLICATES FOR R&D ---
@@ -835,7 +835,7 @@ function Home() {
           color: "bg-green-500",
           path: "/bao-cao-marketing?team=RD",
           status: "Mở ứng dụng",
-          permission: 'MKT_INPUT',
+          permission: 'RND_INPUT',
         },
         {
           title: "MKT: Xem báo cáo",
@@ -843,7 +843,7 @@ function Home() {
           color: "bg-orange-500",
           path: "/xem-bao-cao-mkt?team=RD",
           status: "Mở ứng dụng",
-          permission: 'MKT_VIEW',
+          permission: 'RND_VIEW',
         },
         {
           title: "MKT: Danh sách đơn",
@@ -851,7 +851,7 @@ function Home() {
           color: "bg-blue-500",
           path: "/bao-cao-chi-tiet?team=RD",
           status: "Mở ứng dụng",
-          permission: 'MKT_ORDERS',
+          permission: 'RND_ORDERS',
         },
         {
           title: "MKT: Danh sách Page",
@@ -859,7 +859,7 @@ function Home() {
           color: "bg-purple-600",
           path: "/danh-sach-page?team=RD",
           status: "Mở ứng dụng",
-          permission: 'MKT_PAGES',
+          permission: 'RND_PAGES',
         },
         {
           title: "MKT: Ds báo cáo tay",
@@ -867,7 +867,7 @@ function Home() {
           color: "bg-teal-600",
           path: "/danh-sach-bao-cao-tay-mkt?team=RD",
           status: "Mở ứng dụng",
-          permission: 'MKT_MANUAL',
+          permission: 'RND_MANUAL',
         },
       ],
     },

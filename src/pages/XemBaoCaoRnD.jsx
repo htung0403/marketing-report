@@ -1,6 +1,7 @@
 import { ChevronLeft } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import usePermissions from '../hooks/usePermissions';
 import { supabase } from '../supabase/config';
 import { isDateInRange, parseSmartDate } from '../utils/dateParsing';
 import './XemBaoCaoMKT.css'; // Reuse CSS
@@ -11,6 +12,11 @@ const MARKET_GROUPS = {
 };
 
 export default function XemBaoCaoRnD() {
+    const { canView } = usePermissions();
+    if (!canView('RND_VIEW')) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (RND_VIEW).</div>;
+    }
+
     const [activeTab, setActiveTab] = useState('DetailedReport');
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);

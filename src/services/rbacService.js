@@ -122,6 +122,7 @@ export const MODULE_PAGES = {
         name: 'QUẢN LÝ SALE & ORDER',
         pages: [
             { code: 'SALE_ORDERS', name: 'Danh sách đơn', path: '/danh-sach-don' },
+            { code: 'SALE_NEW_ORDER', name: 'Nhập đơn mới', path: '/nhap-don' },
             { code: 'SALE_INPUT', name: 'Sale nhập báo cáo', path: '/sale-nhap-bao-cao' },
             { code: 'SALE_VIEW', name: 'Xem báo cáo Sale', path: '/bao-cao-sale' },
             { code: 'SALE_MANUAL', name: 'Danh sách báo cáo tay', path: '/danh-sach-bao-cao-tay' },

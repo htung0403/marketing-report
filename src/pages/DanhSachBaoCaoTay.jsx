@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import usePermissions from '../hooks/usePermissions';
 import { supabase } from '../services/supabaseClient';
 import './BaoCaoSale.css'; // Reusing styles for consistency
 
@@ -15,6 +17,18 @@ const formatDate = (dateValue) => {
 };
 
 export default function DanhSachBaoCaoTay() {
+    const location = useLocation();
+    const searchParams = new URLSearchParams(location.search);
+    const teamFilter = searchParams.get('team'); // 'RD' or null
+
+    // Permission Logic
+    const { canView } = usePermissions();
+    const permissionCode = teamFilter === 'RD' ? 'RND_REPORT_LIST' : 'SALE_REPORT_LIST';
+
+    if (!canView(permissionCode)) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+    }
+
     const [loading, setLoading] = useState(true);
     const [manualReports, setManualReports] = useState([]);
     const [filters, setFilters] = useState({

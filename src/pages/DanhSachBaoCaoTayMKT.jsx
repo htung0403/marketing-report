@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import usePermissions from '../hooks/usePermissions';
 import { supabase } from '../supabase/config';
 import './BaoCaoSale.css'; // Reusing styles for consistency
 
@@ -16,6 +18,21 @@ const formatDate = (dateValue) => {
 };
 
 export default function DanhSachBaoCaoTayMKT() {
+    const location = useLocation();
+    const searchParams = new URLSearchParams(location.search);
+    const teamFilter = searchParams.get('team'); // 'RD' or null
+
+    // Permission Logic
+    const { canView } = usePermissions();
+    // Assuming MKT_REPORT_LIST is the specific permission for MKT manual lists if it exists, 
+    // otherwise MKT_VIEW or similar. Dynamic based on context.
+    // Let's stick to standard naming: RND_REPORT_LIST for R&D context, MKT_REPORT_LIST for MKT.
+    const permissionCode = teamFilter === 'RD' ? 'RND_REPORT_LIST' : 'MKT_REPORT_LIST';
+
+    if (!canView(permissionCode)) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+    }
+
     const [loading, setLoading] = useState(true);
     const [manualReports, setManualReports] = useState([]);
     const [filters, setFilters] = useState({

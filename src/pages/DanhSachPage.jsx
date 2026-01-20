@@ -1,9 +1,22 @@
 import { ChevronLeft, RefreshCw, Search, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import usePermissions from '../hooks/usePermissions';
 import { supabase } from '../supabase/config';
 
 export default function DanhSachPage() {
+    const location = useLocation();
+    const searchParams = new URLSearchParams(location.search);
+    const teamFilter = searchParams.get('team'); // 'RD' or null
+
+    // Permission Logic
+    const { canView } = usePermissions();
+    const permissionCode = teamFilter === 'RD' ? 'RND_PAGES' : 'MKT_PAGES';
+
+    if (!canView(permissionCode)) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+    }
+
     const [data, setData] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
     const [loading, setLoading] = useState(true);

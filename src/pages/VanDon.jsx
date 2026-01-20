@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ColumnSettingsModal from '../components/ColumnSettingsModal';
 import MultiSelect from '../components/MultiSelect';
+import usePermissions from '../hooks/usePermissions';
 import * as API from '../services/api';
 import '../styles/selection.css';
 import {
@@ -23,6 +24,13 @@ const UPDATE_DELAY = 500;
 const BULK_THRESHOLD = 1;
 
 function VanDon() {
+  const { canView } = usePermissions();
+  if (!canView('ORDERS_LIST')) {
+    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (ORDERS_LIST).</div>;
+  }
+
+  // --- Data State ---
+
   // --- Data State ---
   const [allData, setAllData] = useState([]);
   const [loading, setLoading] = useState(false);

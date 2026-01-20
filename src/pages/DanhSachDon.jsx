@@ -1,6 +1,7 @@
 import { Download, RefreshCw, Search, Settings, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import usePermissions from '../hooks/usePermissions';
 import { logDataChange } from '../services/logging';
 import { supabase } from '../supabase/config';
 import { COLUMN_MAPPING, PRIMARY_KEY_COLUMN } from '../types';
@@ -10,6 +11,16 @@ function DanhSachDon() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const teamFilter = searchParams.get('team'); // e.g. 'RD'
+
+  // Permission Logic
+  const { canEdit, canDelete } = usePermissions();
+  // Determine relevant page code based on team switch
+  // If team=RD, we are in R&D context -> RND_ORDERS
+  // Else (default), we are in Sale context -> SALE_ORDERS
+  const permissionCode = teamFilter === 'RD' ? 'RND_ORDERS' : 'SALE_ORDERS';
+
+  const [allData, setAllData] = useState([]);
+  const [loading, setLoading] = useState(false);
 
 
   const [searchText, setSearchText] = useState('');
@@ -1020,14 +1031,17 @@ function DanhSachDon() {
                         );
                       })}
                       <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap text-center">
-                        <button
-                          onClick={() => handleDelete(row['Mã đơn hàng'], row._id)}
-                          className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
-                          title="Xóa đơn hàng"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {canDelete(permissionCode) && (
+                          <button
+                            onClick={() => handleDelete(row['Mã đơn hàng'], row._id)}
+                            className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                            title="Xóa đơn hàng"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </td>
+
                     </tr>
                   ))
                 )}

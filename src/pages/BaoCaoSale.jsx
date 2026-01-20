@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
+import usePermissions from '../hooks/usePermissions';
 import { isDateInRange } from '../utils/dateParsing';
 import './BaoCaoSale.css';
 
@@ -21,6 +23,17 @@ const formatDate = (dateValue) => {
 };
 
 export default function BaoCaoSale() {
+    const location = useLocation();
+    const searchParams = new URLSearchParams(location.search);
+    const teamFilter = searchParams.get('team'); // Context: 'RD' or null
+
+    // Permission Logic
+    const { canView } = usePermissions();
+    const permissionCode = teamFilter === 'RD' ? 'RND_VIEW' : 'SALE_VIEW';
+
+    if (!canView(permissionCode)) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+    }
     // --- State ---
     const [loading, setLoading] = useState(true);
     const [rawData, setRawData] = useState([]);

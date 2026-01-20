@@ -1,9 +1,23 @@
 import { Calendar, Filter, Search } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
+import usePermissions from "../hooks/usePermissions";
 import { DB_TO_APP_MAPPING } from "../services/api";
 import { supabase } from "../services/supabaseClient";
 
 export default function SalesOrderHistoryPage() {
+    const location = useLocation();
+    const searchParams = new URLSearchParams(location.search);
+    const teamFilter = searchParams.get('team'); // 'RD' or null
+
+    // Permission Logic
+    const { canView } = usePermissions();
+    const permissionCode = teamFilter === 'RD' ? 'RND_HISTORY' : 'SALE_HISTORY';
+
+    if (!canView(permissionCode)) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+    }
+
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");

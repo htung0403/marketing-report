@@ -2,6 +2,7 @@ import { Activity, AlertCircle, AlertTriangle, CheckCircle, Clock, Database, Git
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import PermissionManager from '../components/admin/PermissionManager';
+import usePermissions from '../hooks/usePermissions';
 import { performEndOfShiftSnapshot } from '../services/snapshotService';
 import { supabase } from '../supabase/config';
 
@@ -22,6 +23,7 @@ const DEFAULT_SETTINGS = {
 
 // Helper to get settings
 export const getSystemSettings = () => {
+
     try {
         const s = localStorage.getItem(SETTINGS_KEY);
         return s ? { ...DEFAULT_SETTINGS, ...JSON.parse(s) } : DEFAULT_SETTINGS;
@@ -33,6 +35,11 @@ export const getSystemSettings = () => {
 const GLOBAL_SETTINGS_ID = 'global_config';
 
 const AdminTools = () => {
+    const { canView } = usePermissions();
+    if (!canView('ADMIN_TOOLS')) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (ADMIN_TOOLS).</div>;
+    }
+
     // --- TABS STATE ---
     const [activeTab, setActiveTab] = useState('maintenance'); // 'maintenance' | 'settings' | 'verification'
 

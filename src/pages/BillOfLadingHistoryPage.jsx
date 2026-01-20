@@ -1,9 +1,15 @@
 import { Calendar, Filter, Search } from "lucide-react";
 import { useEffect, useState } from "react";
+import usePermissions from "../hooks/usePermissions";
 import { DB_TO_APP_MAPPING } from "../services/api";
 import { supabase } from "../services/supabaseClient";
 
 export default function BillOfLadingHistoryPage() {
+    const { canView } = usePermissions();
+    if (!canView('ORDERS_HISTORY')) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (ORDERS_HISTORY).</div>;
+    }
+
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");

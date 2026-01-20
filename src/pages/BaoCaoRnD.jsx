@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import usePermissions from '../hooks/usePermissions';
 import { supabase } from '../supabase/config';
 
 export default function BaoCaoRnD() {
+    const { canView } = usePermissions();
+    if (!canView('RND_INPUT')) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (RND_INPUT).</div>;
+    }
+
     const [appData, setAppData] = useState({
         employeeDetails: [],
         shiftList: ['Hết ca', 'Giữa ca'],

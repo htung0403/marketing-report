@@ -1,15 +1,16 @@
-﻿import React, { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
-import {
-  PRIMARY_KEY_COLUMN,
-  ORDER_MGMT_COLUMNS,
-  COLUMN_MAPPING,
-  EDITABLE_COLS,
-  TEAM_COLUMN_NAME,
-  DROPDOWN_OPTIONS
-} from '../types';
-import '../styles/selection.css';
-import * as API from '../services/api';
+﻿import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MultiSelect from '../components/MultiSelect';
+import usePermissions from '../hooks/usePermissions';
+import * as API from '../services/api';
+import '../styles/selection.css';
+import {
+  COLUMN_MAPPING,
+  DROPDOWN_OPTIONS,
+  EDITABLE_COLS,
+  ORDER_MGMT_COLUMNS,
+  PRIMARY_KEY_COLUMN,
+  TEAM_COLUMN_NAME
+} from '../types';
 import { rafThrottle } from '../utils/throttle';
 
 const SyncPopover = lazy(() => import('../components/SyncPopover'));
@@ -19,6 +20,11 @@ const UPDATE_DELAY = 500;
 const BULK_THRESHOLD = 1;
 
 function FFM() {
+  const { canView } = usePermissions();
+  if (!canView('ORDERS_FFM')) {
+    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (ORDERS_FFM).</div>;
+  }
+
   const [allData, setAllData] = useState([]);
   const [loading, setLoading] = useState(false);
   // Only ORDER_MANAGEMENT mode - BILL_OF_LADING removed
@@ -1003,73 +1009,71 @@ function FFM() {
 
       {/* ORDER_MANAGEMENT Controls */}
       <div className="space-y-4 mb-4">
-          <div className="bg-white p-4 rounded shadow-sm flex flex-wrap gap-4 items-end">
-            <div className="flex flex-col gap-1 w-48">
-              <label className="text-xs font-semibold text-gray-500">Thị trường</label>
-              <MultiSelect
-                label="Tất cả Thị trường"
-                mainFilter={true}
-                options={getUniqueValues('Khu vực')}
-                selected={filterValues.market}
-                onChange={(vals) => setFilterValues((prev) => ({ ...prev, market: vals }))}
-              />
-            </div>
-            <div className="flex flex-col gap-1 w-48">
-              <label className="text-xs font-semibold text-gray-500">Sản phẩm</label>
-              <MultiSelect
-                label="Tất cả Sản phẩm"
-                mainFilter={true}
-                options={getUniqueValues('Mặt hàng')}
-                selected={filterValues.product}
-                onChange={(vals) => setFilterValues((prev) => ({ ...prev, product: vals }))}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-gray-500">Loại ngày</label>
-              <select className="px-2 py-1.5 border rounded text-sm bg-white" value={omDateType} onChange={(e) => setOmDateType(e.target.value)}>
-                <option value="Ngày lên đơn">Ngày lên đơn</option>
-                <option value="Ngày đóng hàng">Ngày đóng hàng</option>
-                <option value="Ngày đẩy đơn">Ngày đẩy đơn</option>
-                <option value="Ngày có mã tracking">Ngày có mã tracking</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-gray-500">Từ ngày</label>
-              <input type="date" className="px-2 py-1.5 border rounded text-sm" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-gray-500">Tới ngày</label>
-              <input type="date" className="px-2 py-1.5 border rounded text-sm" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-            </div>
-            <button onClick={refreshData} className="bg-danger text-white px-3 py-1.5 rounded text-sm hover:bg-dangerHover transition shadow-sm mb-0.5">
-              🗑️ Xóa lọc
-            </button>
+        <div className="bg-white p-4 rounded shadow-sm flex flex-wrap gap-4 items-end">
+          <div className="flex flex-col gap-1 w-48">
+            <label className="text-xs font-semibold text-gray-500">Thị trường</label>
+            <MultiSelect
+              label="Tất cả Thị trường"
+              mainFilter={true}
+              options={getUniqueValues('Khu vực')}
+              selected={filterValues.market}
+              onChange={(vals) => setFilterValues((prev) => ({ ...prev, market: vals }))}
+            />
           </div>
-
-          <div className="bg-white p-2 rounded shadow-sm flex flex-wrap gap-2">
-            <button
-              className={`px-3 py-1.5 text-sm rounded border transition ${
-                omActiveTeam === 'all'
-                  ? 'bg-primary text-white border-primaryHover font-bold'
-                  : 'bg-gray-100 hover:bg-gray-200 border-gray-300'
-              }`}
-              onClick={() => setOmActiveTeam('all')}
-            >
-              Tất cả
-            </button>
-            {teams.map((t) => (
-              <button
-                key={t}
-                className={`px-3 py-1.5 text-sm rounded border transition ${
-                  omActiveTeam === t ? 'bg-primary text-white border-primaryHover font-bold' : 'bg-gray-100 hover:bg-gray-200 border-gray-300'
-                }`}
-                onClick={() => setOmActiveTeam(t)}
-              >
-                {t}
-              </button>
-            ))}
+          <div className="flex flex-col gap-1 w-48">
+            <label className="text-xs font-semibold text-gray-500">Sản phẩm</label>
+            <MultiSelect
+              label="Tất cả Sản phẩm"
+              mainFilter={true}
+              options={getUniqueValues('Mặt hàng')}
+              selected={filterValues.product}
+              onChange={(vals) => setFilterValues((prev) => ({ ...prev, product: vals }))}
+            />
           </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-500">Loại ngày</label>
+            <select className="px-2 py-1.5 border rounded text-sm bg-white" value={omDateType} onChange={(e) => setOmDateType(e.target.value)}>
+              <option value="Ngày lên đơn">Ngày lên đơn</option>
+              <option value="Ngày đóng hàng">Ngày đóng hàng</option>
+              <option value="Ngày đẩy đơn">Ngày đẩy đơn</option>
+              <option value="Ngày có mã tracking">Ngày có mã tracking</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-500">Từ ngày</label>
+            <input type="date" className="px-2 py-1.5 border rounded text-sm" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-500">Tới ngày</label>
+            <input type="date" className="px-2 py-1.5 border rounded text-sm" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </div>
+          <button onClick={refreshData} className="bg-danger text-white px-3 py-1.5 rounded text-sm hover:bg-dangerHover transition shadow-sm mb-0.5">
+            🗑️ Xóa lọc
+          </button>
         </div>
+
+        <div className="bg-white p-2 rounded shadow-sm flex flex-wrap gap-2">
+          <button
+            className={`px-3 py-1.5 text-sm rounded border transition ${omActiveTeam === 'all'
+                ? 'bg-primary text-white border-primaryHover font-bold'
+                : 'bg-gray-100 hover:bg-gray-200 border-gray-300'
+              }`}
+            onClick={() => setOmActiveTeam('all')}
+          >
+            Tất cả
+          </button>
+          {teams.map((t) => (
+            <button
+              key={t}
+              className={`px-3 py-1.5 text-sm rounded border transition ${omActiveTeam === t ? 'bg-primary text-white border-primaryHover font-bold' : 'bg-gray-100 hover:bg-gray-200 border-gray-300'
+                }`}
+              onClick={() => setOmActiveTeam(t)}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
 
 
       <div className="sticky top-0 z-[40] bg-white p-4 rounded-md shadow-md border border-gray-200 mb-6 flex justify-between items-center flex-wrap gap-4">
@@ -1106,29 +1110,27 @@ function FFM() {
         </div>
 
         <div className="flex gap-2">
-            <button
-              onClick={() => {
-                setOmShowTracking(!omShowTracking);
-                setOmShowDuplicateTracking(false);
-              }}
-              className={`px-3 py-1.5 text-sm rounded border ${
-                omShowTracking ? 'bg-dangerHover text-white' : 'bg-danger text-white'
+          <button
+            onClick={() => {
+              setOmShowTracking(!omShowTracking);
+              setOmShowDuplicateTracking(false);
+            }}
+            className={`px-3 py-1.5 text-sm rounded border ${omShowTracking ? 'bg-dangerHover text-white' : 'bg-danger text-white'
               } transition`}
-            >
-              {omShowTracking ? 'Đơn không Tracking' : 'Đơn có Tracking'}
-            </button>
-            <button
-              onClick={() => {
-                setOmShowDuplicateTracking(!omShowDuplicateTracking);
-                setOmShowTracking(false);
-              }}
-              className={`px-3 py-1.5 text-sm rounded border ${
-                omShowDuplicateTracking ? 'bg-dangerHover text-white' : 'bg-danger text-white'
+          >
+            {omShowTracking ? 'Đơn không Tracking' : 'Đơn có Tracking'}
+          </button>
+          <button
+            onClick={() => {
+              setOmShowDuplicateTracking(!omShowDuplicateTracking);
+              setOmShowTracking(false);
+            }}
+            className={`px-3 py-1.5 text-sm rounded border ${omShowDuplicateTracking ? 'bg-dangerHover text-white' : 'bg-danger text-white'
               } transition`}
-            >
-              {omShowDuplicateTracking ? 'Tất cả đơn' : 'Trùng Tracking'}
-            </button>
-          </div>
+          >
+            {omShowDuplicateTracking ? 'Tất cả đơn' : 'Trùng Tracking'}
+          </button>
+        </div>
       </div>
 
       <div className="bg-white shadow-md rounded border border-gray-200 overflow-auto max-h-[65vh] relative select-none">
@@ -1212,8 +1214,8 @@ function FFM() {
                       const displayVal = ['Ngày lên đơn', 'Ngày đóng hàng', 'Ngày đẩy đơn', 'Ngày có mã tracking', 'Ngày Kế toán đối soát với FFM lần 2'].includes(col)
                         ? formatDate(val)
                         : col === 'Tổng tiền VNĐ'
-                        ? Number(String(val).replace(/[^\d.-]/g, '')).toLocaleString('vi-VN')
-                        : val;
+                          ? Number(String(val).replace(/[^\d.-]/g, '')).toLocaleString('vi-VN')
+                          : val;
 
                       const cellStyle = cIdx < fixedColumns ? { position: 'sticky', left: cIdx * 100, zIndex: 10 } : {};
 
@@ -1351,15 +1353,14 @@ function FFM() {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto min-w-[300px] p-4 rounded shadow-lg bg-white border-l-4 transform transition-all animate-in slide-in-from-right-10 duration-300 ${
-              t.type === 'success'
+            className={`pointer-events-auto min-w-[300px] p-4 rounded shadow-lg bg-white border-l-4 transform transition-all animate-in slide-in-from-right-10 duration-300 ${t.type === 'success'
                 ? 'border-success bg-green-50'
                 : t.type === 'error'
-                ? 'border-danger bg-red-50'
-                : t.type === 'loading'
-                ? 'border-primary bg-blue-50'
-                : 'border-primary bg-white'
-            }`}
+                  ? 'border-danger bg-red-50'
+                  : t.type === 'loading'
+                    ? 'border-primary bg-blue-50'
+                    : 'border-primary bg-white'
+              }`}
           >
             <div className="flex justify-between items-start">
               <div className="flex items-center gap-3">

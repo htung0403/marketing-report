@@ -1,6 +1,20 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import usePermissions from '../hooks/usePermissions';
 
 export default function NhapBaoCaoSale() {
+    const location = useLocation();
+    const searchParams = new URLSearchParams(location.search);
+    const teamFilter = searchParams.get('team'); // 'RD' or null
+
+    // Permission Logic
+    const { canView } = usePermissions();
+    const permissionCode = teamFilter === 'RD' ? 'RND_INPUT' : 'SALE_INPUT';
+
+    if (!canView(permissionCode)) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+    }
+
     const [currentUserInfo, setCurrentUserInfo] = useState({ ten: '', email: '' });
 
     useEffect(() => {
@@ -9,6 +23,7 @@ export default function NhapBaoCaoSale() {
         const email = localStorage.getItem('userEmail') || '';
         setCurrentUserInfo({ ten, email });
     }, []);
+
 
     if (!currentUserInfo.ten || !currentUserInfo.email) {
         return (

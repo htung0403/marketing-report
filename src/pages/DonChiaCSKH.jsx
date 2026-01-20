@@ -6,6 +6,7 @@ import { supabase } from '../supabase/config';
 
 // Helper Functions
 const getRowValue = (row, ...keys) => {
+
   if (!row) return null;
   for (const key of keys) {
     if (row[key] !== undefined && row[key] !== null && row[key] !== '') {
@@ -35,6 +36,10 @@ const parseMoney = (moneyString) => {
 
 
 export default function DonChiaCSKH() {
+  const { canView } = usePermissions();
+  if (!canView('CSKH_PAID')) {
+    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (CSKH_PAID).</div>;
+  }
   const navigate = useNavigate();
   const [allData, setAllData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);

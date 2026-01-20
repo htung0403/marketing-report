@@ -1,9 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-// If xlsx is not available, processExcelFile will fail. Assuming environment setup.
-// I will keep imports minimal.
+import { useLocation } from 'react-router-dom';
+import usePermissions from '../hooks/usePermissions';
 import { supabase } from '../supabase/config';
 
 export default function BaoCaoMarketing() {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const teamFilter = searchParams.get('team'); // 'RD' or null
+
+  // Permission Logic
+  const { canView } = usePermissions();
+  const permissionCode = teamFilter === 'RD' ? 'RND_INPUT' : 'MKT_INPUT';
+
+  if (!canView(permissionCode)) {
+    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+  }
+
   const [appData, setAppData] = useState({
     employeeDetails: [],
     shiftList: ['Hết ca', 'Giữa ca'],

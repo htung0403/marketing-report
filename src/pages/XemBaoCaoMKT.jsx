@@ -1,6 +1,7 @@
 import { ChevronLeft } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import usePermissions from '../hooks/usePermissions';
 import { supabase } from '../supabase/config';
 import { isDateInRange, parseSmartDate } from '../utils/dateParsing';
 import './XemBaoCaoMKT.css';
@@ -11,6 +12,18 @@ const MARKET_GROUPS = {
 };
 
 export default function XemBaoCaoMKT() {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const teamFilter = searchParams.get('team'); // 'RD' or null
+
+  // Permission Logic
+  const { canView } = usePermissions();
+  const permissionCode = teamFilter === 'RD' ? 'RND_VIEW' : 'MKT_VIEW';
+
+  if (!canView(permissionCode)) {
+    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+  }
+
   const [activeTab, setActiveTab] = useState('DetailedReport');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);

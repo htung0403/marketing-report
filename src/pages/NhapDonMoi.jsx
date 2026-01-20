@@ -82,6 +82,21 @@ const DatePicker = ({ value, onChange, className = "" }) => (
 const cn = (...classes) => classes.filter(Boolean).join(' ');
 
 export default function NhapDonMoi({ isEdit = false }) {
+    const [searchParams] = useSearchParams();
+    const teamFilter = searchParams.get('team'); // 'RD' or null
+
+    // Permission Logic
+    const { canView } = usePermissions();
+    const hasAccess = useMemo(() => {
+        if (teamFilter === 'RD') return canView('RND_NEW_ORDER');
+        // Any valid "New Order" permission
+        return canView('SALE_NEW_ORDER') || canView('CSKH_NEW_ORDER') || canView('ORDERS_NEW') || canView('RND_NEW_ORDER');
+    }, [canView, teamFilter]);
+
+    if (!hasAccess) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này.</div>;
+    }
+
     // -------------------------------------------------------------------------
     // 0. USER INFO (Extracted early for state initialization)
     // -------------------------------------------------------------------------
@@ -109,7 +124,7 @@ export default function NhapDonMoi({ isEdit = false }) {
     const [activeTab, setActiveTab] = useState("khach-hang");
     const [isSaving, setIsSaving] = useState(false);
 
-    const [searchParams] = useSearchParams();
+
 
     // Edit Mode State
     const [searchQuery, setSearchQuery] = useState(searchParams.get("orderId") || "");

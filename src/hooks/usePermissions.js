@@ -146,3 +146,5 @@ export const usePermissions = () => {
         refreshPermissions: () => { lastFetchTime = 0; } // Force refresh
     };
 };
+
+export default usePermissions;

@@ -2,13 +2,18 @@ import { Download, Edit, Eye, RefreshCw, Search, Settings, Trash2, X } from 'luc
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { usePermissions } from '../hooks/usePermissions';
+import usePermissions from '../hooks/usePermissions';
 import { supabase } from '../supabase/config';
 import { COLUMN_MAPPING, PRIMARY_KEY_COLUMN } from '../types';
 
 function QuanLyCSKH() {
   const navigate = useNavigate(); // Add hook for navigation if needed, or just use Link
-  const { canEdit, canDelete } = usePermissions();
+  const { canView, canEdit, canDelete } = usePermissions();
+
+  if (!canView('CSKH_LIST')) {
+    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (CSKH_LIST).</div>;
+  }
+
   const [allData, setAllData] = useState([]);
 
   const [loading, setLoading] = useState(false);
