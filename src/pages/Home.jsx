@@ -12,7 +12,6 @@ import {
   Edit3,
   FileText,
   ListTodo,
-  Medal,
   Megaphone,
   Menu,
   Package,
@@ -107,42 +106,49 @@ function Home() {
       label: "CSKH & CRM",
       icon: <Users className="w-5 h-5" />,
       path: "#",
+      // permission: 'MODULE_CSKH', // Optional: Hide entire group if no child is visible
       subItems: [
         {
           id: "crm-list",
           label: "Danh sách đơn",
           icon: <Users className="w-4 h-4" />,
           path: "/quan-ly-cskh",
+          permission: 'CSKH_LIST',
         },
         {
           id: "crm-paid",
           label: "Đơn đã thu tiền/cần CS",
           icon: <FileText className="w-4 h-4" />,
           path: "/don-chia-cskh",
+          permission: 'CSKH_PAID',
         },
         {
           id: "crm-new-order",
           label: "Nhập đơn mới",
           icon: <PlusCircle className="w-4 h-4" />,
           path: "/nhap-don",
+          permission: 'CSKH_NEW_ORDER',
         },
         {
           id: "crm-input-report",
           label: "Nhập báo cáo",
           icon: <Edit3 className="w-4 h-4" />,
           path: "/nhap-bao-cao-cskh",
+          permission: 'CSKH_INPUT',
         },
         {
           id: "crm-view-report",
           label: "Xem báo cáo Sale",
           icon: <BarChart3 className="w-4 h-4" />,
           path: "/xem-bao-cao-cskh",
+          permission: 'CSKH_VIEW',
         },
         {
           id: "crm-history",
           label: "Lịch sử thay đổi",
           icon: <ClipboardList className="w-4 h-4" />,
           path: "/lich-su-cskh",
+          permission: 'CSKH_HISTORY',
         },
       ],
     },
@@ -157,31 +163,42 @@ function Home() {
           label: "Danh sách đơn",
           icon: <ClipboardList className="w-4 h-4" />,
           path: "/danh-sach-don",
+          permission: 'SALE_ORDERS',
         },
-
         {
           id: "new-order",
           label: "Nhập đơn mới",
           icon: <PlusCircle className="w-4 h-4" />,
           path: "/nhap-don",
+          permission: 'SALE_NEW_ORDER', // Note: reused path but permission specific to module
         },
         {
           id: "sale-report",
           label: "Sale nhập báo cáo",
           icon: <TrendingUp className="w-4 h-4" />,
           path: "/sale-nhap-bao-cao",
+          permission: 'SALE_INPUT',
         },
         {
           id: "view-sale-report",
           label: "Xem báo cáo Sale",
           icon: <BarChart3 className="w-4 h-4" />,
           path: "/xem-bao-cao-sale",
+          permission: 'SALE_VIEW',
+        },
+        {
+          id: "sale-manual-report",
+          label: "Danh sách báo cáo tay",
+          icon: <Database className="w-4 h-4" />,
+          path: "/danh-sach-bao-cao-tay",
+          permission: 'SALE_MANUAL',
         },
         {
           id: "sale-history",
           label: "Lịch sử thay đổi",
           icon: <ClipboardList className="w-4 h-4" />,
           path: "/lich-su-sale-order",
+          permission: 'SALE_HISTORY',
         },
       ],
     },
@@ -196,30 +213,28 @@ function Home() {
           label: "Quản lý vận đơn",
           icon: <ClipboardList className="w-4 h-4" />,
           path: "/van-don",
+          permission: 'ORDERS_LIST',
         },
         {
           id: "delivery-report",
           label: "Báo cáo vận đơn",
           icon: <BarChart3 className="w-4 h-4" />,
           path: "/bao-cao-van-don",
+          // permission: 'ORDERS_REPORT', // Not in map yet?
         },
         {
           id: "delivery-history",
           label: "Lịch sử thay đổi",
           icon: <ClipboardList className="w-4 h-4" />,
           path: "/lich-su-van-don",
-        },
-        {
-          id: "edit-order",
-          label: "Chỉnh sửa đơn",
-          icon: <Edit3 className="w-4 h-4" />,
-          path: "#",
+          permission: 'ORDERS_HISTORY',
         },
         {
           id: "ffm",
           label: "FFM",
           icon: <ClipboardList className="w-4 h-4" />,
           path: "/ffm",
+          permission: 'ORDERS_FFM',
         },
       ],
     },
@@ -234,24 +249,35 @@ function Home() {
           label: "Nhập báo cáo",
           icon: <TrendingUp className="w-4 h-4" />,
           path: "/bao-cao-marketing",
+          permission: 'MKT_INPUT',
         },
         {
           id: "mkt-view",
           label: "Xem báo cáo MKT",
           icon: <BarChart3 className="w-4 h-4" />,
           path: "/xem-bao-cao-mkt",
+          permission: 'MKT_VIEW',
         },
         {
           id: "mkt-detail",
           label: "Danh sách đơn",
           icon: <ClipboardList className="w-4 h-4" />,
           path: "/bao-cao-chi-tiet",
+          permission: 'MKT_ORDERS',
         },
         {
           id: "mkt-pages",
           label: "Danh sách Page",
           icon: <ListTodo className="w-4 h-4" />,
           path: "/danh-sach-page",
+          permission: 'MKT_PAGES',
+        },
+        {
+          id: "mkt-manual",
+          label: "Ds báo cáo tay",
+          icon: <Database className="w-4 h-4" />,
+          path: "/danh-sach-bao-cao-tay-mkt",
+          permission: 'MKT_MANUAL',
         },
       ],
     },
@@ -266,36 +292,49 @@ function Home() {
           label: "Nhập báo cáo",
           icon: <TrendingUp className="w-4 h-4" />,
           path: "/bao-cao-rd",
+          permission: 'RND_INPUT',
         },
         {
           id: "rnd-view",
           label: "Xem báo cáo R&D",
           icon: <BarChart3 className="w-4 h-4" />,
           path: "/xem-bao-cao-rd",
+          permission: 'RND_VIEW',
         },
         {
-          id: "rnd-detail",
+          id: "rnd-orders",
           label: "Danh sách đơn",
           icon: <ClipboardList className="w-4 h-4" />,
           path: "/bao-cao-chi-tiet-rd",
+          permission: 'RND_ORDERS',
         },
         {
           id: "rnd-pages",
           label: "Danh sách Page",
           icon: <ListTodo className="w-4 h-4" />,
           path: "/danh-sach-page-rd",
+          permission: 'RND_PAGES',
         },
         {
-          id: "rnd-sale-input",
+          id: "rnd-manual",
+          label: "Ds báo cáo tay",
+          icon: <Database className="w-4 h-4" />,
+          path: "/danh-sach-bao-cao-tay-rd",
+          permission: 'RND_MANUAL',
+        },
+        {
+          id: "rnd-new-order",
           label: "Nhập đơn mới",
           icon: <TrendingUp className="w-4 h-4" />,
           path: "/nhap-don",
+          permission: 'RND_NEW_ORDER',
         },
         {
           id: "rnd-history",
           label: "Lịch sử thay đổi",
           icon: <ClipboardList className="w-4 h-4" />,
           path: "/lich-su-sale-order",
+          permission: 'RND_HISTORY',
         },
       ],
     },
@@ -369,15 +408,7 @@ function Home() {
           isExternal: true,
           adminOnly: true,
         },
-        {
-          id: "hr-honor",
-          label: "Tôn vinh",
-          icon: <Medal className="w-4 h-4" />,
-          path: "https://hr-management-self.vercel.app/honor",
-          isExternal: true,
-          permission: 'MODULE_LUMI',
-        },
-
+        // Removed Honor (Tôn vinh) item
       ],
     },
     {
@@ -508,6 +539,7 @@ function Home() {
           color: "bg-blue-500",
           path: "/quan-ly-cskh",
           status: "Mở ứng dụng",
+          permission: 'CSKH_LIST',
         },
         {
           title: "Đơn đã thu tiền/cần CS",
@@ -515,6 +547,7 @@ function Home() {
           color: "bg-cyan-500",
           path: "/don-chia-cskh",
           status: "Mở ứng dụng",
+          permission: 'CSKH_PAID',
         },
         {
           title: "Nhập đơn mới",
@@ -522,6 +555,7 @@ function Home() {
           color: "bg-green-500",
           path: "/nhap-don",
           status: "Mở ứng dụng",
+          permission: 'CSKH_NEW_ORDER',
         },
         {
           title: "Nhập báo cáo",
@@ -529,13 +563,15 @@ function Home() {
           color: "bg-blue-500",
           path: "/nhap-bao-cao-cskh",
           status: "Mở ứng dụng",
+          permission: 'CSKH_INPUT',
         },
         {
-          title: "Xem báo cáo Sale",
+          title: "Xem báo cáo CSKH",
           icon: <BarChart3 className="w-8 h-8" />,
           color: "bg-orange-600",
           path: "/xem-bao-cao-cskh",
           status: "Mở ứng dụng",
+          permission: 'CSKH_VIEW',
         },
         {
           title: "Lịch sử thay đổi",
@@ -543,6 +579,7 @@ function Home() {
           color: "bg-gray-600",
           path: "/lich-su-cskh",
           status: "Mở ứng dụng",
+          permission: 'CSKH_HISTORY',
         },
       ],
     },
@@ -555,14 +592,15 @@ function Home() {
           color: "bg-purple-500",
           path: "/danh-sach-don",
           status: "Mở ứng dụng",
+          permission: 'SALE_ORDERS',
         },
-
         {
           title: "Nhập đơn mới",
           icon: <PlusCircle className="w-8 h-8" />,
-          color: "bg-purple-500",
+          color: "bg-purple-500", // Matched existing file
           path: "/nhap-don",
           status: "Mở ứng dụng",
+          permission: 'SALE_NEW_ORDER',
         },
         {
           title: "Sale nhập báo cáo",
@@ -570,6 +608,7 @@ function Home() {
           color: "bg-blue-600",
           path: "/sale-nhap-bao-cao",
           status: "Mở ứng dụng",
+          permission: 'SALE_INPUT',
         },
         {
           title: "Xem báo cáo Sale",
@@ -577,6 +616,7 @@ function Home() {
           color: "bg-orange-600",
           path: "/xem-bao-cao-sale",
           status: "Mở ứng dụng",
+          permission: 'SALE_VIEW',
         },
         {
           title: "Ds báo cáo tay",
@@ -584,6 +624,7 @@ function Home() {
           color: "bg-cyan-600",
           path: "/danh-sach-bao-cao-tay",
           status: "Mở ứng dụng",
+          permission: 'SALE_MANUAL',
         },
         {
           title: "Lịch sử thay đổi",
@@ -591,6 +632,7 @@ function Home() {
           color: "bg-gray-600",
           path: "/lich-su-sale-order",
           status: "Mở ứng dụng",
+          permission: 'SALE_HISTORY',
         },
       ],
     },
@@ -603,6 +645,7 @@ function Home() {
           color: "bg-[#F37021]",
           path: "/van-don",
           status: "Mở ứng dụng",
+          permission: 'ORDERS_LIST',
         },
         {
           title: "Báo cáo vận đơn",
@@ -610,6 +653,7 @@ function Home() {
           color: "bg-teal-500",
           path: "/bao-cao-van-don",
           status: "Mở ứng dụng",
+          // permission: 'ORDERS_REPORT',
         },
         {
           title: "Chỉnh sửa đơn",
@@ -624,6 +668,7 @@ function Home() {
           color: "bg-indigo-500",
           path: "/ffm",
           status: "Mở ứng dụng",
+          permission: 'ORDERS_FFM',
         },
         {
           title: "Lịch sử thay đổi",
@@ -631,6 +676,7 @@ function Home() {
           color: "bg-gray-500", // Choosing a neutral color or distinct color
           path: "/lich-su-van-don",
           status: "Mở ứng dụng",
+          permission: 'ORDERS_HISTORY',
         },
       ],
     },
@@ -643,6 +689,7 @@ function Home() {
           color: "bg-green-500",
           path: "/bao-cao-marketing",
           status: "Mở ứng dụng",
+          permission: 'MKT_INPUT',
         },
         {
           title: "Xem báo cáo MKT",
@@ -650,6 +697,7 @@ function Home() {
           color: "bg-orange-500",
           path: "/xem-bao-cao-mkt",
           status: "Mở ứng dụng",
+          permission: 'MKT_VIEW',
         },
         {
           title: "Danh sách đơn",
@@ -657,6 +705,7 @@ function Home() {
           color: "bg-blue-500",
           path: "/bao-cao-chi-tiet",
           status: "Mở ứng dụng",
+          permission: 'MKT_ORDERS',
         },
         {
           title: "Danh sách Page",
@@ -664,6 +713,7 @@ function Home() {
           color: "bg-purple-600",
           path: "/danh-sach-page",
           status: "Mở ứng dụng",
+          permission: 'MKT_PAGES',
         },
         {
           title: "Ds báo cáo tay",
@@ -671,6 +721,7 @@ function Home() {
           color: "bg-teal-600",
           path: "/danh-sach-bao-cao-tay-mkt",
           status: "Mở ứng dụng",
+          permission: 'MKT_MANUAL',
         },
       ],
     },
@@ -683,6 +734,7 @@ function Home() {
           color: "bg-gradient-to-br from-pink-500 to-rose-600",
           path: "/bao-cao-rd",
           status: "Mở ứng dụng",
+          permission: 'RND_INPUT',
         },
         {
           title: "Xem báo cáo R&D",
@@ -690,6 +742,7 @@ function Home() {
           color: "bg-gradient-to-br from-pink-500 to-rose-600",
           path: "/xem-bao-cao-rd",
           status: "Mở ứng dụng",
+          permission: 'RND_VIEW',
         },
         {
           title: "Danh sách đơn",
@@ -697,6 +750,7 @@ function Home() {
           color: "bg-gradient-to-br from-purple-500 to-pink-600",
           path: "/bao-cao-chi-tiet-rd",
           status: "Mở ứng dụng",
+          permission: 'RND_ORDERS',
         },
         {
           title: "Danh sách Page",
@@ -704,6 +758,15 @@ function Home() {
           color: "bg-gradient-to-br from-orange-400 to-pink-500",
           path: "/danh-sach-page-rd",
           status: "Mở ứng dụng",
+          permission: 'RND_PAGES',
+        },
+        {
+          title: "Ds báo cáo tay",
+          icon: <Database className="w-7 h-7" />,
+          color: "bg-gradient-to-br from-teal-500 to-cyan-600",
+          path: "/danh-sach-bao-cao-tay-rd",
+          status: "Mở ứng dụng",
+          permission: 'RND_MANUAL',
         },
         {
           title: "Nhập đơn mới",
@@ -711,6 +774,7 @@ function Home() {
           color: "bg-gradient-to-br from-green-500 to-emerald-600",
           path: "/nhap-don",
           status: "Mở ứng dụng",
+          permission: 'RND_NEW_ORDER',
         },
         {
           title: "Lịch sử thay đổi",
@@ -718,6 +782,7 @@ function Home() {
           color: "bg-gray-600",
           path: "/lich-su-sale-order",
           status: "Mở ứng dụng",
+          permission: 'RND_HISTORY',
         },
       ],
     },
@@ -795,18 +860,7 @@ function Home() {
           isExternal: true,
           adminOnly: true,
         },
-        {
-          title: "Tôn vinh",
-          icon: <Medal className="w-8 h-8" />,
-          color: "bg-pink-600",
-          path: "https://hr-management-self.vercel.app/honor",
-          status: "Mở ứng dụng",
-          isExternal: true,
-          permission: 'MODULE_LUMI',
-        },
-
-
-
+        // Removed Honor card
       ],
     },
     {
@@ -895,50 +949,59 @@ function Home() {
     },
   ];
 
-  const RBAC_MAP = {
-    'rnd': 'MODULE_RND',
-    'sale': 'MODULE_SALE',
-    'delivery': 'MODULE_ORDERS',
-    'crm': 'MODULE_CSKH',
-    'settings': 'MODULE_ADMIN',
-    'marketing': 'MODULE_MKT',
-    'hr': ['MODULE_ADMIN', 'MODULE_LUMI'],
-    'finance': 'MODULE_ADMIN'
+  // --- RECURSIVE PERMISSION FILTERING ---
+
+  // Helper to check if an item (or any of its children) is visible
+  const isItemVisible = (item) => {
+    // 1. Admin Bypass
+    if (userRole === 'admin') return true;
+    if (item.adminOnly) return false;
+
+    // 2. Check explicit permission if present for leaf node
+    if (item.permission) {
+      return canView(item.permission);
+    }
+
+    // 3. If it has sub-items, check if AT LEAST ONE sub-item is visible
+    if (item.subItems && item.subItems.length > 0) {
+      // Filter subItems first to see what remains
+      const visibleSubItems = item.subItems.filter(sub => isItemVisible(sub));
+      return visibleSubItems.length > 0;
+    }
+
+    // 4. Default safe fallback: if no permission stricture defined, show it (or hide it? strict vs loose)
+    // For this system, let's look at legacy behavior. Previous behavior was loose unless restricted.
+    // However, for new RBAC, modules should be hidden if empty. 
+
+    // For top-level items without permission (like 'home'), show them.
+    // For items without children and without permission specified, show them unless adminOnly was checked above.
+    return true;
   };
 
-  const isVisible = (id) => {
-    const resCode = RBAC_MAP[id];
-    if (!resCode) return true;
-    if (Array.isArray(resCode)) return resCode.some(code => canView(code));
-    return canView(resCode);
-  };
+  // Filter Menu Items
+  const filteredMenuItems = allMenuItems
+    .map(item => {
+      // Clone item to avoid mutating original
+      const newItem = { ...item };
+      if (newItem.subItems) {
+        newItem.subItems = newItem.subItems.filter(sub => isItemVisible(sub));
+      }
+      return newItem;
+    })
+    .filter(item => {
+      // Keep if visible AND (no children OR has visible children)
+      if (item.subItems && item.subItems.length === 0) return false;
+      return isItemVisible(item);
+    });
 
-  const filteredMenuItems = allMenuItems.filter(
-    (item) => isVisible(item.id) && (!item.adminOnly || userRole === "admin")
-  );
-
-  const SECTION_RBAC_MAP = {
-    "QUẢN LÝ R&D": 'MODULE_RND',
-    "QUẢN LÝ MARKETING": 'MODULE_MKT',
-    "QUẢN LÝ SALE & ORDER": 'MODULE_SALE',
-    "QUẢN LÝ GIAO HÀNG": 'MODULE_ORDERS',
-    "CSKH & CRM": 'MODULE_CSKH',
-    "CÀI ĐẶT HỆ THỐNG": 'MODULE_ADMIN',
-    "QUẢN LÝ TÀI CHÍNH": 'MODULE_ADMIN',
-    "QUẢN LÝ NHÂN SỰ": ['MODULE_ADMIN', 'MODULE_LUMI']
-  };
-
-  const filteredSections = allContentSections.filter(section => {
-    const resCode = SECTION_RBAC_MAP[section.title];
-    if (!resCode) return true;
-    if (Array.isArray(resCode)) return resCode.some(code => canView(code));
-    return canView(resCode);
-  }).map((section) => ({
-    ...section,
-    items: section.items.filter(
-      (item) => (!item.adminOnly || userRole === "admin") && (!item.permission || canView(item.permission))
-    ),
-  }));
+  // Filter Dashboard Cards (Sections)
+  const filteredSections = allContentSections
+    .map(section => {
+      // Filter items in section
+      const visibleItems = section.items.filter(item => isItemVisible(item));
+      return { ...section, items: visibleItems };
+    })
+    .filter(section => section.items.length > 0);
 
   // --- NEWS FEED LOGIC ---
   const [news, setNews] = useState([]);

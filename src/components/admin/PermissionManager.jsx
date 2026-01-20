@@ -2,10 +2,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Check, ChevronDown, Lock, Plus, Shield, Trash2, Users } from 'lucide-react';
+import { Check, ChevronDown, Edit, Lock, Plus, Shield, Trash2, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import * as rbacService from '../../services/rbacService';
+import PermissionTree from './PermissionTree';
 
 // Helper Component for Multi-Select Columns
 const MultiSelectColumn = ({ resourceCode, selectedColumns, onChange }) => {
@@ -123,6 +124,10 @@ const PermissionManager = () => {
     // Matrix State
     const [selectedRole, setSelectedRole] = useState(null);
 
+    // Edit User Role State
+    const [editingUser, setEditingUser] = useState(null); // { email, role_code }
+    const [newAssignRole, setNewAssignRole] = useState('');
+
     useEffect(() => {
         loadData();
     }, []);
@@ -190,6 +195,19 @@ const PermissionManager = () => {
             loadData();
         } catch (error) {
             toast.error("Lỗi: " + error.message);
+        }
+    };
+
+    const handleUpdateUserRole = async () => {
+        if (!editingUser || !newAssignRole) return toast.warning("Vui lòng chọn vai trò mới");
+        try {
+            await rbacService.assignUserRole(editingUser.email, newAssignRole);
+            toast.success(`Đã cập nhật quyền cho ${editingUser.email}`);
+            setEditingUser(null);
+            setNewAssignRole('');
+            loadData();
+        } catch (error) {
+            toast.error("Lỗi cập nhật: " + error.message);
         }
     };
 
@@ -464,9 +482,25 @@ const PermissionManager = () => {
                                                 </td>
                                                 <td className="p-3 text-gray-500 text-xs">{new Date(ur.assigned_at).toLocaleDateString()}</td>
                                                 <td className="p-3 text-center">
-                                                    <button onClick={() => handleRemoveUser(ur.email)} className="text-gray-400 hover:text-red-600 p-1">
-                                                        <Trash2 size={16} />
-                                                    </button>
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditingUser({ email: ur.email, role_code: ur.role_code });
+                                                                setNewAssignRole(ur.role_code);
+                                                            }}
+                                                            className="text-gray-400 hover:text-blue-600 p-1"
+                                                            title="Sửa quyền"
+                                                        >
+                                                            <Edit size={16} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleRemoveUser(ur.email)}
+                                                            className="text-gray-400 hover:text-red-600 p-1"
+                                                            title="Xóa quyền"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         )
@@ -474,6 +508,46 @@ const PermissionManager = () => {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Edit User Role Modal */}
+                        {editingUser && (
+                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                                <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                                    <h3 className="text-lg font-bold text-gray-800 mb-4">Sửa Vai Trò</h3>
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Email: <strong>{editingUser.email}</strong>
+                                        </label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Chọn vai trò mới:</label>
+                                        <select
+                                            className="border p-2 rounded text-sm w-full"
+                                            value={newAssignRole}
+                                            onChange={e => setNewAssignRole(e.target.value)}
+                                        >
+                                            <option value="">-- Chọn Role --</option>
+                                            {roles.map(r => <option key={r.code} value={r.code}>{r.name} ({r.code})</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="flex justify-end gap-2">
+                                        <button
+                                            onClick={() => {
+                                                setEditingUser(null);
+                                                setNewAssignRole('');
+                                            }}
+                                            className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300 text-sm"
+                                        >
+                                            Hủy
+                                        </button>
+                                        <button
+                                            onClick={handleUpdateUserRole}
+                                            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm"
+                                        >
+                                            Cập nhật
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -493,45 +567,7 @@ const PermissionManager = () => {
                         </div>
 
                         {selectedRole ? (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left border rounded-lg">
-                                    <thead className="bg-gray-100 font-semibold text-gray-700">
-                                        <tr>
-                                            <th className="p-3 border-b w-64">Module (Resource)</th>
-                                            <th className="p-3 border-b text-center w-20">Xem</th>
-                                            <th className="p-3 border-b">Cột được phép (Nhập tên cột, cách nhau dấu phẩy)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y text-gray-700">
-                                        {rbacService.AVAILABLE_RESOURCES.map(res => {
-                                            const perm = permissions.find(p => p.resource_code === res.code) || {};
-                                            const cols = perm.allowed_columns || ['*'];
-                                            const colString = Array.isArray(cols) ? cols.join(', ') : '*';
-
-                                            return (
-                                                <tr key={res.code} className="hover:bg-gray-50">
-                                                    <td className="p-3 font-medium border-r bg-gray-50">{res.name}</td>
-                                                    <td className="p-3 text-center border-r">
-                                                        <input
-                                                            type="checkbox"
-                                                            className="w-5 h-5 text-blue-600 rounded"
-                                                            checked={!!perm.can_view}
-                                                            onChange={e => handlePermissionChange(res.code, 'can_view', e.target.checked)}
-                                                        />
-                                                    </td>
-                                                    <td className="p-3">
-                                                        <MultiSelectColumn
-                                                            resourceCode={res.code}
-                                                            selectedColumns={cols}
-                                                            onChange={(newCols) => handlePermissionChange(res.code, 'allowed_columns', newCols)}
-                                                        />
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
+                            <PermissionTree roleCode={selectedRole} />
                         ) : (
                             <div className="text-center py-12 text-gray-400 bg-gray-50 border border-dashed rounded-lg">
                                 Vui lòng chọn một Nhóm quyền để cấu hình.

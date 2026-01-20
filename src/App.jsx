@@ -24,6 +24,7 @@ import BaoCaoChiTietRnD from './pages/BaoCaoChiTietRnD';
 import BaoCaoRnD from './pages/BaoCaoRnD';
 import DanhSachBaoCaoTay from './pages/DanhSachBaoCaoTay';
 import DanhSachBaoCaoTayMKT from './pages/DanhSachBaoCaoTayMKT';
+import DanhSachBaoCaoTayRnD from './pages/DanhSachBaoCaoTayRnD';
 import DanhSachDon from './pages/DanhSachDon';
 import DanhSachPage from './pages/DanhSachPage';
 import DanhSachPageRnD from './pages/DanhSachPageRnD';
@@ -102,6 +103,7 @@ function App() {
             <Route path="/xem-bao-cao-rd" element={<ProtectedRoute><XemBaoCaoRnD /></ProtectedRoute>} />
             <Route path="/bao-cao-chi-tiet-rd" element={<ProtectedRoute><BaoCaoChiTietRnD /></ProtectedRoute>} />
             <Route path="/danh-sach-page-rd" element={<ProtectedRoute><DanhSachPageRnD /></ProtectedRoute>} />
+            <Route path="/danh-sach-bao-cao-tay-rd" element={<ProtectedRoute><DanhSachBaoCaoTayRnD /></ProtectedRoute>} />
 
             {/* History Routes */}
             <Route path="/lich-su-thay-doi" element={<ProtectedRoute><ChangeLogViewer /></ProtectedRoute>} />

@@ -59,9 +59,9 @@ export const usePermissions = () => {
                         return { permissions: [], role: null };
                     }
 
-                    // 2. Get Permissions for Role
+                    // 2. Get Permissions for Role (New Table)
                     const { data: permData, error: pError } = await supabase
-                        .from('app_permissions')
+                        .from('app_page_permissions')
                         .select('*')
                         .eq('role_code', userRoleCode);
 
@@ -94,38 +94,43 @@ export const usePermissions = () => {
 
     // --- CHECKER FUNCTIONS ---
 
-    const canView = (resourceCode) => {
+    const canView = (pageCode) => {
         // Legacy Admin Bypass
         const legacyRole = localStorage.getItem('userRole');
         if (legacyRole === 'admin') return true;
 
         if (role === 'ADMIN') return true; // Admin bypass
-        const p = permissions.find(x => x.resource_code === resourceCode);
+
+        // If the pageCode is actually a module code (e.g., checking if module is visible)
+        // We might want to return true if ANY page in the module is visible, or check specifically.
+        // For now, assume strict page code checking.
+
+        const p = permissions.find(x => x.page_code === pageCode);
         return !!p?.can_view;
     };
 
-    const canEdit = (resourceCode) => {
+    const canEdit = (pageCode) => {
         if (role === 'ADMIN') return true;
-        const p = permissions.find(x => x.resource_code === resourceCode);
+        const p = permissions.find(x => x.page_code === pageCode);
         return !!p?.can_edit;
     };
 
-    const canDelete = (resourceCode) => {
+    const canDelete = (pageCode) => {
         if (role === 'ADMIN') return true;
-        const p = permissions.find(x => x.resource_code === resourceCode);
+        const p = permissions.find(x => x.page_code === pageCode);
         return !!p?.can_delete;
     };
 
-    const getAllowedColumns = (resourceCode) => {
+    const getAllowedColumns = (pageCode) => {
         if (role === 'ADMIN') return ['*'];
-        const p = permissions.find(x => x.resource_code === resourceCode);
+        const p = permissions.find(x => x.page_code === pageCode);
         if (!p) return []; // No permission entry means access denied generally
         return p.allowed_columns || []; // JSON array
     };
 
-    const isColumnAllowed = (resourceCode, columnName) => {
+    const isColumnAllowed = (pageCode, columnName) => {
         if (role === 'ADMIN') return true;
-        const cols = getAllowedColumns(resourceCode);
+        const cols = getAllowedColumns(pageCode);
         if (cols.includes('*')) return true;
         return cols.includes(columnName);
     };

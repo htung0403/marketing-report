@@ -1,6 +1,7 @@
 import { Download, Edit, Eye, RefreshCw, Search, Settings, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import { supabase } from '../supabase/config';
 import { COLUMN_MAPPING, PRIMARY_KEY_COLUMN } from '../types';
 
@@ -29,6 +30,7 @@ function QuanLyCSKH() {
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
   const [showColumnSettings, setShowColumnSettings] = useState(false);
+  const [selectedRowId, setSelectedRowId] = useState(null);
 
   const defaultColumns = [
     'Mã đơn hàng',
@@ -197,6 +199,8 @@ function QuanLyCSKH() {
     loadData();
   }, [startDate, endDate]);
 
+
+
   // Get unique values for filters
   const uniqueMarkets = useMemo(() => {
     const markets = new Set();
@@ -338,6 +342,62 @@ function QuanLyCSKH() {
 
     return data;
   }, [allData, debouncedSearchText, filterMarket, filterProduct, filterStatus, sortColumn, sortDirection]);
+
+  // Handle Ctrl+C to copy selected row
+  useEffect(() => {
+    const handleKeyDown = async (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        if (!selectedRowId) return;
+
+        const filteredRow = filteredData.find(row => row.id === selectedRowId);
+        if (!filteredRow) return;
+
+        // Prevent default copy behavior if we are handling it
+        e.preventDefault();
+
+        // Format data based on visible columns (displayColumns)
+        const rowValues = displayColumns.map(col => {
+          let value = filteredRow[col];
+
+          if (value === undefined || value === null) {
+            const key = COLUMN_MAPPING[col];
+            if (key) value = filteredRow[key];
+          }
+
+          value = value ?? '';
+
+          // Format date
+          if (col.includes('Ngày') || col.includes('Time') || col === 'order_date') {
+            value = formatDate(value);
+          }
+
+          // Format money
+          if (['Tổng tiền VNĐ', 'Tiền Hàng', 'Phí ship', 'Phí Chung'].includes(col)) {
+            const num = parseFloat(String(value).replace(/[^\d.-]/g, '')) || 0;
+            value = num.toLocaleString('vi-VN') + ' ₫';
+          }
+
+          return String(value).replace(/\t/g, ' ').trim(); // Remove tabs from content to avoid breaking TSV
+        });
+
+        const tsv = rowValues.join('\t');
+
+        try {
+          await navigator.clipboard.writeText(tsv);
+          toast.success("📋 Đã sao chép dòng vào bộ nhớ tạm!", {
+            autoClose: 2000,
+            hideProgressBar: true,
+          });
+        } catch (err) {
+          console.error('Copy failed:', err);
+          toast.error("❌ Sao chép thất bại");
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedRowId, filteredData, displayColumns]);
 
   // Pagination
   const totalPages = Math.ceil(filteredData.length / rowsPerPage);
@@ -723,7 +783,11 @@ function QuanLyCSKH() {
                   </tr>
                 ) : (
                   paginatedData.map((row, index) => (
-                    <tr key={row[PRIMARY_KEY_COLUMN] || index} className="hover:bg-gray-50 transition-colors">
+                    <tr
+                      key={row[PRIMARY_KEY_COLUMN] || index}
+                      onClick={() => setSelectedRowId(row.id)}
+                      className={`cursor-pointer transition-colors ${selectedRowId === row.id ? 'bg-blue-100 hover:bg-blue-200' : 'hover:bg-gray-50'}`}
+                    >
                       {displayColumns.map((col) => {
                         // Priority: Check if row has exact key 'col'. If not, try COLUMN_MAPPING.
                         // This prevents COLUMN_MAPPING from overriding our manually mapped friendly keys.

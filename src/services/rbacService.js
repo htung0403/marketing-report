@@ -91,9 +91,70 @@ export const AVAILABLE_RESOURCES = [
     { code: 'MODULE_SALE', name: 'Module Sale (Báo cáo, Đơn hàng)' },
     { code: 'MODULE_ORDERS', name: 'Quản lý Đơn (Vận đơn / Kho)' },
     { code: 'MODULE_CSKH', name: 'CSKH & CRM' },
-    { code: 'MODULE_ADMIN', name: 'Admin Tools (Cấu hình)' },
-    { code: 'MODULE_LUMI', name: 'Module Tôn vinh (LUmi)' },
+    { code: 'MODULE_ADMIN', name: 'Admin Tools (Cấu hình)' }
 ];
+
+// --- MODULE → PAGE MAPPING (Hierarchical RBAC) ---
+export const MODULE_PAGES = {
+    'MODULE_MKT': {
+        name: 'QUẢN LÝ MARKETING',
+        pages: [
+            { code: 'MKT_INPUT', name: 'Nhập báo cáo', path: '/bao-cao-marketing' },
+            { code: 'MKT_VIEW', name: 'Xem báo cáo MKT', path: '/xem-bao-cao-mkt' },
+            { code: 'MKT_ORDERS', name: 'Danh sách đơn', path: '/bao-cao-chi-tiet' },
+            { code: 'MKT_PAGES', name: 'Danh sách Page', path: '/danh-sach-page' },
+            { code: 'MKT_MANUAL', name: 'Ds báo cáo tay', path: '/danh-sach-bao-cao-tay-mkt' }
+        ]
+    },
+    'MODULE_RND': {
+        name: 'QUẢN LÝ R&D',
+        pages: [
+            { code: 'RND_INPUT', name: 'Nhập báo cáo', path: '/bao-cao-rd' },
+            { code: 'RND_VIEW', name: 'Xem báo cáo R&D', path: '/xem-bao-cao-rd' },
+            { code: 'RND_ORDERS', name: 'Danh sách đơn', path: '/bao-cao-chi-tiet-rd' },
+            { code: 'RND_PAGES', name: 'Danh sách Page', path: '/danh-sach-page-rd' },
+            { code: 'RND_MANUAL', name: 'Ds báo cáo tay', path: '/danh-sach-bao-cao-tay-rd' },
+            { code: 'RND_NEW_ORDER', name: 'Nhập đơn mới', path: '/nhap-don' },
+            { code: 'RND_HISTORY', name: 'Lịch sử thay đổi', path: '/lich-su-sale-order' }
+        ]
+    },
+    'MODULE_SALE': {
+        name: 'QUẢN LÝ SALE & ORDER',
+        pages: [
+            { code: 'SALE_ORDERS', name: 'Danh sách đơn', path: '/danh-sach-don' },
+            { code: 'SALE_INPUT', name: 'Sale nhập báo cáo', path: '/sale-nhap-bao-cao' },
+            { code: 'SALE_VIEW', name: 'Xem báo cáo Sale', path: '/bao-cao-sale' },
+            { code: 'SALE_MANUAL', name: 'Danh sách báo cáo tay', path: '/danh-sach-bao-cao-tay' },
+            { code: 'SALE_HISTORY', name: 'Lịch sử thay đổi', path: '/lich-su-sale-order' }
+        ]
+    },
+    'MODULE_ORDERS': {
+        name: 'QUẢN LÝ VẬN ĐƠN & KHO',
+        pages: [
+            { code: 'ORDERS_LIST', name: 'Danh sách đơn', path: '/quan-ly-van-don' },
+            { code: 'ORDERS_NEW', name: 'Nhập đơn mới', path: '/nhap-don' },
+            { code: 'ORDERS_FFM', name: 'FFM', path: '/ffm' },
+            { code: 'ORDERS_HISTORY', name: 'Lịch sử thay đổi', path: '/lich-su-van-don' }
+        ]
+    },
+    'MODULE_CSKH': {
+        name: 'CSKH & CRM',
+        pages: [
+            { code: 'CSKH_LIST', name: 'Danh sách đơn', path: '/quan-ly-cskh' },
+            { code: 'CSKH_PAID', name: 'Đơn đã thu tiền/cần CS', path: '/don-chia-cskh' },
+            { code: 'CSKH_NEW_ORDER', name: 'Nhập đơn mới', path: '/nhap-don' },
+            { code: 'CSKH_INPUT', name: 'Nhập báo cáo', path: '/nhap-bao-cao-cskh' },
+            { code: 'CSKH_VIEW', name: 'Xem báo cáo CSKH', path: '/xem-bao-cao-cskh' },
+            { code: 'CSKH_HISTORY', name: 'Lịch sử thay đổi', path: '/lich-su-cskh' }
+        ]
+    },
+    'MODULE_ADMIN': {
+        name: 'Admin Tools',
+        pages: [
+            { code: 'ADMIN_TOOLS', name: 'Công cụ quản trị & Cấu hình', path: '/admin' }
+        ]
+    }
+};
 
 // Detailed column definitions for each module
 export const COLUMN_DEFINITIONS = {
@@ -143,4 +204,48 @@ export const getColumnSuggestions = (resourceCode, maxCount = 5) => {
     const cols = COLUMN_DEFINITIONS[resourceCode] || [];
     if (cols[0] === '*') return '*';
     return cols.slice(0, maxCount).join(', ') + (cols.length > maxCount ? '...' : '');
+};
+
+// --- PAGE PERMISSION APIS (Hierarchical RBAC) ---
+export const getPagePermissions = async (role_code) => {
+    const { data, error } = await supabase
+        .from('app_page_permissions')
+        .select('*')
+        .eq('role_code', role_code);
+    if (error) throw error;
+    return data || [];
+};
+
+// Sanitize payload to ensure it matches DB schema exactly
+const sanitizePermission = (p) => ({
+    role_code: p.role_code,
+    page_code: p.page_code,
+    can_view: !!p.can_view,
+    can_edit: !!p.can_edit,
+    can_delete: !!p.can_delete,
+    allowed_columns: Array.isArray(p.allowed_columns) ? p.allowed_columns : null
+});
+
+export const upsertPagePermission = async (permission) => {
+    const payload = sanitizePermission(permission);
+    const { data, error } = await supabase
+        .from('app_page_permissions')
+        .upsert(payload, { onConflict: 'role_code,page_code' })
+        .select();
+    if (error) {
+        console.error("Upsert Permission Error:", error);
+        throw error;
+    }
+    return data[0];
+};
+
+export const batchUpdatePagePermissions = async (permissions) => {
+    const payload = permissions.map(sanitizePermission);
+    const { error } = await supabase
+        .from('app_page_permissions')
+        .upsert(payload, { onConflict: 'role_code,page_code' });
+    if (error) {
+        console.error("Batch Upsert Error:", error);
+        throw error;
+    }
 };

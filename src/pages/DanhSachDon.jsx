@@ -31,6 +31,7 @@ function DanhSachDon() {
   const [sortDirection, setSortDirection] = useState('asc');
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [syncing, setSyncing] = useState(false); // State for sync process
+  const [selectedRowId, setSelectedRowId] = useState(null); // For copy feature
 
   const defaultColumns = [
     'Mã đơn hàng',
@@ -623,6 +624,55 @@ function DanhSachDon() {
     return data;
   }, [allData, debouncedSearchText, filterMarket, filterProduct, filterStatus, searchDate, sortColumn, sortDirection]);
 
+  // Handle Ctrl+C to copy selected row
+  useEffect(() => {
+    const handleKeyDown = async (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        if (selectedRowId === null) return;
+
+        const row = filteredData[selectedRowId];
+        if (!row) return;
+
+        e.preventDefault();
+
+        // Format data based on visible columns
+        const rowValues = displayColumns.map(col => {
+          const key = COLUMN_MAPPING[col] || col;
+          let value = row[key] ?? row[col] ?? '';
+
+          // Format date
+          if (col.includes('Ngày')) {
+            value = formatDate(value);
+          }
+
+          // Format money
+          if (col === 'Tổng tiền VNĐ') {
+            const num = parseFloat(String(value).replace(/[^\d.-]/g, '')) || 0;
+            value = num.toLocaleString('vi-VN') + ' ₫';
+          }
+
+          return String(value ?? '').replace(/\t/g, ' ').trim();
+        });
+
+        const tsv = rowValues.join('\t');
+
+        try {
+          await navigator.clipboard.writeText(tsv);
+          toast.success("📋 Đã sao chép dòng vào bộ nhớ tạm!", {
+            autoClose: 2000,
+            hideProgressBar: true,
+          });
+        } catch (err) {
+          console.error('Copy failed:', err);
+          toast.error("❌ Sao chép thất bại");
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedRowId, filteredData, displayColumns]);
+
   // Pagination
   const totalPages = Math.ceil(filteredData.length / rowsPerPage);
   const paginatedData = useMemo(() => {
@@ -930,7 +980,11 @@ function DanhSachDon() {
                   </tr>
                 ) : (
                   paginatedData.map((row, index) => (
-                    <tr key={row[PRIMARY_KEY_COLUMN] || index} className="hover:bg-gray-50 transition-colors">
+                    <tr
+                      key={row[PRIMARY_KEY_COLUMN] || index}
+                      onClick={() => setSelectedRowId((currentPage - 1) * rowsPerPage + index)}
+                      className={`cursor-pointer transition-colors ${selectedRowId === (currentPage - 1) * rowsPerPage + index ? 'bg-blue-100 hover:bg-blue-200' : 'hover:bg-gray-50'}`}
+                    >
                       {displayColumns.map((col) => {
                         const key = COLUMN_MAPPING[col] || col;
                         let value = row[key] ?? row[col] ?? '';

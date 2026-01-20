@@ -1,5 +1,7 @@
-import { RefreshCw, Settings, X } from "lucide-react";
+import { PlusCircle, RefreshCw, Settings, X } from "lucide-react";
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import { supabase } from '../supabase/config';
 
 // Helper Functions
@@ -33,6 +35,7 @@ const parseMoney = (moneyString) => {
 
 
 export default function DonChiaCSKH() {
+  const navigate = useNavigate();
   const [allData, setAllData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [hrData, setHrData] = useState([]);
@@ -41,6 +44,7 @@ export default function DonChiaCSKH() {
   const [currentEmployee, setCurrentEmployee] = useState(null);
   const [allowedStaffNames, setAllowedStaffNames] = useState(null);
   const [showColumnSettings, setShowColumnSettings] = useState(false);
+  const [selectedRowId, setSelectedRowId] = useState(null);
 
   // Default columns for DonChiaCSKH
   const defaultColumns = [
@@ -263,6 +267,72 @@ export default function DonChiaCSKH() {
 
     setFilteredData(result);
   }, [allData, searchText, filterCSKH, filterTrangThai]);
+
+  // Handle Ctrl+C to copy selected row
+  useEffect(() => {
+    const handleKeyDown = async (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        if (selectedRowId === null) return;
+
+        // Find row by index since DonChiaCSKH doesn't guaranteed have ID on all rows from F3 logic, 
+        // relying on pageData index which matches the rendered tr index logic.
+        // Wait, selectedRowId below is set to globalIdx. So we need to find row from filteredData[selectedRowId].
+        // Let's verify how we set selectedRowId. We'll set it to globalIdx (index in filteredData).
+
+        const row = filteredData[selectedRowId];
+        if (!row) return;
+
+        // Prevent default copy behavior if we are handling it
+        e.preventDefault();
+
+        // Format data based on visible columns (allAvailableColumns that are visible)
+        // Need to replicate the exact rendering logic of the table columns
+        const rowValues = allAvailableColumns.map(col => {
+          if (visibleColumns[col] === false) return null; // Skip invisible columns to match UI? 
+          // Implementation Plan said "visible columns". 
+          // But wait, map returns array including nulls if we iterate map. 
+          // Better: Filter then map.
+
+          return col;
+        })
+          .filter(col => visibleColumns[col] !== false)
+          .map(col => {
+            // Replicate extraction logic from render
+            let value = '';
+
+            if (col === 'Mã đơn hàng' || col === 'Mã_đơn_hàng') {
+              value = getRowValue(row, 'Mã_đơn_hàng', 'Mã đơn hàng') || '';
+            } else if (col === 'Ngày lên đơn' || col === 'Ngày_lên_đơn') {
+              value = formatDate(getRowValue(row, 'Ngày_lên_đơn', 'Ngày lên đơn'));
+            } else if (col === 'Tổng tiền VNĐ' || col === 'Tổng_tiền_VNĐ') {
+              value = formatCurrency(getRowValue(row, 'Tổng_tiền_VNĐ', 'Tổng tiền VNĐ'));
+            } else if (col === 'Thời gian cutoff' || col === 'Trạng thái giao hàng') {
+              value = getRowValue(row, 'Thời gian cutoff', 'Thời_gian_cutoff', 'Trạng thái giao hàng') || '';
+            } else {
+              value = getRowValue(row, col);
+            }
+
+            return String(value ?? '').replace(/\t/g, ' ').trim();
+          });
+
+        const tsv = rowValues.join('\t');
+
+        try {
+          await navigator.clipboard.writeText(tsv);
+          toast.success("📋 Đã sao chép dòng vào bộ nhớ tạm!", {
+            autoClose: 2000,
+            hideProgressBar: true,
+          });
+        } catch (err) {
+          console.error('Copy failed:', err);
+          toast.error("❌ Sao chép thất bại");
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedRowId, filteredData, allAvailableColumns, visibleColumns]);
 
   // Options
   const [trangThaiOptions, setTrangThaiOptions] = useState([]);
@@ -651,6 +721,14 @@ export default function DonChiaCSKH() {
               </select>
             </div>
             <button
+              onClick={() => navigate('/quan-ly-cskh')}
+              className="px-3 py-2 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700 flex items-center gap-2"
+              title="Nhập đơn mới"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Nhập đơn mới</span>
+            </button>
+            <button
               onClick={() => setShowColumnSettings(true)}
               className="px-3 py-2 bg-gray-100 text-gray-600 rounded text-sm font-semibold hover:bg-gray-200 border border-gray-200 flex items-center gap-2"
               title="Cài đặt cột"
@@ -720,7 +798,11 @@ export default function DonChiaCSKH() {
                   const maDonHang = getRowValue(row, 'Mã_đơn_hàng', 'Mã đơn hàng') || '';
 
                   return (
-                    <tr key={globalIdx} className={`hover:bg-green-50 transition-colors ${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}>
+                    <tr
+                      key={globalIdx}
+                      onClick={() => setSelectedRowId(globalIdx)}
+                      className={`cursor-pointer transition-colors ${selectedRowId === globalIdx ? 'bg-blue-100 hover:bg-blue-200' : 'hover:bg-green-50'} ${idx % 2 === 0 && selectedRowId !== globalIdx ? 'bg-gray-50' : ''}`}
+                    >
                       <td className="p-2 text-center font-medium text-gray-500">{globalIdx + 1}</td>
                       {allAvailableColumns.map(col => {
                         if (visibleColumns[col] === false) return null;
