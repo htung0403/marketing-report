@@ -29,7 +29,6 @@ import DanhSachPage from './pages/DanhSachPage';
 import DanhSachPageRnD from './pages/DanhSachPageRnD';
 import DonChiaCSKH from './pages/DonChiaCSKH';
 import ExternalView from './pages/ExternalView';
-import F3BackupDashboard from './pages/F3BackupDashboard';
 import F3Report from './pages/F3Report';
 import FFM from './pages/FFM';
 import FinanceDashboard from './pages/FinanceDashboard';
@@ -112,7 +111,7 @@ function App() {
 
             {/* Admin Tools & System */}
             <Route path="/admin-tools" element={<ProtectedRoute><AdminTools /></ProtectedRoute>} />
-            <Route path="/f3-backups" element={<ProtectedRoute><F3BackupDashboard /></ProtectedRoute>} />
+
             <Route path="/news/:id" element={<ProtectedRoute><NewsDetail /></ProtectedRoute>} />
             <Route path="/external-view" element={<ProtectedRoute><ExternalView /></ProtectedRoute>} />
           </Routes>

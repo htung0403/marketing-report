@@ -890,14 +890,7 @@ function Home() {
           status: "Mở ứng dụng",
           adminOnly: true,
         },
-        {
-          title: "Backup F3 tự động",
-          icon: <Database className="w-8 h-8" />,
-          color: "bg-sky-600",
-          path: "/f3-backups",
-          status: "Mở ứng dụng",
-          adminOnly: true,
-        },
+
       ],
     },
   ];
