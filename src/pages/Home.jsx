@@ -34,7 +34,7 @@ import { supabase } from "../supabase/config";
 
 function Home() {
   const navigate = useNavigate();
-  const { canView } = usePermissions();
+  const { canView, loading: permsLoading } = usePermissions();
   const [userRole, setUserRole] = useState("user");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const location = useLocation();
@@ -1304,6 +1304,17 @@ function Home() {
     );
   };
 
+
+  if (permsLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-t-green-600 border-green-200 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Đang tải phân quyền...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex">

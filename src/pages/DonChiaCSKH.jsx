@@ -2,6 +2,7 @@ import { PlusCircle, RefreshCw, Settings, X } from "lucide-react";
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { usePermissions } from '../hooks/usePermissions';
 import { supabase } from '../supabase/config';
 
 // Helper Functions
@@ -548,6 +549,31 @@ export default function DonChiaCSKH() {
     }
   };
 
+  // Copy single cell content (double-click)
+  const handleCellClick = async (e, value) => {
+    // Prevent copy if clicking on select element
+    if (e.target.tagName === 'SELECT' || e.target.closest('select')) {
+      return;
+    }
+
+    const textValue = String(value ?? '').trim();
+    if (!textValue) {
+      toast.info("⚠️ Ô này không có nội dung", { autoClose: 1500, hideProgressBar: true });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(textValue);
+      toast.success(`📋 Đã copy: "${textValue.length > 30 ? textValue.substring(0, 30) + '...' : textValue}"`, {
+        autoClose: 2000,
+        hideProgressBar: true,
+      });
+    } catch (err) {
+      console.error('Copy failed:', err);
+      toast.error("❌ Sao chép thất bại");
+    }
+  };
+
   // Quick filters
   const handleQuickFilter = (type) => {
     const now = new Date();
@@ -814,13 +840,42 @@ export default function DonChiaCSKH() {
 
                         // Special rendering for specific columns
                         if (col === 'Mã đơn hàng' || col === 'Mã_đơn_hàng') {
-                          return <td key={col} className="p-2 font-semibold text-blue-600">{maDonHang}</td>;
+                          return (
+                            <td
+                              key={col}
+                              className="p-2 font-semibold text-blue-600 cursor-copy hover:bg-blue-50"
+                              onDoubleClick={(e) => handleCellClick(e, maDonHang)}
+                              title="Double-click để copy"
+                            >
+                              {maDonHang}
+                            </td>
+                          );
                         }
                         if (col === 'Ngày lên đơn' || col === 'Ngày_lên_đơn') {
-                          return <td key={col} className="p-2">{formatDate(getRowValue(row, 'Ngày_lên_đơn', 'Ngày lên đơn'))}</td>;
+                          const dateValue = formatDate(getRowValue(row, 'Ngày_lên_đơn', 'Ngày lên đơn'));
+                          return (
+                            <td
+                              key={col}
+                              className="p-2 cursor-copy hover:bg-blue-50"
+                              onDoubleClick={(e) => handleCellClick(e, dateValue)}
+                              title="Double-click để copy"
+                            >
+                              {dateValue}
+                            </td>
+                          );
                         }
                         if (col === 'Tổng tiền VNĐ' || col === 'Tổng_tiền_VNĐ') {
-                          return <td key={col} className="p-2 text-right font-medium">{formatCurrency(getRowValue(row, 'Tổng_tiền_VNĐ', 'Tổng tiền VNĐ'))}</td>;
+                          const moneyValue = formatCurrency(getRowValue(row, 'Tổng_tiền_VNĐ', 'Tổng tiền VNĐ'));
+                          return (
+                            <td
+                              key={col}
+                              className="p-2 text-right font-medium cursor-copy hover:bg-blue-50"
+                              onDoubleClick={(e) => handleCellClick(e, moneyValue)}
+                              title="Double-click để copy"
+                            >
+                              {moneyValue}
+                            </td>
+                          );
                         }
                         if (col === 'Thời gian cutoff' || col === 'Trạng thái giao hàng') {
                           const trangThai = getRowValue(row, 'Thời gian cutoff', 'Thời_gian_cutoff', 'Trạng thái giao hàng') || '';
@@ -844,9 +899,15 @@ export default function DonChiaCSKH() {
                         }
 
                         // Default text rendering
+                        const cellValue = getRowValue(row, col);
                         return (
-                          <td key={col} className="p-2 max-w-[200px] truncate" title={getRowValue(row, col)}>
-                            {getRowValue(row, col)}
+                          <td
+                            key={col}
+                            className="p-2 max-w-[200px] truncate cursor-copy hover:bg-blue-50"
+                            title={`${cellValue} (Double-click để copy)`}
+                            onDoubleClick={(e) => handleCellClick(e, cellValue)}
+                          >
+                            {cellValue}
                           </td>
                         );
                       })}

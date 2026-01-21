@@ -751,6 +751,26 @@ function DanhSachDon() {
     link.click();
   };
 
+  // Copy single cell content (double-click)
+  const handleCellClick = async (e, value) => {
+    const textValue = String(value ?? '').trim();
+    if (!textValue || textValue === '-') {
+      toast.success("⚠️ Ô này không có nội dung", { autoClose: 1500, hideProgressBar: true });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(textValue);
+      toast.success(`📋 Đã copy: "${textValue.length > 30 ? textValue.substring(0, 30) + '...' : textValue}"`, {
+        autoClose: 2000,
+        hideProgressBar: true,
+      });
+    } catch (err) {
+      console.error('Copy failed:', err);
+      toast.error("❌ Sao chép thất bại");
+    }
+  };
+
   // Handle column visibility toggle
   const toggleColumn = (column) => {
     setVisibleColumns(prev => ({
@@ -1025,7 +1045,12 @@ function DanhSachDon() {
                         }
 
                         return (
-                          <td key={col} className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                          <td
+                            key={col}
+                            className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap cursor-copy hover:bg-blue-50"
+                            title={`${value || '-'} (Double-click để copy)`}
+                            onDoubleClick={(e) => handleCellClick(e, value)}
+                          >
                             {value || '-'}
                           </td>
                         );

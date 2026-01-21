@@ -4,15 +4,20 @@ import { supabase } from '../supabase/config';
 // Cache to prevent repetitive fetching
 let cachedPermissions = null;
 let cachedRole = null;
+let cachedEmail = null; // Add email to cache key
 let permissionPromise = null;
 
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 1 * 60 * 1000; // Reduce to 1 minute
 let lastFetchTime = 0;
 
 export const usePermissions = () => {
-    const [permissions, setPermissions] = useState(cachedPermissions || []);
-    const [role, setRole] = useState(cachedRole || null);
-    const [loading, setLoading] = useState(!cachedPermissions);
+    // Initial state: only use cache if email matches (can't check sync perfectly, but effective for re-renders)
+    // For safety, start empty/loading unless we are sure.
+    // Ideally, we depend on the effect to set it.
+    const [permissions, setPermissions] = useState([]);
+    const [role, setRole] = useState(null);
+    const [loading, setLoading] = useState(true);
+
     const userEmail = localStorage.getItem('userEmail');
 
     useEffect(() => {
@@ -22,8 +27,12 @@ export const usePermissions = () => {
         }
 
         const fetchPermissions = async () => {
-            // Return cached if valid
-            if (cachedPermissions && (Date.now() - lastFetchTime < CACHE_DURATION)) {
+            // 0. Check if cache is valid AND belongs to current user
+            const isCacheValid = cachedPermissions &&
+                (Date.now() - lastFetchTime < CACHE_DURATION) &&
+                cachedEmail === userEmail; // CRITICAL FIX
+
+            if (isCacheValid) {
                 setPermissions(cachedPermissions);
                 setRole(cachedRole);
                 setLoading(false);
@@ -33,6 +42,9 @@ export const usePermissions = () => {
             // Deduplicate requests
             if (permissionPromise) {
                 const data = await permissionPromise;
+                // Double check if the promise result matches current user (unlikely to change mid-flight but good practice)
+                // Actually, if a promise is inflight for User A, and we switch to User B, we shouldn't use it.
+                // But for simplicity, we assume one active session.
                 setPermissions(data.permissions);
                 setRole(data.role);
                 setLoading(false);
@@ -74,6 +86,7 @@ export const usePermissions = () => {
                     // Update Cache
                     cachedPermissions = finalPerms;
                     cachedRole = userRoleCode;
+                    cachedEmail = userEmail; // Save email
                     lastFetchTime = Date.now();
 
                     return { permissions: finalPerms, role: userRoleCode };

@@ -68,12 +68,17 @@ export default function BaoCaoSale() {
     });
 
     // Active Tab
-    // Active Tab
     const [activeTab, setActiveTab] = useState(() => {
         const params = new URLSearchParams(window.location.search);
         const tab = params.get('tab');
         return tab || 'sau-huy';
     });
+
+    // Toggle visibility for filters
+    const [showProductFilter, setShowProductFilter] = useState(false);
+    const [showShiftFilter, setShowShiftFilter] = useState(true);
+    const [showTeamFilter, setShowTeamFilter] = useState(true);
+    const [showMarketFilter, setShowMarketFilter] = useState(true);
 
     // --- Effects ---
 
@@ -156,13 +161,33 @@ export default function BaoCaoSale() {
             try {
                 // Pass date params to API for server-side optimization if supported
                 const res = await fetch(`${API_HOST}/report/generate?tableName=Báo cáo sale&startDate=${filters.startDate}&endDate=${filters.endDate}`);
-                const result = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(`API Error: ${res.status} ${res.statusText}`);
+                }
+
+                // Get raw text first to handle large responses
+                const rawText = await res.text();
+
+                // Try to parse JSON
+                let result;
+                try {
+                    result = JSON.parse(rawText);
+                } catch (parseError) {
+                    console.error('JSON Parse Error:', parseError);
+                    console.error('Response size:', rawText.length, 'bytes');
+                    alert(`Lỗi khi tải dữ liệu: Dữ liệu trả về không hợp lệ (${(rawText.length / 1024 / 1024).toFixed(2)}MB). Vui lòng chọn khoảng thời gian nhỏ hơn hoặc liên hệ IT support.`);
+                    setLoading(false);
+                    return;
+                }
+
                 processFetchedData(result.data, result.employeeData);
 
 
 
             } catch (err) {
-                console.error(err);
+                console.error('Fetch Error:', err);
+                alert(`Đã xảy ra lỗi khi tải dữ liệu: ${err.message}`);
                 setLoading(false); // Ensure loading is off on error
             }
         };
@@ -409,72 +434,160 @@ export default function BaoCaoSale() {
                     </label>
 
                     {/* Product Filter */}
-                    <h3>Sản phẩm</h3>
-                    <label>
-                        <input type="checkbox"
-                            checked={filters.products.length === options.products.length}
-                            onChange={(e) => handleSelectAll('products', e.target.checked)}
-                        /> Tất cả
-                    </label>
-                    <div className="indent">
-                        {options.products.map(opt => (
-                            <label key={opt}>
-                                <input type="checkbox" checked={filters.products.includes(opt)} onChange={(e) => handleFilterChange('products', opt, e.target.checked)} />
-                                {opt}
+                    <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        Sản phẩm
+                        <button
+                            onClick={() => setShowProductFilter(!showProductFilter)}
+                            style={{
+                                fontSize: '0.75em',
+                                padding: '2px 8px',
+                                background: showProductFilter ? '#4A6E23' : '#f0f0f0',
+                                color: showProductFilter ? '#fff' : '#666',
+                                border: 'none',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                                fontWeight: '500',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {showProductFilter ? '▼' : '▶'}
+                        </button>
+                    </h3>
+                    {showProductFilter && (
+                        <>
+                            <label>
+                                <input type="checkbox"
+                                    checked={filters.products.length === options.products.length}
+                                    onChange={(e) => handleSelectAll('products', e.target.checked)}
+                                /> Tất cả
                             </label>
-                        ))}
-                    </div>
+                            <div className="indent">
+                                {options.products.map(opt => (
+                                    <label key={opt}>
+                                        <input type="checkbox" checked={filters.products.includes(opt)} onChange={(e) => handleFilterChange('products', opt, e.target.checked)} />
+                                        {opt}
+                                    </label>
+                                ))}
+                            </div>
+                        </>
+                    )}
 
                     {/* Shift Filter */}
-                    <h3>Ca</h3>
-                    <label>
-                        <input type="checkbox"
-                            checked={filters.shifts.length === options.shifts.length}
-                            onChange={(e) => handleSelectAll('shifts', e.target.checked)}
-                        /> Tất cả
-                    </label>
-                    <div className="indent">
-                        {options.shifts.map(opt => (
-                            <label key={opt}>
-                                <input type="checkbox" checked={filters.shifts.includes(opt)} onChange={(e) => handleFilterChange('shifts', opt, e.target.checked)} />
-                                {opt}
+                    <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        Ca
+                        <button
+                            onClick={() => setShowShiftFilter(!showShiftFilter)}
+                            style={{
+                                fontSize: '0.75em',
+                                padding: '2px 8px',
+                                background: showShiftFilter ? '#4A6E23' : '#f0f0f0',
+                                color: showShiftFilter ? '#fff' : '#666',
+                                border: 'none',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                                fontWeight: '500',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {showShiftFilter ? '▼' : '▶'}
+                        </button>
+                    </h3>
+                    {showShiftFilter && (
+                        <>
+                            <label>
+                                <input type="checkbox"
+                                    checked={filters.shifts.length === options.shifts.length}
+                                    onChange={(e) => handleSelectAll('shifts', e.target.checked)}
+                                /> Tất cả
                             </label>
-                        ))}
-                    </div>
+                            <div className="indent">
+                                {options.shifts.map(opt => (
+                                    <label key={opt}>
+                                        <input type="checkbox" checked={filters.shifts.includes(opt)} onChange={(e) => handleFilterChange('shifts', opt, e.target.checked)} />
+                                        {opt}
+                                    </label>
+                                ))}
+                            </div>
+                        </>
+                    )}
 
                     {/* Team Filter */}
-                    <h3>Team</h3>
-                    <label>
-                        <input type="checkbox"
-                            checked={filters.teams.length === options.teams.length}
-                            onChange={(e) => handleSelectAll('teams', e.target.checked)}
-                        /> Tất cả
-                    </label>
-                    <div className="indent">
-                        {options.teams.map(opt => (
-                            <label key={opt}>
-                                <input type="checkbox" checked={filters.teams.includes(opt)} onChange={(e) => handleFilterChange('teams', opt, e.target.checked)} />
-                                {opt}
+                    <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        Team
+                        <button
+                            onClick={() => setShowTeamFilter(!showTeamFilter)}
+                            style={{
+                                fontSize: '0.75em',
+                                padding: '2px 8px',
+                                background: showTeamFilter ? '#4A6E23' : '#f0f0f0',
+                                color: showTeamFilter ? '#fff' : '#666',
+                                border: 'none',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                                fontWeight: '500',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {showTeamFilter ? '▼' : '▶'}
+                        </button>
+                    </h3>
+                    {showTeamFilter && (
+                        <>
+                            <label>
+                                <input type="checkbox"
+                                    checked={filters.teams.length === options.teams.length}
+                                    onChange={(e) => handleSelectAll('teams', e.target.checked)}
+                                /> Tất cả
                             </label>
-                        ))}
-                    </div>
+                            <div className="indent">
+                                {options.teams.map(opt => (
+                                    <label key={opt}>
+                                        <input type="checkbox" checked={filters.teams.includes(opt)} onChange={(e) => handleFilterChange('teams', opt, e.target.checked)} />
+                                        {opt}
+                                    </label>
+                                ))}
+                            </div>
+                        </>
+                    )}
 
                     {/* Market Filter */}
-                    <h3>Thị trường</h3>
-                    <label>
-                        <input type="checkbox"
-                            checked={filters.markets.length === options.markets.length}
-                            onChange={(e) => handleSelectAll('markets', e.target.checked)}
-                        /> Tất cả
-                    </label>
-                    <div className="indent">
-                        {options.markets.map(opt => (
-                            <label key={opt}>
-                                <input type="checkbox" checked={filters.markets.includes(opt)} onChange={(e) => handleFilterChange('markets', opt, e.target.checked)} />
-                                {opt}
+                    <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        Thị trường
+                        <button
+                            onClick={() => setShowMarketFilter(!showMarketFilter)}
+                            style={{
+                                fontSize: '0.75em',
+                                padding: '2px 8px',
+                                background: showMarketFilter ? '#4A6E23' : '#f0f0f0',
+                                color: showMarketFilter ? '#fff' : '#666',
+                                border: 'none',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                                fontWeight: '500',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {showMarketFilter ? '▼' : '▶'}
+                        </button>
+                    </h3>
+                    {showMarketFilter && (
+                        <>
+                            <label>
+                                <input type="checkbox"
+                                    checked={filters.markets.length === options.markets.length}
+                                    onChange={(e) => handleSelectAll('markets', e.target.checked)}
+                                /> Tất cả
                             </label>
-                        ))}
-                    </div>
+                            <div className="indent">
+                                {options.markets.map(opt => (
+                                    <label key={opt}>
+                                        <input type="checkbox" checked={filters.markets.includes(opt)} onChange={(e) => handleFilterChange('markets', opt, e.target.checked)} />
+                                        {opt}
+                                    </label>
+                                ))}
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 {/* MAIN CONTENT */}

@@ -1235,10 +1235,12 @@ export default function NhapDonMoi({ isEdit = false }) {
                                                             </div>
                                                         </Popover>
                                                     </div>
+                                                    {/* Hidden - Mã đơn hàng auto-generated 
                                                     <div className="space-y-2">
                                                         <Label htmlFor="ma-don">Mã đơn hàng (Tự sinh)</Label>
                                                         <Input id="ma-don" value={formData["ma-don"]} onChange={handleInputChange} placeholder="Để trống tự sinh..." disabled={isEdit} />
                                                     </div>
+                                                    */}
                                                 </div>
 
                                                 {/* Row 2: Item 1 */}
