@@ -392,13 +392,38 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                           Sửa
                         </button>
                         {userRole === 'admin' && (
-                          <button
-                            onClick={() => openDeleteConfirm(user)}
-                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                            title="Xóa"
-                          >
-                            Xóa
-                          </button>
+                          <>
+                            <button
+                              onClick={async () => {
+                                if (window.confirm(`Bạn có chắc muốn đặt lại mật khẩu cho ${user.name} về '123456'?`)) {
+                                  try {
+                                    const hashedPassword = bcrypt.hashSync('123456', 10);
+                                    const { error } = await supabase
+                                      .from('users')
+                                      .update({ password: hashedPassword })
+                                      .eq('id', user.id);
+
+                                    if (error) throw error;
+                                    toast.success(`Đã đặt lại mật khẩu cho ${user.name} thành công!`);
+                                  } catch (err) {
+                                    console.error('Error resetting password:', err);
+                                    toast.error('Lỗi khi đặt lại mật khẩu');
+                                  }
+                                }
+                              }}
+                              className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 mr-2"
+                              title="Reset Mật khẩu về 123456"
+                            >
+                              Reset MK
+                            </button>
+                            <button
+                              onClick={() => openDeleteConfirm(user)}
+                              className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                              title="Xóa"
+                            >
+                              Xóa
+                            </button>
+                          </>
                         )}
                       </>
                     ) : (
@@ -845,7 +870,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
                 <p className="text-sm">
                   <span className="font-semibold text-gray-700">Họ và Tên:</span>{' '}
-                  <span className="text-gray-900">{deletingUser['Họ Và Tên']}</span>
+                  <span className="text-gray-900">{deletingUser.name}</span>
                 </p>
                 <p className="text-sm">
                   <span className="font-semibold text-gray-700">Email:</span>{' '}
@@ -853,19 +878,19 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                 </p>
                 <p className="text-sm">
                   <span className="font-semibold text-gray-700">Bộ phận:</span>{' '}
-                  <span className="text-gray-900">{deletingUser['Bộ phận'] || '-'}</span>
+                  <span className="text-gray-900">{deletingUser.department || '-'}</span>
                 </p>
                 <p className="text-sm">
                   <span className="font-semibold text-gray-700">Team:</span>{' '}
-                  <span className="text-gray-900">{deletingUser.Team || '-'}</span>
+                  <span className="text-gray-900">{deletingUser.team || '-'}</span>
                 </p>
                 <p className="text-sm">
                   <span className="font-semibold text-gray-700">Vị trí:</span>{' '}
-                  <span className="text-gray-900">{deletingUser['Vị trí'] || '-'}</span>
+                  <span className="text-gray-900">{deletingUser.position || '-'}</span>
                 </p>
                 <p className="text-sm">
                   <span className="font-semibold text-gray-700">Chi nhánh:</span>{' '}
-                  <span className="text-gray-900">{deletingUser['chi nhánh'] || '-'}</span>
+                  <span className="text-gray-900">{deletingUser.branch || '-'}</span>
                 </p>
               </div>
 

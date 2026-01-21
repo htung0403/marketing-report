@@ -12,6 +12,7 @@ import {
   Edit3,
   FileText,
   ListTodo,
+  LogOut,
   Megaphone,
   Menu,
   Package,
@@ -26,6 +27,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { ChangePasswordModal } from "../components/modals/ChangePasswordModal";
 import { usePermissions } from "../hooks/usePermissions";
 import { supabase } from "../supabase/config";
 
@@ -37,12 +39,24 @@ function Home() {
   const location = useLocation();
 
   const [expandedMenus, setExpandedMenus] = useState({});
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
 
   const toggleMenu = (id) => {
     setExpandedMenus(prev => ({
       ...prev,
       [id]: !prev[id]
     }));
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('isAuthenticated');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('username');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('userTeam');
+    navigate('/login');
   };
 
   useEffect(() => {
@@ -1305,8 +1319,52 @@ function Home() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="flex-1 overflow-y-auto bg-gray-50 flex flex-col h-screen">
+        {/* Top Bar - sticky */}
+        <div className="bg-white border-b border-gray-200 sticky top-0 z-30 px-6 py-3 flex items-center justify-end shadow-sm">
+          <div className="relative">
+            <button
+              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              className="flex items-center gap-2 hover:bg-gray-100 p-2 rounded-lg transition-colors border border-gray-100"
+            >
+              <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">
+                {(localStorage.getItem('username') || 'U').charAt(0).toUpperCase()}
+              </div>
+              <div className="text-left hidden md:block">
+                <p className="text-sm font-medium text-gray-700">
+                  {localStorage.getItem('username') || 'User'}
+                </p>
+                <p className="text-xs text-gray-500 capitalize">
+                  {userRole}
+                </p>
+              </div>
+              <ChevronDown className="w-4 h-4 text-gray-500" />
+            </button>
+
+            {/* Dropdown Menu */}
+            {isUserMenuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-50 animate-in fade-in zoom-in-95 duration-200">
+                <button
+                  onClick={() => setIsChangePasswordOpen(true)}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <Settings className="w-4 h-4" />
+                  Đổi mật khẩu
+                </button>
+                <div className="border-t border-gray-100 my-1"></div>
+                <button
+                  onClick={handleLogout}
+                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Đăng xuất
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-6 py-8 w-full">
           {/* Bảng tin Section */}
           <div className="mb-12">
             <div className="flex justify-between items-center mb-6">
@@ -1506,6 +1564,10 @@ function Home() {
           ))}
         </div>
       </div>
+      <ChangePasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
+      />
     </div >
   );
 }
