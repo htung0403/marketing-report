@@ -41,10 +41,10 @@ export const usePermissions = () => {
 
             permissionPromise = (async () => {
                 try {
-                    // 1. Get User Role
+                    // 1. Get User Role from 'users' table (Source of Truth)
                     const { data: userRoleData, error: urError } = await supabase
-                        .from('app_user_roles')
-                        .select('role_code')
+                        .from('users')
+                        .select('role')
                         .eq('email', userEmail)
                         .maybeSingle();
 
@@ -52,7 +52,9 @@ export const usePermissions = () => {
                         console.error("Error fetching user role", urError);
                     }
 
-                    const userRoleCode = userRoleData?.role_code;
+                    // Map 'users.role' to 'role_code' if necessary, or use directly if they match
+                    // Assuming 'user' in users table maps to 'USER' or 'user' in permissions
+                    const userRoleCode = userRoleData?.role;
 
                     if (!userRoleCode) {
                         // Default to no role

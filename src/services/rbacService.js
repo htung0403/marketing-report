@@ -19,25 +19,60 @@ export const deleteRole = async (code) => {
 };
 
 // --- USER ASSIGNMENT ---
+// --- USER ASSIGNMENT ---
 export const getUserRoles = async () => {
-    const { data, error } = await supabase.from('app_user_roles').select('*');
+    // Fetch directly from users table which is now the source of truth
+    const { data, error } = await supabase
+        .from('users')
+        .select('email, role, created_at')
+        .neq('role', 'user'); // Optional: only show non-default roles to keep list clean? 
+    // Or remove .neq to show everyone. Let's show everyone who has a role assigned.
+    // Actually, sync script assigns 'marketing', 'sale' etc. So we should probably show everyone 
+    // or at least everyone with a role that is not 'user' if 'user' is the default for unprivileged.
+
     if (error) throw error;
-    return data;
+
+    // Map to match the interface PermissionManager expects { email, role_code, assigned_at }
+    return data.map(u => ({
+        email: u.email,
+        role_code: u.role,
+        assigned_at: u.created_at
+    }));
 };
 
 export const assignUserRole = async (email, role_code) => {
-    // Upsert based on email
+    // Update users table directly
     const { data, error } = await supabase
-        .from('app_user_roles')
-        .upsert({ email, role_code }, { onConflict: 'email' })
+        .from('users')
+        .update({ role: role_code })
+        .eq('email', email)
         .select();
+
     if (error) throw error;
+
+    // Also update human_resources for consistency if possible, but users is critical
+    await supabase
+        .from('human_resources')
+        .update({ role: role_code })
+        .eq('email', email);
+
     return data[0];
 };
 
 export const removeUserRole = async (email) => {
-    const { error } = await supabase.from('app_user_roles').delete().eq('email', email);
+    // Reset to default 'user' role
+    const { error } = await supabase
+        .from('users')
+        .update({ role: 'user' })
+        .eq('email', email);
+
     if (error) throw error;
+
+    // Sync to human_resources
+    await supabase
+        .from('human_resources')
+        .update({ role: 'user' })
+        .eq('email', email);
 };
 
 // --- EMPLOYEES ---

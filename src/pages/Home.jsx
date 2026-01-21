@@ -356,8 +356,7 @@ function Home() {
           id: "hr-records",
           label: "Hồ sơ nhân sự",
           icon: <ClipboardList className="w-4 h-4" />,
-          path: "https://hr-management-self.vercel.app/employees",
-          isExternal: true,
+          path: "/nhan-su",
           adminOnly: true,
         },
         {

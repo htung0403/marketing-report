@@ -2,6 +2,7 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { AlertCircle, Check, ChevronDown, RefreshCcw, Save, Search, XCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from 'react-router-dom';
+import usePermissions from '../hooks/usePermissions'; // Added missing import
 import { supabase } from '../supabase/config';
 
 const HR_URL = import.meta.env.VITE_HR_URL || "https://lumi-6dff7-default-rtdb.asia-southeast1.firebasedatabase.app/datasheet/Nh%C3%A2n_s%E1%BB%B1.json";

@@ -378,13 +378,13 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
             <thead className="bg-green-600">
               <tr>
                 <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border border-gray-300">STT</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-white uppercase tracking-wider border border-gray-300">Ảnh</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-white uppercase tracking-wider border border-gray-300">Họ và Tên</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-white uppercase tracking-wider border border-gray-300">Email</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-white uppercase tracking-wider border border-gray-300">Bộ phận</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-white uppercase tracking-wider border border-gray-300">Team</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-white uppercase tracking-wider border border-gray-300">Vị trí</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-white uppercase tracking-wider border border-gray-300">Ngày sinh</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-white uppercase tracking-wider border border-gray-300">Ngày chính thức</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-white uppercase tracking-wider border border-gray-300">Chi nhánh</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-white uppercase tracking-wider border border-gray-300">Ca</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-white uppercase tracking-wider border border-gray-300">Bộ phận</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-white uppercase tracking-wider border border-gray-300">Vị trí</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-white uppercase tracking-wider border border-gray-300">Hành động</th>
               </tr>
             </thead>
@@ -392,13 +392,21 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
               {currentUsers.map((user, index) => (
                 <tr key={user.firebaseKey || user.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 border border-gray-300">{startIndex + index + 1}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-center border border-gray-300">
+                    {user.avatar_url ? (
+                      <img src={user.avatar_url} alt="Avatar" className="h-8 w-8 rounded-full mx-auto object-cover" />
+                    ) : (
+                      <div className="h-8 w-8 rounded-full bg-gray-200 mx-auto flex items-center justify-center text-xs text-gray-500">
+                        {user['Họ Và Tên'] ? user['Họ Và Tên'].charAt(0) : '?'}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 border border-gray-300">{user['Họ Và Tên'] || '-'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-600 border border-gray-300">{user.email || '-'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 border border-gray-300">{user['Bộ phận'] || '-'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 border border-gray-300">{user.Team || '-'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 border border-gray-300">{user['Vị trí'] || '-'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 border border-gray-300">{user['chi nhánh'] || '-'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 border border-gray-300">{user.Ca || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border border-gray-300">{user['Ngày sinh'] || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border border-gray-300">{user['Ngày làm chính thức'] || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border border-gray-300">{user['chi nhánh'] || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border border-gray-300">{user['Bộ phận'] || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border border-gray-300">{user['Vị trí'] || '-'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-center text-sm border border-gray-300">
                     {userRole === 'admin' || userRole === 'leader' ? (
                       <>
@@ -438,8 +446,8 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1}
               className={`relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-md ${currentPage === 1
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
                 }`}
             >
               Trước
@@ -448,8 +456,8 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
               className={`relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium rounded-md ${currentPage === totalPages
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
                 }`}
             >
               Sau
@@ -492,8 +500,8 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                         key={page}
                         onClick={() => handlePageChange(page)}
                         className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${page === currentPage
-                            ? 'z-10 bg-blue-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600'
-                            : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
+                          ? 'z-10 bg-blue-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600'
+                          : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
                           }`}
                       >
                         {page}

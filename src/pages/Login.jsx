@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
 import bcrypt from 'bcryptjs';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { supabase } from '../supabase/config';
 
 function Login() {
   const [email, setEmail] = useState('admin@marketing.com');
@@ -17,20 +18,20 @@ function Login() {
     setLoading(true);
 
     try {
-      // Lấy danh sách users từ URL
-      const response = await fetch('https://report-55c9f-default-rtdb.asia-southeast1.firebasedatabase.app/users.json');
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
+      // Query Supabase users table
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (userError && userError.code !== 'PGRST116') { // PGRST116 is specific for 0 rows in .single()
+        throw userError;
       }
-      const users = await response.json();
 
-      // Tìm user với email khớp
-      const userEntry = Object.entries(users).find(
-        ([key, user]) => user.email === email
-      );
-
-      if (userEntry) {
-        const [userId, userData] = userEntry;
+      if (user) {
+        const userData = user;
+        const userId = user.id;
 
         // Kiểm tra xem user có mật khẩu không
         if (!userData.password) {
@@ -49,14 +50,16 @@ function Login() {
           // Lưu thông tin đăng nhập vào localStorage
           localStorage.setItem('isAuthenticated', 'true');
           localStorage.setItem('userId', userId);
-          localStorage.setItem('username', userData.username || userData.name);
-          
-          // Force admin role for admin@marketing.com
+          // Prefer 'name' from Supabase, fallback to username
+          localStorage.setItem('username', userData.name || userData.username || 'User');
+
+          // Force admin role for admin@marketing.com or use DB role
           const userEmail = userData.email || '';
           const userRole = userEmail === 'admin@marketing.com' ? 'admin' : (userData.role || 'user');
           localStorage.setItem('userRole', userRole);
-          
+
           localStorage.setItem('userEmail', userEmail);
+          // Supabase 'users' table has 'team' column based on UserManagementTab
           localStorage.setItem('userTeam', userData.team || '');
 
           toast.success('Đăng nhập thành công!', {
@@ -158,8 +161,8 @@ function Login() {
               type="submit"
               disabled={loading}
               className={`w-full py-3 px-4 rounded-lg font-semibold text-white transition ${loading
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-primary hover:bg-green-700 active:bg-green-800'
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-primary hover:bg-green-700 active:bg-green-800'
                 }`}
             >
               {loading ? (
