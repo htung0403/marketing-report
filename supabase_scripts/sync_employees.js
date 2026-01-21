@@ -131,6 +131,11 @@ async function syncEmployees() {
                 cccd: emp.cccd,
                 employee_id: emp.employeeId,
 
+                // New columns from image analysis
+                identity_issue_date: formatDate(emp.ngay_cap),
+                identity_issue_place: emp.noi_cap,
+                employment_status: emp.trang_thai,
+
                 created_at: new Date().toISOString(),
                 created_by: 'sync_script'
             };
