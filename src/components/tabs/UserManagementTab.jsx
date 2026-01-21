@@ -12,14 +12,14 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
   const [deletingUser, setDeletingUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [newUser, setNewUser] = useState({
-    'Họ Và Tên': '',
+    name: '',
     email: '',
     password: '',
-    'Bộ phận': '',
-    Team: '',
-    'Vị trí': '',
-    'chi nhánh': '',
-    Ca: '',
+    department: '',
+    team: '',
+    position: '',
+    branch: '',
+    shift: '',
     role: 'user'
   });
 
@@ -34,9 +34,9 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
         setLoading(true);
 
         const { data, error: fetchError } = await supabase
-          .from('human_resources')
+          .from('users')
           .select('*')
-          .order('Họ Và Tên', { ascending: true });
+          .order('name', { ascending: true });
 
         if (fetchError) throw fetchError;
 
@@ -45,7 +45,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
 
           // Apply role-based filtering
           if (userRole === 'leader' && userTeam) {
-            const filtered = data.filter(user => user.Team === userTeam);
+            const filtered = data.filter(user => user.team === userTeam);
             setFilteredUsers(filtered);
           } else {
             setFilteredUsers(data);
@@ -73,13 +73,13 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
 
     // Apply role-based filtering first
     if (userRole === 'leader' && userTeam) {
-      filtered = filtered.filter(user => user.Team === userTeam);
+      filtered = filtered.filter(user => user.team === userTeam);
     }
 
     // Apply team filter (for admin)
     if (teamFilter && teamFilter.length > 0) {
       filtered = filtered.filter(user =>
-        teamFilter.includes(user.Team)
+        teamFilter.includes(user.team)
       );
     }
 
@@ -87,11 +87,11 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
     if (searchText) {
       const searchLower = searchText.toLowerCase();
       filtered = filtered.filter(user =>
-        (user['Họ Và Tên'] && user['Họ Và Tên'].toLowerCase().includes(searchLower)) ||
+        (user.name && user.name.toLowerCase().includes(searchLower)) ||
         (user.email && user.email.toLowerCase().includes(searchLower)) ||
-        (user.Team && user.Team.toLowerCase().includes(searchLower)) ||
-        (user['Bộ phận'] && user['Bộ phận'].toLowerCase().includes(searchLower)) ||
-        (user['Vị trí'] && user['Vị trí'].toLowerCase().includes(searchLower))
+        (user.team && user.team.toLowerCase().includes(searchLower)) ||
+        (user.department && user.department.toLowerCase().includes(searchLower)) ||
+        (user.position && user.position.toLowerCase().includes(searchLower))
       );
     }
 
@@ -103,7 +103,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
   const handleUpdateUser = async (userId, updatedData) => {
     try {
       const { error } = await supabase
-        .from('human_resources')
+        .from('users')
         .update(updatedData)
         .eq('id', userId);
 
@@ -141,14 +141,14 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
   // Open add modal
   const openAddModal = () => {
     setNewUser({
-      'Họ Và Tên': '',
+      name: '',
       email: '',
       password: '',
-      'Bộ phận': '',
-      Team: '',
-      'Vị trí': '',
-      'chi nhánh': '',
-      Ca: '',
+      department: '',
+      team: '',
+      position: '',
+      branch: '',
+      shift: '',
       role: 'user'
     });
     setIsAddModalOpen(true);
@@ -158,14 +158,14 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
   const closeAddModal = () => {
     setIsAddModalOpen(false);
     setNewUser({
-      'Họ Và Tên': '',
+      name: '',
       email: '',
       password: '',
-      'Bộ phận': '',
-      Team: '',
-      'Vị trí': '',
-      'chi nhánh': '',
-      Ca: '',
+      department: '',
+      team: '',
+      position: '',
+      branch: '',
+      shift: '',
       role: 'user'
     });
   };
@@ -173,7 +173,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
   // Add new user
   const handleAddUser = async () => {
     // Validation
-    if (!newUser['Họ Và Tên'] || !newUser.email || !newUser.password) {
+    if (!newUser.name || !newUser.email || !newUser.password) {
       toast.error('Vui lòng điền đầy đủ thông tin bắt buộc!');
       return;
     }
@@ -203,69 +203,43 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
       // Generate unique ID
       const userId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+      const userData = {
+        id: userId,
+        username: newUser.email.split('@')[0],
+        name: newUser.name,
+        email: newUser.email,
+        password: hashedPassword,
+        team: newUser.team,
+        role: newUser.role,
+        department: newUser.department,
+        position: newUser.position,
+        branch: newUser.branch,
+        shift: newUser.shift,
+        created_at: new Date().toISOString(),
+        created_by: localStorage.getItem('username') || 'admin'
+      };
+
       // Create user record in users table
-      const { data: userData, error: userError } = await supabase
+      const { data: userResult, error: userError } = await supabase
         .from('users')
-        .insert([
-          {
-            id: userId,
-            username: newUser.email.split('@')[0],
-            name: newUser['Họ Và Tên'],
-            email: newUser.email,
-            password: hashedPassword,
-            team: newUser.Team,
-            role: newUser.role,
-            department: newUser['Bộ phận'],
-            position: newUser['Vị trí'],
-            branch: newUser['chi nhánh'],
-            shift: newUser.Ca,
-            created_at: new Date().toISOString(),
-            created_by: localStorage.getItem('username') || 'admin'
-          }
-        ])
+        .insert([userData])
         .select();
 
       if (userError) throw userError;
 
-      // Create record in human_resources table
-      const { error: hrError } = await supabase
-        .from('human_resources')
-        .insert([
-          {
-            id: userId,
-            'Họ Và Tên': newUser['Họ Và Tên'],
-            email: newUser.email,
-            'Bộ phận': newUser['Bộ phận'],
-            Team: newUser.Team,
-            'Vị trí': newUser['Vị trí'],
-            'chi nhánh': newUser['chi nhánh'],
-            Ca: newUser.Ca,
-            role: newUser.role,
-            status: 'active',
-            'Ngày vào làm': new Date().toISOString().split('T')[0],
-            created_at: new Date().toISOString(),
-            created_by: localStorage.getItem('username') || 'admin'
-          }
-        ]);
+      // Update local state directly instead of re-fetching
+      if (userResult) {
+        const addedUser = userResult[0];
+        setUsers(prev => [...prev, addedUser]);
 
-      if (hrError) throw hrError;
+        // Update filtered users if needed
+        let shouldAdd = true;
+        if (userRole === 'leader' && userTeam && addedUser.team !== userTeam) {
+          shouldAdd = false;
+        }
 
-      // Refresh users list
-      const { data: updatedUsers, error: refreshError } = await supabase
-        .from('human_resources')
-        .select('*')
-        .order('Họ Và Tên', { ascending: true });
-
-      if (refreshError) throw refreshError;
-
-      if (updatedUsers) {
-        setUsers(updatedUsers);
-
-        if (userRole === 'leader' && userTeam) {
-          const filtered = updatedUsers.filter(user => user.Team === userTeam);
-          setFilteredUsers(filtered);
-        } else {
-          setFilteredUsers(updatedUsers);
+        if (shouldAdd) {
+          setFilteredUsers(prev => [...prev, addedUser]);
         }
       }
 
@@ -293,7 +267,7 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
 
     try {
       const { error } = await supabase
-        .from('human_resources')
+        .from('users')
         .delete()
         .eq('id', deletingUser.id);
 
@@ -390,23 +364,23 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {currentUsers.map((user, index) => (
-                <tr key={user.firebaseKey || user.id} className="hover:bg-gray-50">
+                <tr key={user.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 border border-gray-300">{startIndex + index + 1}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-center border border-gray-300">
                     {user.avatar_url ? (
                       <img src={user.avatar_url} alt="Avatar" className="h-8 w-8 rounded-full mx-auto object-cover" />
                     ) : (
                       <div className="h-8 w-8 rounded-full bg-gray-200 mx-auto flex items-center justify-center text-xs text-gray-500">
-                        {user['Họ Và Tên'] ? user['Họ Và Tên'].charAt(0) : '?'}
+                        {user.name ? user.name.charAt(0) : '?'}
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 border border-gray-300">{user['Họ Và Tên'] || '-'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border border-gray-300">{user['Ngày sinh'] || '-'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border border-gray-300">{user['Ngày làm chính thức'] || '-'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border border-gray-300">{user['chi nhánh'] || '-'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border border-gray-300">{user['Bộ phận'] || '-'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border border-gray-300">{user['Vị trí'] || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 border border-gray-300">{user.name || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border border-gray-300">{user.dob || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border border-gray-300">{user.official_date || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border border-gray-300">{user.branch || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border border-gray-300">{user.department || '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border border-gray-300">{user.position || '-'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-center text-sm border border-gray-300">
                     {userRole === 'admin' || userRole === 'leader' ? (
                       <>
@@ -557,8 +531,8 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   </label>
                   <input
                     type="text"
-                    value={editingUser['Họ Và Tên'] || ''}
-                    onChange={(e) => setEditingUser({ ...editingUser, 'Họ Và Tên': e.target.value })}
+                    value={editingUser.name || ''}
+                    onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Nhập họ và tên"
                   />
@@ -585,8 +559,8 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   </label>
                   <input
                     type="text"
-                    value={editingUser['Bộ phận'] || ''}
-                    onChange={(e) => setEditingUser({ ...editingUser, 'Bộ phận': e.target.value })}
+                    value={editingUser.department || ''}
+                    onChange={(e) => setEditingUser({ ...editingUser, department: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Nhập bộ phận"
                   />
@@ -599,8 +573,8 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   </label>
                   <input
                     type="text"
-                    value={editingUser.Team || ''}
-                    onChange={(e) => setEditingUser({ ...editingUser, Team: e.target.value })}
+                    value={editingUser.team || ''}
+                    onChange={(e) => setEditingUser({ ...editingUser, team: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Nhập team"
                   />
@@ -613,8 +587,8 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   </label>
                   <input
                     type="text"
-                    value={editingUser['Vị trí'] || ''}
-                    onChange={(e) => setEditingUser({ ...editingUser, 'Vị trí': e.target.value })}
+                    value={editingUser.position || ''}
+                    onChange={(e) => setEditingUser({ ...editingUser, position: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Nhập vị trí"
                   />
@@ -626,8 +600,8 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                     Chi nhánh
                   </label>
                   <select
-                    value={editingUser['chi nhánh'] || ''}
-                    onChange={(e) => setEditingUser({ ...editingUser, 'chi nhánh': e.target.value })}
+                    value={editingUser.branch || ''}
+                    onChange={(e) => setEditingUser({ ...editingUser, branch: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">-- Chọn chi nhánh --</option>
@@ -642,8 +616,8 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                     Ca
                   </label>
                   <select
-                    value={editingUser.Ca || ''}
-                    onChange={(e) => setEditingUser({ ...editingUser, Ca: e.target.value })}
+                    value={editingUser.shift || ''}
+                    onChange={(e) => setEditingUser({ ...editingUser, shift: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">-- Chọn ca --</option>
@@ -664,14 +638,14 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
               </button>
               <button
                 onClick={async () => {
-                  await handleUpdateUser(editingUser.firebaseKey, {
-                    'Họ Và Tên': editingUser['Họ Và Tên'],
+                  await handleUpdateUser(editingUser.id, {
+                    name: editingUser.name,
                     email: editingUser.email,
-                    'Bộ phận': editingUser['Bộ phận'],
-                    Team: editingUser.Team,
-                    'Vị trí': editingUser['Vị trí'],
-                    'chi nhánh': editingUser['chi nhánh'],
-                    Ca: editingUser.Ca
+                    department: editingUser.department,
+                    team: editingUser.team,
+                    position: editingUser.position,
+                    branch: editingUser.branch,
+                    shift: editingUser.shift
                   });
                 }}
                 className="px-5 py-2.5 bg-green-500 text-white font-medium rounded-lg hover:bg-green-600 transition-colors"
@@ -702,8 +676,8 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   </label>
                   <input
                     type="text"
-                    value={newUser['Họ Và Tên']}
-                    onChange={(e) => setNewUser({ ...newUser, 'Họ Và Tên': e.target.value })}
+                    value={newUser.name}
+                    onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     placeholder="Nhập họ và tên"
                   />
@@ -744,8 +718,8 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   </label>
                   <input
                     type="text"
-                    value={newUser['Bộ phận']}
-                    onChange={(e) => setNewUser({ ...newUser, 'Bộ phận': e.target.value })}
+                    value={newUser.department}
+                    onChange={(e) => setNewUser({ ...newUser, department: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     placeholder="Nhập bộ phận"
                   />
@@ -758,8 +732,8 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   </label>
                   <input
                     type="text"
-                    value={newUser.Team}
-                    onChange={(e) => setNewUser({ ...newUser, Team: e.target.value })}
+                    value={newUser.team}
+                    onChange={(e) => setNewUser({ ...newUser, team: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     placeholder="Nhập team"
                   />
@@ -772,8 +746,8 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                   </label>
                   <input
                     type="text"
-                    value={newUser['Vị trí']}
-                    onChange={(e) => setNewUser({ ...newUser, 'Vị trí': e.target.value })}
+                    value={newUser.position}
+                    onChange={(e) => setNewUser({ ...newUser, position: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     placeholder="Nhập vị trí"
                   />
@@ -785,8 +759,8 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                     Chi nhánh
                   </label>
                   <select
-                    value={newUser['chi nhánh']}
-                    onChange={(e) => setNewUser({ ...newUser, 'chi nhánh': e.target.value })}
+                    value={newUser.branch}
+                    onChange={(e) => setNewUser({ ...newUser, branch: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
                     <option value="">-- Chọn chi nhánh --</option>
@@ -801,8 +775,8 @@ export function UserManagementTab({ userRole, userTeam, searchText, teamFilter }
                     Ca
                   </label>
                   <select
-                    value={newUser.Ca}
-                    onChange={(e) => setNewUser({ ...newUser, Ca: e.target.value })}
+                    value={newUser.shift}
+                    onChange={(e) => setNewUser({ ...newUser, shift: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
                     <option value="">-- Chọn ca --</option>

@@ -156,42 +156,7 @@ async function syncEmployees() {
                 if (updateError) throw updateError;
             }
 
-            // 3. Upsert into 'human_resources' table
-            const hrData = {
-                id: userId,
-                email: email,
-                'Họ Và Tên': name,
-                'Bộ phận': emp.bo_phan,
-                Team: emp.bo_phan,
-                'Vị trí': emp.vi_tri,
-                'chi nhánh': emp.chi_nhanh,
-                Ca: emp.ca_lam_viec,
-                Ca: emp.ca_lam_viec,
-                role: userData.role, // Reuse the calculated role
-                status: 'active',
-                status: 'active',
-                // Additional mapping
-                'Ngày sinh': emp.ngay_sinh,
-                'Ngày vào làm': emp.ngay_vao_lam,
-                'Ngày làm chính thức': emp.ngay_lam_chinh_thuc,
-                'Số điện thoại': emp.sđt,
-                'CCCD': emp.cccd,
-                'Địa chỉ': emp.dia_chi_thuong_tru,
-                'Quê quán': emp.que_quan,
-                'Giới tính': emp.gioi_tinh,
-                'Tình trạng hôn nhân': emp.tinh_trang_hon_nhan,
-                avatar_url: emp.avatarUrl || emp.avatarDataUrl,
-
-                firebase_key: firebaseKey, // Store legacy key reference
-                created_at: new Date().toISOString()
-            };
-
-            const { error: hrError } = await supabase
-                .from('human_resources')
-                .upsert(hrData, { onConflict: 'email' });
-
-            if (hrError) throw hrError;
-
+            // 3. Sync finished for this user
             successCount++;
 
         } catch (err) {
