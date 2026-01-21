@@ -50,11 +50,16 @@ export const assignUserRole = async (email, role_code) => {
 
     if (error) throw error;
 
-    // Also update human_resources for consistency if possible, but users is critical
-    await supabase
-        .from('human_resources')
-        .update({ role: role_code })
-        .eq('email', email);
+    // Also update human_resources for consistency if possible
+    // but don't fail if record doesn't exist (users table is source of truth)
+    try {
+        await supabase
+            .from('human_resources')
+            .update({ role: role_code })
+            .eq('email', email);
+    } catch (err) {
+        console.warn("Could not sync role to human_resources (optional):", err);
+    }
 
     return data[0];
 };
@@ -76,25 +81,29 @@ export const removeUserRole = async (email) => {
 };
 
 // --- EMPLOYEES ---
+// --- EMPLOYEES ---
 export const getEmployees = async () => {
     try {
-        const response = await fetch('https://lumi-6dff7-default-rtdb.asia-southeast1.firebasedatabase.app/employees.json');
-        const data = await response.json();
+        // Switch to Supabase 'users' table as requested
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .order('name', { ascending: true }); // Assuming 'name' exists, falling back to 'email' if needed
 
+        if (error) throw error;
         if (!data) return [];
 
-        // Convert object to array and map fields
-        const employees = Object.values(data).map(emp => ({
-            email: emp.email,
-            'Họ Và Tên': emp.ho_va_ten,
-            position: emp.vi_tri,
-            department: emp.bo_phan // Map department
-        })).filter(emp => emp.email && emp['Họ Và Tên']); // Filter valid records
+        // Map Supabase users to expected UI format
+        const employees = data.map(u => ({
+            email: u.email,
+            'Họ Và Tên': u.name || u.username || u.email, // Fallback to email if name missing
+            position: u.position || 'Nhân viên', // Column 'position' in users table? If not, generic
+            department: u.team || u.department || 'Chưa phân loại'
+        }));
 
-        // Sort by Name
-        return employees.sort((a, b) => a['Họ Và Tên'].localeCompare(b['Họ Và Tên']));
+        return employees;
     } catch (error) {
-        console.error("Error fetching employees from Firebase:", error);
+        console.error("Error fetching employees from Supabase:", error);
         return [];
     }
 };

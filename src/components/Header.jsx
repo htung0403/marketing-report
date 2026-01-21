@@ -18,8 +18,8 @@ export default function Header() {
     navigate("/dang-nhap");
   };
 
-  // Don't show header on login page
-  if (location.pathname === "/dang-nhap") {
+  // Don't show header on login page or home page (which has its own sidebar/topbar)
+  if (location.pathname === "/dang-nhap" || location.pathname === "/" || location.pathname === "/trang-chu") {
     return null;
   }
 

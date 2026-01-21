@@ -28,6 +28,7 @@ import {
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ChangePasswordModal } from "../components/modals/ChangePasswordModal";
+import { isTeamAllowed } from "../config/teamMenuMapping";
 import { usePermissions } from "../hooks/usePermissions";
 import { supabase } from "../supabase/config";
 
@@ -56,12 +57,13 @@ function Home() {
     localStorage.removeItem('userRole');
     localStorage.removeItem('userEmail');
     localStorage.removeItem('userTeam');
-    navigate('/login');
+    navigate('/dang-nhap');
   };
 
   useEffect(() => {
-    const role = localStorage.getItem("userRole") || "user";
-    setUserRole(role);
+    // Fix: Normalize role to lowercase to match config keys
+    const rawRole = localStorage.getItem("userRole") || "user";
+    setUserRole(rawRole.toLowerCase());
   }, []);
 
   const allMenuItems = [
@@ -120,6 +122,7 @@ function Home() {
       label: "CSKH & CRM",
       icon: <Users className="w-5 h-5" />,
       path: "#",
+      allowedTeamKeys: ['cskh'],
       // permission: 'MODULE_CSKH', // Optional: Hide entire group if no child is visible
       subItems: [
         {
@@ -168,9 +171,10 @@ function Home() {
     },
     {
       id: "sale",
-      label: "Quản lý Sale & Order",
+      label: "Quản lý Sale",
       icon: <ShoppingCart className="w-5 h-5" />,
       path: "#",
+      allowedTeamKeys: ['sale'],
       subItems: [
         {
           id: "order-list",
@@ -221,6 +225,7 @@ function Home() {
       label: "Quản lý giao hàng",
       icon: <Package className="w-5 h-5" />,
       path: "#",
+      allowedTeamKeys: ['delivery'],
       subItems: [
         {
           id: "delivery-list",
@@ -235,6 +240,7 @@ function Home() {
           icon: <BarChart3 className="w-4 h-4" />,
           path: "/bao-cao-van-don",
           // permission: 'ORDERS_REPORT', // Not in map yet?
+          allowedTeamKeys: ['delivery'],
         },
         {
           id: "delivery-history",
@@ -257,6 +263,7 @@ function Home() {
       label: "Quản lý Marketing",
       icon: <Megaphone className="w-5 h-5" />,
       path: "#",
+      allowedTeamKeys: ['marketing'],
       subItems: [
         {
           id: "mkt-input",
@@ -298,8 +305,9 @@ function Home() {
     {
       id: "rnd",
       label: "Quản lý R&D",
-      icon: <TrendingUp className="w-5 h-5" />,
+      icon: <Activity className="w-5 h-5" />,
       path: "#",
+      allowedTeamKeys: ['rnd'],
       subItems: [
         {
           id: "rnd-input",
@@ -357,21 +365,22 @@ function Home() {
       label: "Quản lý nhân sự",
       icon: <Users className="w-5 h-5" />,
       path: "#",
-      // adminOnly: true, // Removed to allow granular permissions
+      allowedTeamKeys: ['hr'],
       subItems: [
         {
           id: "hr-management",
           label: "Bảng tin nội bộ",
           icon: <Users className="w-4 h-4" />,
           path: "/nhan-su",
-          adminOnly: true,
+          // adminOnly: true, // Allow HR team
         },
         {
           id: "hr-records",
           label: "Hồ sơ nhân sự",
           icon: <ClipboardList className="w-4 h-4" />,
-          path: "/nhan-su",
-          adminOnly: true,
+          path: "https://hr-management-self.vercel.app/employees",
+          isExternal: true,
+          // adminOnly: true,
         },
         {
           id: "hr-recruitment",
@@ -379,7 +388,7 @@ function Home() {
           icon: <UserPlus className="w-4 h-4" />,
           path: "https://hr-management-self.vercel.app/recruitment",
           isExternal: true,
-          adminOnly: true,
+          // adminOnly: true,
         },
         {
           id: "hr-salary",
@@ -387,7 +396,7 @@ function Home() {
           icon: <DollarSign className="w-4 h-4" />,
           path: "https://hr-management-self.vercel.app/salary",
           isExternal: true,
-          adminOnly: true,
+          // adminOnly: true,
         },
         {
           id: "hr-competency",
@@ -395,7 +404,7 @@ function Home() {
           icon: <Award className="w-4 h-4" />,
           path: "https://hr-management-self.vercel.app/competency",
           isExternal: true,
-          adminOnly: true,
+          // adminOnly: true,
         },
         {
           id: "hr-kpi",
@@ -403,7 +412,7 @@ function Home() {
           icon: <Target className="w-4 h-4" />,
           path: "https://hr-management-self.vercel.app/kpi",
           isExternal: true,
-          adminOnly: true,
+          // adminOnly: true,
         },
         {
           id: "hr-tasks",
@@ -411,7 +420,7 @@ function Home() {
           icon: <ListTodo className="w-4 h-4" />,
           path: "https://hr-management-self.vercel.app/tasks",
           isExternal: true,
-          adminOnly: true,
+          // adminOnly: true,
         },
         {
           id: "hr-attendance",
@@ -419,7 +428,7 @@ function Home() {
           icon: <CalendarCheck className="w-4 h-4" />,
           path: "https://hr-management-self.vercel.app/attendance",
           isExternal: true,
-          adminOnly: true,
+          // adminOnly: true,
         },
         // Removed Honor (Tôn vinh) item
       ],
@@ -429,6 +438,7 @@ function Home() {
       label: "Quản lý tài chính",
       icon: <DollarSign className="w-5 h-5" />,
       path: "#",
+      allowedTeamKeys: ['finance'],
       subItems: [
         {
           id: "finance-master",
@@ -553,6 +563,7 @@ function Home() {
           path: "/quan-ly-cskh",
           status: "Mở ứng dụng",
           permission: 'CSKH_LIST',
+          allowedTeamKeys: ['cskh'],
         },
         {
           title: "Đơn đã thu tiền/cần CS",
@@ -561,6 +572,7 @@ function Home() {
           path: "/don-chia-cskh",
           status: "Mở ứng dụng",
           permission: 'CSKH_PAID',
+          allowedTeamKeys: ['cskh'],
         },
         {
           title: "Nhập đơn mới",
@@ -569,6 +581,7 @@ function Home() {
           path: "/nhap-don",
           status: "Mở ứng dụng",
           permission: 'CSKH_NEW_ORDER',
+          allowedTeamKeys: ['cskh'],
         },
         {
           title: "Nhập báo cáo",
@@ -577,6 +590,7 @@ function Home() {
           path: "/nhap-bao-cao-cskh",
           status: "Mở ứng dụng",
           permission: 'CSKH_INPUT',
+          allowedTeamKeys: ['cskh'],
         },
         {
           title: "Xem báo cáo CSKH",
@@ -585,6 +599,7 @@ function Home() {
           path: "/xem-bao-cao-cskh",
           status: "Mở ứng dụng",
           permission: 'CSKH_VIEW',
+          allowedTeamKeys: ['cskh'],
         },
         {
           title: "Lịch sử thay đổi",
@@ -593,6 +608,7 @@ function Home() {
           path: "/lich-su-cskh",
           status: "Mở ứng dụng",
           permission: 'CSKH_HISTORY',
+          allowedTeamKeys: ['cskh'],
         },
       ],
     },
@@ -606,6 +622,7 @@ function Home() {
           path: "/danh-sach-don",
           status: "Mở ứng dụng",
           permission: 'SALE_ORDERS',
+          allowedTeamKeys: ['sale'],
         },
         {
           title: "Nhập đơn mới",
@@ -614,6 +631,7 @@ function Home() {
           path: "/nhap-don",
           status: "Mở ứng dụng",
           permission: 'SALE_NEW_ORDER',
+          allowedTeamKeys: ['sale'],
         },
         {
           title: "Sale nhập báo cáo",
@@ -622,6 +640,7 @@ function Home() {
           path: "/sale-nhap-bao-cao",
           status: "Mở ứng dụng",
           permission: 'SALE_INPUT',
+          allowedTeamKeys: ['sale'],
         },
         {
           title: "Xem báo cáo Sale",
@@ -630,6 +649,7 @@ function Home() {
           path: "/xem-bao-cao-sale",
           status: "Mở ứng dụng",
           permission: 'SALE_VIEW',
+          allowedTeamKeys: ['sale'],
         },
         {
           title: "Ds báo cáo tay",
@@ -638,6 +658,7 @@ function Home() {
           path: "/danh-sach-bao-cao-tay",
           status: "Mở ứng dụng",
           permission: 'SALE_MANUAL',
+          allowedTeamKeys: ['sale'],
         },
         {
           title: "Lịch sử thay đổi",
@@ -646,6 +667,7 @@ function Home() {
           path: "/lich-su-sale-order",
           status: "Mở ứng dụng",
           permission: 'SALE_HISTORY',
+          allowedTeamKeys: ['sale'],
         },
       ],
     },
@@ -659,6 +681,7 @@ function Home() {
           path: "/van-don",
           status: "Mở ứng dụng",
           permission: 'ORDERS_LIST',
+          allowedTeamKeys: ['delivery'],
         },
         {
           title: "Báo cáo vận đơn",
@@ -666,6 +689,7 @@ function Home() {
           color: "bg-teal-500",
           path: "/bao-cao-van-don",
           status: "Mở ứng dụng",
+          allowedTeamKeys: ['delivery'],
           // permission: 'ORDERS_REPORT',
         },
         {
@@ -674,6 +698,7 @@ function Home() {
           color: "bg-cyan-500",
           path: "/chinh-sua-don",
           status: "Mở ứng dụng",
+          allowedTeamKeys: ['delivery'],
         },
         {
           title: "FFM",
@@ -682,6 +707,7 @@ function Home() {
           path: "/ffm",
           status: "Mở ứng dụng",
           permission: 'ORDERS_FFM',
+          allowedTeamKeys: ['delivery'],
         },
         {
           title: "Lịch sử thay đổi",
@@ -690,6 +716,7 @@ function Home() {
           path: "/lich-su-van-don",
           status: "Mở ứng dụng",
           permission: 'ORDERS_HISTORY',
+          allowedTeamKeys: ['delivery'],
         },
       ],
     },
@@ -703,6 +730,7 @@ function Home() {
           path: "/bao-cao-marketing",
           status: "Mở ứng dụng",
           permission: 'MKT_INPUT',
+          allowedTeamKeys: ['marketing'],
         },
         {
           title: "Xem báo cáo MKT",
@@ -711,6 +739,7 @@ function Home() {
           path: "/xem-bao-cao-mkt",
           status: "Mở ứng dụng",
           permission: 'MKT_VIEW',
+          allowedTeamKeys: ['marketing'],
         },
         {
           title: "Danh sách đơn",
@@ -719,6 +748,7 @@ function Home() {
           path: "/bao-cao-chi-tiet",
           status: "Mở ứng dụng",
           permission: 'MKT_ORDERS',
+          allowedTeamKeys: ['marketing'],
         },
         {
           title: "Danh sách Page",
@@ -727,6 +757,7 @@ function Home() {
           path: "/danh-sach-page",
           status: "Mở ứng dụng",
           permission: 'MKT_PAGES',
+          allowedTeamKeys: ['marketing'],
         },
         {
           title: "Ds báo cáo tay",
@@ -735,6 +766,7 @@ function Home() {
           path: "/danh-sach-bao-cao-tay-mkt",
           status: "Mở ứng dụng",
           permission: 'MKT_MANUAL',
+          allowedTeamKeys: ['marketing'],
         },
       ],
     },
@@ -749,6 +781,7 @@ function Home() {
           path: "/bao-cao-rd",
           status: "Mở ứng dụng",
           permission: 'RND_INPUT',
+          allowedTeamKeys: ['rnd'],
         },
         {
           title: "Xem báo cáo R&D",
@@ -757,6 +790,7 @@ function Home() {
           path: "/xem-bao-cao-rd",
           status: "Mở ứng dụng",
           permission: 'RND_VIEW',
+          allowedTeamKeys: ['rnd'],
         },
         {
           title: "Danh sách đơn",
@@ -765,6 +799,7 @@ function Home() {
           path: "/bao-cao-chi-tiet-rd",
           status: "Mở ứng dụng",
           permission: 'RND_ORDERS',
+          allowedTeamKeys: ['rnd'],
         },
         {
           title: "Danh sách Page",
@@ -773,6 +808,7 @@ function Home() {
           path: "/danh-sach-page-rd",
           status: "Mở ứng dụng",
           permission: 'RND_PAGES',
+          allowedTeamKeys: ['rnd'],
         },
         {
           title: "Ds báo cáo tay",
@@ -781,6 +817,7 @@ function Home() {
           path: "/danh-sach-bao-cao-tay-rd",
           status: "Mở ứng dụng",
           permission: 'RND_MANUAL',
+          allowedTeamKeys: ['rnd'],
         },
         {
           title: "Nhập đơn mới",
@@ -789,6 +826,7 @@ function Home() {
           path: "/nhap-don",
           status: "Mở ứng dụng",
           permission: 'RND_NEW_ORDER',
+          allowedTeamKeys: ['rnd'],
         },
         {
           title: "Lịch sử thay đổi",
@@ -797,6 +835,7 @@ function Home() {
           path: "/lich-su-sale-order",
           status: "Mở ứng dụng",
           permission: 'RND_HISTORY',
+          allowedTeamKeys: ['rnd'],
         },
 
         // --- SALE DUPLICATES FOR R&D ---
@@ -807,6 +846,7 @@ function Home() {
           path: "/danh-sach-don?team=RD",
           status: "Mở ứng dụng",
           permission: 'RND_ORDERS',
+          allowedTeamKeys: ['rnd'],
         },
         {
           title: "Sale: Nhập đơn mới",
@@ -815,6 +855,7 @@ function Home() {
           path: "/nhap-don?team=RD",
           status: "Mở ứng dụng",
           permission: 'RND_NEW_ORDER',
+          allowedTeamKeys: ['rnd'],
         },
         {
           title: "Sale: Nhập báo cáo",
@@ -823,6 +864,7 @@ function Home() {
           path: "/sale-nhap-bao-cao?team=RD",
           status: "Mở ứng dụng",
           permission: 'RND_INPUT',
+          allowedTeamKeys: ['rnd'],
         },
         {
           title: "Sale: Xem báo cáo",
@@ -831,6 +873,7 @@ function Home() {
           path: "/xem-bao-cao-sale?team=RD",
           status: "Mở ứng dụng",
           permission: 'RND_VIEW',
+          allowedTeamKeys: ['rnd'],
         },
         {
           title: "Sale: Ds báo cáo tay",
@@ -839,6 +882,7 @@ function Home() {
           path: "/danh-sach-bao-cao-tay?team=RD",
           status: "Mở ứng dụng",
           permission: 'RND_MANUAL',
+          allowedTeamKeys: ['rnd'],
         },
 
         // --- MARKETING DUPLICATES FOR R&D ---
@@ -849,6 +893,7 @@ function Home() {
           path: "/bao-cao-marketing?team=RD",
           status: "Mở ứng dụng",
           permission: 'RND_INPUT',
+          allowedTeamKeys: ['rnd'],
         },
         {
           title: "MKT: Xem báo cáo",
@@ -857,6 +902,7 @@ function Home() {
           path: "/xem-bao-cao-mkt?team=RD",
           status: "Mở ứng dụng",
           permission: 'RND_VIEW',
+          allowedTeamKeys: ['rnd'],
         },
         {
           title: "MKT: Danh sách đơn",
@@ -865,6 +911,7 @@ function Home() {
           path: "/bao-cao-chi-tiet?team=RD",
           status: "Mở ứng dụng",
           permission: 'RND_ORDERS',
+          allowedTeamKeys: ['rnd'],
         },
         {
           title: "MKT: Danh sách Page",
@@ -873,6 +920,7 @@ function Home() {
           path: "/danh-sach-page?team=RD",
           status: "Mở ứng dụng",
           permission: 'RND_PAGES',
+          allowedTeamKeys: ['rnd'],
         },
         {
           title: "MKT: Ds báo cáo tay",
@@ -881,6 +929,7 @@ function Home() {
           path: "/danh-sach-bao-cao-tay-mkt?team=RD",
           status: "Mở ứng dụng",
           permission: 'RND_MANUAL',
+          allowedTeamKeys: ['rnd'],
         },
       ],
     },
@@ -893,7 +942,8 @@ function Home() {
           color: "bg-pink-500",
           path: "/nhan-su",
           status: "Mở ứng dụng",
-          adminOnly: true,
+          // adminOnly: true,
+          allowedTeamKeys: ['hr'],
         },
         {
           title: "Hồ sơ nhân sự",
@@ -902,7 +952,8 @@ function Home() {
           path: "https://hr-management-self.vercel.app/employees",
           status: "Mở ứng dụng",
           isExternal: true,
-          adminOnly: true,
+          // adminOnly: true,
+          allowedTeamKeys: ['hr'],
         },
         {
           title: "Tuyển dụng",
@@ -911,7 +962,8 @@ function Home() {
           path: "https://hr-management-self.vercel.app/recruitment",
           status: "Mở ứng dụng",
           isExternal: true,
-          adminOnly: true,
+          // adminOnly: true,
+          allowedTeamKeys: ['hr'],
         },
         {
           title: "Bậc lương & thăng tiến",
@@ -920,7 +972,8 @@ function Home() {
           path: "https://hr-management-self.vercel.app/salary",
           status: "Mở ứng dụng",
           isExternal: true,
-          adminOnly: true,
+          // adminOnly: true,
+          allowedTeamKeys: ['hr'],
         },
         {
           title: "Năng lực nhân sự",
@@ -929,7 +982,8 @@ function Home() {
           path: "https://hr-management-self.vercel.app/competency",
           status: "Mở ứng dụng",
           isExternal: true,
-          adminOnly: true,
+          // adminOnly: true,
+          allowedTeamKeys: ['hr'],
         },
         {
           title: "KPI",
@@ -938,7 +992,8 @@ function Home() {
           path: "https://hr-management-self.vercel.app/kpi",
           status: "Mở ứng dụng",
           isExternal: true,
-          adminOnly: true,
+          // adminOnly: true,
+          allowedTeamKeys: ['hr'],
         },
         {
           title: "Giao việc",
@@ -947,7 +1002,8 @@ function Home() {
           path: "https://hr-management-self.vercel.app/tasks",
           status: "Mở ứng dụng",
           isExternal: true,
-          adminOnly: true,
+          // adminOnly: true,
+          allowedTeamKeys: ['hr'],
         },
         {
           title: "Chấm công & lương",
@@ -956,7 +1012,8 @@ function Home() {
           path: "https://hr-management-self.vercel.app/attendance",
           status: "Mở ứng dụng",
           isExternal: true,
-          adminOnly: true,
+          // adminOnly: true,
+          allowedTeamKeys: ['hr'],
         },
         // Removed Honor card
       ],
@@ -971,6 +1028,7 @@ function Home() {
           path: "#",
           status: "Sắp ra mắt",
           comingSoon: true,
+          allowedTeamKeys: ['finance'],
         },
         {
           title: "Quản lý tài chính nền tảng",
@@ -979,6 +1037,7 @@ function Home() {
           path: "https://lumi-finance-manager.vercel.app/#/master-data",
           status: "Mở ứng dụng",
           isExternal: true,
+          allowedTeamKeys: ['finance'],
         },
         {
           title: "Quản lý thu",
@@ -987,22 +1046,25 @@ function Home() {
           path: "https://lumi-finance-manager.vercel.app/#/revenue",
           status: "Mở ứng dụng",
           isExternal: true,
+          allowedTeamKeys: ['finance'],
         },
         {
           title: "Quản lý chi",
           icon: <DollarSign className="w-8 h-8" />,
           color: "bg-red-600",
-          path: "https://lumi-finance-manager.vercel.app/#/cost",
+          path: "https://lumi-finance-manager.vercel.app/#/cash-balance",
           status: "Mở ứng dụng",
           isExternal: true,
+          allowedTeamKeys: ['finance'],
         },
         {
           title: "Sổ quỹ & Dòng tiền",
           icon: <DollarSign className="w-8 h-8" />,
           color: "bg-blue-600",
-          path: "https://lumi-finance-manager.vercel.app/#/ledger",
+          path: "https://lumi-finance-manager.vercel.app/#/report",
           status: "Mở ứng dụng",
           isExternal: true,
+          allowedTeamKeys: ['finance'],
         },
         {
           title: "Báo cáo tài chính quản trị",
@@ -1011,6 +1073,7 @@ function Home() {
           path: "https://lumi-finance-manager.vercel.app/#/management-reports",
           status: "Mở ứng dụng",
           isExternal: true,
+          allowedTeamKeys: ['finance'],
         },
         {
           title: "Dữ liệu F3",
@@ -1019,6 +1082,7 @@ function Home() {
           path: "https://lumi-finance-manager.vercel.app/#/f3-datasheet",
           status: "Mở ứng dụng",
           isExternal: true,
+          allowedTeamKeys: ['finance'],
         },
       ],
     },
@@ -1051,23 +1115,38 @@ function Home() {
 
   // Helper to check if an item (or any of its children) is visible
   const isItemVisible = (item) => {
-    // 1. Admin Bypass
-    if (userRole === 'admin') return true;
+    // 1. Admin Bypass - admins see everything
+    if (userRole === 'admin' || userRole === 'leader') return true;
+
+    // 2. Check adminOnly flag
     if (item.adminOnly) return false;
 
-    // 2. Check explicit permission if present for leaf node
+    // 3. NEW: Check team restrictions using config
+    // Logic: Pass if Team matches OR Role matches
+    const userTeam = localStorage.getItem('userTeam') || '';
+    if (item.allowedTeamKeys && item.allowedTeamKeys.length > 0) {
+      const hasTeamAccess = isTeamAllowed(userTeam, item.allowedTeamKeys);
+      // Fix: case-insensitive check for role
+      const hasRoleAccess = item.allowedTeamKeys.includes((userRole || '').toLowerCase());
+
+      if (!hasTeamAccess && !hasRoleAccess) {
+        return false;
+      }
+    }
+
+    // 4. Check explicit permission if present for leaf node
     if (item.permission) {
       return canView(item.permission);
     }
 
-    // 3. If it has sub-items, check if AT LEAST ONE sub-item is visible
+    // 5. If it has sub-items, check if AT LEAST ONE sub-item is visible
     if (item.subItems && item.subItems.length > 0) {
       // Filter subItems first to see what remains
       const visibleSubItems = item.subItems.filter(sub => isItemVisible(sub));
       return visibleSubItems.length > 0;
     }
 
-    // 4. Default safe fallback: if no permission stricture defined, show it (or hide it? strict vs loose)
+    // 6. Default safe fallback: if no permission stricture defined, show it (or hide it? strict vs loose)
     // For this system, let's look at legacy behavior. Previous behavior was loose unless restricted.
     // However, for new RBAC, modules should be hidden if empty. 
 
@@ -1226,7 +1305,6 @@ function Home() {
   };
 
 
-
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
@@ -1322,6 +1400,12 @@ function Home() {
       <div className="flex-1 overflow-y-auto bg-gray-50 flex flex-col h-screen">
         {/* Top Bar - sticky */}
         <div className="bg-white border-b border-gray-200 sticky top-0 z-30 px-6 py-3 flex items-center justify-end shadow-sm">
+          {/* Debug Info */}
+          <div className="hidden md:flex flex-col items-end mr-4 text-xs text-gray-400">
+            <span>Role: {userRole}</span>
+            <span>Team: {localStorage.getItem('userTeam')}</span>
+          </div>
+
           <div className="relative">
             <button
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
