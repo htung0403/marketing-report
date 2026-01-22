@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import usePermissions from '../hooks/usePermissions';
+import ReportForm from './ReportForm'; // Import the form component
 
 export default function NhapBaoCaoSale() {
     const location = useLocation();
@@ -33,17 +34,8 @@ export default function NhapBaoCaoSale() {
         );
     }
 
+    // Use the ReportForm which now writes to Supabase
     return (
-        <div style={{ width: '100%', height: '100vh' }}>
-            <iframe
-                src={`https://nguyenbatyads37.github.io/static-html-show-data/baoCaoThuCong.html?hoten=${encodeURIComponent(currentUserInfo.ten)}&email=${encodeURIComponent(currentUserInfo.email)}&tableName=Báo cáo Sale`}
-                title="Báo cáo Sale"
-                style={{
-                    width: '100%',
-                    height: '100%',
-                    border: 'none'
-                }}
-            />
-        </div>
+        <ReportForm />
     );
 }

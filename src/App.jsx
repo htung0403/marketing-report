@@ -13,6 +13,7 @@ import BaoCaoVanDon from './pages/BaoCaoVanDon';
 import BillOfLadingHistoryPage from './pages/BillOfLadingHistoryPage';
 import ChangeLogViewer from './pages/ChangeLogViewer';
 import CskhCrmHistoryPage from './pages/CskhCrmHistoryPage';
+import DanhSachBaoCaoTayCSKH from './pages/DanhSachBaoCaoTayCSKH';
 import NhapBaoCaoCSKH from './pages/NhapBaoCaoCSKH';
 import SalesOrderHistoryPage from './pages/SalesOrderHistoryPage';
 import XemBaoCaoCSKH from './pages/XemBaoCaoCSKH';
@@ -89,10 +90,12 @@ function App() {
             <Route path="/danh-sach-page" element={<ProtectedRoute><DanhSachPage /></ProtectedRoute>} />
             <Route path="/nhap-don" element={<ProtectedRoute><NhapDonMoi /></ProtectedRoute>} />
             <Route path="/chinh-sua-don" element={<ProtectedRoute><NhapDonMoi isEdit={true} /></ProtectedRoute>} />
+
             <Route path="/quan-ly-cskh" element={<ProtectedRoute><QuanLyCSKH /></ProtectedRoute>} />
             <Route path="/don-chia-cskh" element={<ProtectedRoute><DonChiaCSKH /></ProtectedRoute>} />
             <Route path="/xem-bao-cao-cskh" element={<ProtectedRoute><XemBaoCaoCSKH /></ProtectedRoute>} />
             <Route path="/nhap-bao-cao-cskh" element={<ProtectedRoute><NhapBaoCaoCSKH /></ProtectedRoute>} />
+            <Route path="/danh-sach-bao-cao-tay-cskh" element={<ProtectedRoute><DanhSachBaoCaoTayCSKH /></ProtectedRoute>} />
             <Route path="/xem-bao-cao-mkt" element={<ProtectedRoute><XemBaoCaoMKT /></ProtectedRoute>} />
             <Route path="/danh-sach-bao-cao-tay-mkt" element={<ProtectedRoute><DanhSachBaoCaoTayMKT /></ProtectedRoute>} />
             <Route path="/ffm" element={<ProtectedRoute><FFM /></ProtectedRoute>} />

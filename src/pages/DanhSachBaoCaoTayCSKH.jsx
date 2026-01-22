@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import usePermissions from '../hooks/usePermissions';
 import { supabase } from '../services/supabaseClient';
-import './BaoCaoSale.css'; // Reusing styles for consistency
+import './BaoCaoSale.css'; // Reusing styles
 
 // Helpers
 const formatCurrency = (value) => Number(value || 0).toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
@@ -16,21 +15,15 @@ const formatDate = (dateValue) => {
     return `${day}/${month}/${year}`;
 };
 
-export default function DanhSachBaoCaoTay() {
-    const location = useLocation();
-    const searchParams = new URLSearchParams(location.search);
-    const teamFilter = searchParams.get('team'); // 'RD' or null
-
-    // Permission Logic
+export default function DanhSachBaoCaoTayCSKH() {
     const { canView } = usePermissions();
-    const permissionCode = teamFilter === 'RD' ? 'RND_MANUAL' : 'SALE_MANUAL';
 
-    if (!canView(permissionCode)) {
-        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+    if (!canView('CSKH_VIEW')) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (CSKH_VIEW).</div>;
     }
 
     const [loading, setLoading] = useState(true);
-    const [manualReports, setManualReports] = useState([]);
+    const [reports, setReports] = useState([]);
     const [filters, setFilters] = useState({
         startDate: '',
         endDate: ''
@@ -40,7 +33,7 @@ export default function DanhSachBaoCaoTay() {
     useEffect(() => {
         const today = new Date();
         const d = new Date();
-        d.setDate(d.getDate() - 3);
+        d.setDate(d.getDate() - 7); // Last 7 days
         const formatDateForInput = (date) => date.toISOString().split('T')[0];
 
         setFilters({
@@ -56,16 +49,16 @@ export default function DanhSachBaoCaoTay() {
             setLoading(true);
             try {
                 const { data, error } = await supabase
-                    .from('sales_reports')
+                    .from('cskh_reports')
                     .select('*')
-                    .gte('date', filters.startDate)
-                    .lte('date', filters.endDate)
-                    .order('created_at', { ascending: false });
+                    .gte('report_date', filters.startDate)
+                    .lte('report_date', filters.endDate)
+                    .order('report_date', { ascending: false });
 
                 if (error) throw error;
-                setManualReports(data || []);
+                setReports(data || []);
             } catch (error) {
-                console.error('Error fetching manual reports:', error);
+                console.error('Error fetching CSKH manual reports:', error);
             } finally {
                 setLoading(false);
             }
@@ -79,7 +72,7 @@ export default function DanhSachBaoCaoTay() {
             {loading && <div className="loading-overlay">Đang tải dữ liệu...</div>}
 
             <div className="report-container">
-                {/* Simple Header/Filter Section */}
+                {/* Sidebar Filter */}
                 <div className="sidebar" style={{ width: '250px', minWidth: '250px' }}>
                     <h3>Bộ lọc</h3>
                     <label>
@@ -94,7 +87,7 @@ export default function DanhSachBaoCaoTay() {
 
                 <div className="main-detailed">
                     <div className="header">
-                        <h2>DANH SÁCH BÁO CÁO TAY SALE</h2>
+                        <h2>DANH SÁCH BÁO CÁO TAY CSKH</h2>
                     </div>
 
                     <div className="table-responsive-container">
@@ -104,35 +97,33 @@ export default function DanhSachBaoCaoTay() {
                                     <th>STT</th>
                                     <th>Ngày</th>
                                     <th>Ca</th>
-                                    <th>Người báo cáo</th>
-                                    <th>Team</th>
+                                    <th>Nhân viên</th>
                                     <th>Sản phẩm</th>
                                     <th>Thị trường</th>
-                                    <th>Số Mess</th>
+                                    <th>Tiếp nhận</th>
                                     <th>Phản hồi</th>
-                                    <th>Số Đơn (Mess)</th>
-                                    <th>Doanh số (Mess)</th>
+                                    <th>Đơn chốt</th>
+                                    <th>Doanh số chốt</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {manualReports.length === 0 ? (
+                                {reports.length === 0 ? (
                                     <tr>
-                                        <td colSpan="11" className="text-center">{loading ? 'Đang tải...' : 'Không có dữ liệu trong khoảng thời gian này.'}</td>
+                                        <td colSpan="10" className="text-center">{loading ? 'Đang tải...' : 'Không có dữ liệu trong khoảng thời gian này.'}</td>
                                     </tr>
                                 ) : (
-                                    manualReports.map((item, index) => (
+                                    reports.map((item, index) => (
                                         <tr key={item.id || index}>
                                             <td className="text-center">{index + 1}</td>
-                                            <td>{formatDate(item.date)}</td>
+                                            <td>{formatDate(item.report_date)}</td>
                                             <td>{item.shift}</td>
-                                            <td>{item.name}</td>
-                                            <td>{item.team}</td>
+                                            <td className="font-semibold">{item.name}</td>
                                             <td>{item.product}</td>
                                             <td>{item.market}</td>
                                             <td>{formatNumber(item.mess_count)}</td>
                                             <td>{formatNumber(item.response_count)}</td>
                                             <td>{formatNumber(item.order_count)}</td>
-                                            <td>{formatCurrency(item.revenue_mess)}</td>
+                                            <td className="text-blue-600 font-medium">{formatCurrency(item.revenue_mess)}</td>
                                         </tr>
                                     ))
                                 )}

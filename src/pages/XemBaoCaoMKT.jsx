@@ -1,6 +1,5 @@
-import { ChevronLeft } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import usePermissions from '../hooks/usePermissions';
 import { supabase } from '../supabase/config';
 import { isDateInRange, parseSmartDate } from '../utils/dateParsing';
@@ -592,9 +591,7 @@ export default function XemBaoCaoMKT() {
 
   return (
     <div className="report-view-container">
-      <Link to="/trang-chu" className="back-button">
-        <ChevronLeft size={20} /> Quay lại
-      </Link>
+
 
       <div className="tab-container">
         <button

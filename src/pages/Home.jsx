@@ -593,6 +593,15 @@ function Home() {
           allowedTeamKeys: ['cskh'],
         },
         {
+          title: "Ds báo cáo tay",
+          icon: <Database className="w-8 h-8" />,
+          color: "bg-cyan-600",
+          path: "/danh-sach-bao-cao-tay-cskh",
+          status: "Mở ứng dụng",
+          permission: 'CSKH_VIEW',
+          allowedTeamKeys: ['cskh'],
+        },
+        {
           title: "Xem báo cáo CSKH",
           icon: <BarChart3 className="w-8 h-8" />,
           color: "bg-orange-600",

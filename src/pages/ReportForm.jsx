@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { useNavigate } from 'react-router-dom';
+import { supabase } from '../services/supabaseClient';
 
 function ReportForm() {
   // State cho thông tin cố định
@@ -19,6 +20,7 @@ function ReportForm() {
     tkqc: '',
     cpqc: '',
     mess_cmt: '',
+    response: '',
     orders: '',
     revenue: ''
   }]);
@@ -33,33 +35,42 @@ function ReportForm() {
   const [dropdownLoading, setDropdownLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Fetch dropdown data from direct URL
+  // Fetch dropdown data from Supabase (Dynamic from existing data)
   useEffect(() => {
     const fetchDropdownData = async () => {
       try {
         setDropdownLoading(true);
-        const reportsUrl = 'https://lumi-6dff7-default-rtdb.asia-southeast1.firebasedatabase.app/datasheet/B%C3%A1o_c%C3%A1o_MKT.json';
 
-        const response = await fetch(reportsUrl);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        const { data, error } = await supabase
+          .from('sales_reports')
+          .select('product, market')
+          .limit(1000)
+          .order('created_at', { ascending: false });
 
-        const data = await response.json();
+        if (error) throw error;
 
-        // Extract unique products and markets from existing reports
+        // Extract unique sets
         const productsSet = new Set();
         const marketsSet = new Set();
 
-        if (data && typeof data === 'object') {
-          Object.values(data).forEach(report => {
-            if (report.Sản_phẩm && report.Sản_phẩm.trim()) {
-              productsSet.add(String(report.Sản_phẩm).trim());
-            }
-            if (report.Thị_trường && report.Thị_trường.trim()) {
-              marketsSet.add(String(report.Thị_trường).trim());
-            }
+        if (data) {
+          data.forEach(item => {
+            if (item.product && item.product.trim()) productsSet.add(item.product.trim());
+            if (item.market && item.market.trim()) marketsSet.add(item.market.trim());
           });
+        }
+
+        // Fallback defaults if empty (initial state)
+        if (productsSet.size === 0) {
+          productsSet.add('Lumi Eyes');
+          productsSet.add('Lumi Nano');
+          productsSet.add('Lumi Skin');
+        }
+        if (marketsSet.size === 0) {
+          marketsSet.add('Việt Nam');
+          marketsSet.add('Thái Lan');
+          marketsSet.add('Philippines');
+          marketsSet.add('Malaysia');
         }
 
         const products = Array.from(productsSet).sort((a, b) => a.localeCompare(b, 'vi'));
@@ -69,9 +80,9 @@ function ReportForm() {
         setMarketOptions(markets);
       } catch (err) {
         console.error('Error fetching dropdown data:', err);
-        // Set empty arrays on error
-        setProductOptions([]);
-        setMarketOptions([]);
+        // Default fallbacks in case of error
+        setProductOptions(['Lumi Eyes', 'Lumi Nano']);
+        setMarketOptions(['Việt Nam', 'Thái Lan']);
       } finally {
         setDropdownLoading(false);
       }
@@ -108,8 +119,8 @@ function ReportForm() {
 
   const handleReportChange = (e, reportIndex) => {
     const { name, value } = e.target;
-    const numberFields = ['cpqc', 'mess_cmt', 'orders', 'revenue'];
-    
+    const numberFields = ['cpqc', 'mess_cmt', 'response', 'orders', 'revenue'];
+
     const newReports = [...reports];
     if (numberFields.includes(name)) {
       const formattedValue = formatNumberInput(value);
@@ -118,7 +129,7 @@ function ReportForm() {
       newReports[reportIndex] = { ...newReports[reportIndex], [name]: value };
     }
     setReports(newReports);
-    
+
     const errorKey = `${reportIndex}-${name}`;
     if (errors[errorKey]) {
       setErrors(prev => {
@@ -131,10 +142,10 @@ function ReportForm() {
 
   const validateForm = () => {
     const newErrors = {};
-    
+
     // Validate fixed info
     if (!fixedInfo.name.trim()) newErrors['fixed-name'] = 'Required';
-    if (!fixedInfo.email.trim()) newErrors['fixed-email'] = 'Required';
+    // if (!fixedInfo.email.trim()) newErrors['fixed-email'] = 'Required';
     if (!fixedInfo.date) newErrors['fixed-date'] = 'Required';
     if (!fixedInfo.shift) newErrors['fixed-shift'] = 'Required';
 
@@ -142,13 +153,13 @@ function ReportForm() {
     reports.forEach((report, index) => {
       if (!report.product.trim()) newErrors[`${index}-product`] = 'Required';
       if (!report.market.trim()) newErrors[`${index}-market`] = 'Required';
-      if (!report.tkqc.trim()) newErrors[`${index}-tkqc`] = 'Required';
-      if (!report.cpqc) newErrors[`${index}-cpqc`] = 'Required';
+      // TKQC and CPQC validation skipped
       if (!report.mess_cmt) newErrors[`${index}-mess_cmt`] = 'Required';
+      if (!report.response) newErrors[`${index}-response`] = 'Required';
       if (!report.orders) newErrors[`${index}-orders`] = 'Required';
       if (!report.revenue) newErrors[`${index}-revenue`] = 'Required';
     });
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -161,46 +172,35 @@ function ReportForm() {
 
     setLoading(true);
     try {
-      const reportsUrl = 'https://lumi-6dff7-default-rtdb.asia-southeast1.firebasedatabase.app/datasheet/B%C3%A1o_c%C3%A1o_MKT.json';
+      // Prepare data for Supabase
+      const payload = reports.map(report => ({
+        name: fixedInfo.name,
+        email: fixedInfo.email,
+        date: fixedInfo.date, // YYYY-MM-DD
+        shift: fixedInfo.shift,
 
-      // Prepare pushes for all reports
-      const pushes = reports.map(async (report) => {
-        const payload = {
-          "Tên": fixedInfo.name,
-          "Email": fixedInfo.email,
-          "Ngày": fixedInfo.date,
-          "ca": fixedInfo.shift,
-          "Sản_phẩm": report.product,
-          "Thị_trường": report.market,
-          "TKQC": report.tkqc,
-          "CPQC": Number(cleanNumberInput(String(report.cpqc || ''))) || 0,
-          "Số_Mess_Cmt": Number(cleanNumberInput(String(report.mess_cmt || ''))) || 0,
-          "Số đơn": Number(cleanNumberInput(String(report.orders || ''))) || 0,
-          "Doanh số": Number(cleanNumberInput(String(report.revenue || ''))) || 0,
-          "Team": localStorage.getItem('userTeam') || '',
-          "id_NS": localStorage.getItem('userId') || '',
-          "Via_log": fixedInfo.name,
-          "Tháng": new Date().getMonth() + 1,
-          "DS chốt": 0
-        };
+        product: report.product,
+        market: report.market,
+        // tkqc: report.tkqc, // Skipped
+        // cpqc: ... // Skipped
 
-        const response = await fetch(reportsUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload)
-        });
+        mess_count: Number(cleanNumberInput(String(report.mess_cmt || ''))) || 0,
+        response_count: Number(cleanNumberInput(String(report.response || ''))) || 0,
+        order_count: Number(cleanNumberInput(String(report.orders || ''))) || 0,
+        revenue_mess: Number(cleanNumberInput(String(report.revenue || ''))) || 0,
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        team: localStorage.getItem('userTeam') || 'Sale',
+        // user_id: localStorage.getItem('userId'), // DB does not have user_id column
 
-        return response.json();
-      });
+        created_at: new Date().toISOString(),
+        // status: 'pending' // Skipped
+      }));
 
-      // Wait until all pushes finish
-      await Promise.all(pushes);
+      const { error } = await supabase
+        .from('sales_reports')
+        .insert(payload);
+
+      if (error) throw error;
 
       toast.success(`Đã lưu thành công ${reports.length} báo cáo!`, { position: 'top-right', autoClose: 3000 });
 
@@ -211,6 +211,7 @@ function ReportForm() {
         tkqc: '',
         cpqc: '',
         mess_cmt: '',
+        response: '',
         orders: '',
         revenue: ''
       }]);
@@ -232,6 +233,7 @@ function ReportForm() {
       tkqc: '',
       cpqc: '',
       mess_cmt: '',
+      response: '',
       orders: '',
       revenue: ''
     };
@@ -367,11 +369,11 @@ function ReportForm() {
           {reports.map((report, reportIndex) => {
             const isExpanded = expandedRows.has(reportIndex);
             const hasErrors = Object.keys(errors).some(key => key.startsWith(`${reportIndex}-`));
-            
+
             return (
               <div key={reportIndex} className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-xl">
                 {/* Card Header */}
-                <div 
+                <div
                   className={`p-6 cursor-pointer select-none transition-colors ${hasErrors ? 'bg-red-50' : 'bg-gradient-to-r from-blue-50 to-purple-50'}`}
                   onClick={() => toggleReport(reportIndex)}
                 >
@@ -408,10 +410,10 @@ function ReportForm() {
                           </svg>
                         </button>
                       )}
-                      <svg 
+                      <svg
                         className={`w-6 h-6 text-gray-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
-                        fill="none" 
-                        stroke="currentColor" 
+                        fill="none"
+                        stroke="currentColor"
                         viewBox="0 0 24 24"
                       >
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -423,7 +425,7 @@ function ReportForm() {
                 {/* Card Content - Tất cả trường trên 1 dòng */}
                 {isExpanded && (
                   <div className="p-6 border-t border-gray-100">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                       {/* Sản phẩm */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Sản phẩm <span className="text-red-500">*</span></label>
@@ -468,33 +470,6 @@ function ReportForm() {
                         </select>
                       </div>
 
-                      {/* TKQC */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">TKQC <span className="text-red-500">*</span></label>
-                        <input
-                          type="text"
-                          name="tkqc"
-                          value={report.tkqc}
-                          onChange={(e) => handleReportChange(e, reportIndex)}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${errors[`${reportIndex}-tkqc`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                          placeholder="Nhập TKQC"
-                        />
-                      </div>
-
-                      {/* CPQC */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">CPQC <span className="text-red-500">*</span></label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          name="cpqc"
-                          value={report.cpqc}
-                          onChange={(e) => handleReportChange(e, reportIndex)}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${errors[`${reportIndex}-cpqc`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                          placeholder="0"
-                        />
-                      </div>
-
                       {/* Mess/Cmt */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Mess/Cmt <span className="text-red-500">*</span></label>
@@ -505,6 +480,20 @@ function ReportForm() {
                           value={report.mess_cmt}
                           onChange={(e) => handleReportChange(e, reportIndex)}
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${errors[`${reportIndex}-mess_cmt`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                          placeholder="0"
+                        />
+                      </div>
+
+                      {/* Phản hồi (Response) */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Phản hồi <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          name="response"
+                          value={report.response}
+                          onChange={(e) => handleReportChange(e, reportIndex)}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${errors[`${reportIndex}-response`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                           placeholder="0"
                         />
                       </div>
@@ -548,11 +537,10 @@ function ReportForm() {
             <button
               onClick={handleSubmit}
               disabled={loading}
-              className={`flex items-center gap-3 px-12 py-4 rounded-2xl font-bold text-lg text-white shadow-xl transition-all duration-300 ${
-                loading 
-                  ? 'bg-gray-400 cursor-not-allowed' 
-                  : 'bg-green-500 hover:shadow-2xl hover:scale-105'
-              }`}
+              className={`flex items-center gap-3 px-12 py-4 rounded-2xl font-bold text-lg text-white shadow-xl transition-all duration-300 ${loading
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-green-500 hover:shadow-2xl hover:scale-105'
+                }`}
             >
               {loading ? (
                 <>

@@ -5,8 +5,8 @@ import usePermissions from '../hooks/usePermissions';
 import { isDateInRange } from '../utils/dateParsing';
 import './BaoCaoSale.css';
 
-const API_HOST = 'https://n-api-gamma.vercel.app';
-// Helpers
+import { supabase } from '../services/supabaseClient';
+
 const formatCurrency = (value) => Number(value || 0).toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
 const formatNumber = (value) => Number(value || 0).toLocaleString('vi-VN');
 const formatPercent = (value) => {
@@ -97,7 +97,51 @@ export default function BaoCaoSale() {
         }));
     }, []);
 
-    // 2. Fetch Data
+    // 2. Fetch Global Filter Options (Mount only)
+    useEffect(() => {
+        const fetchGlobalOptions = async () => {
+            try {
+                // Fetch distinct values for products, markets, teams, shifts from historical data
+                // We'll fetch from the 'sales_reports' table
+                const { data, error } = await supabase
+                    .from('sales_reports')
+                    .select('product, market, team, shift');
+
+                if (error) throw error;
+
+                const unique = (key) => [...new Set(data.map(d => d[key]).filter(Boolean))].sort();
+
+                const globalProducts = unique('product');
+                const globalMarkets = unique('market');
+                const globalTeams = unique('team');
+                const globalShifts = unique('shift');
+
+                const newOptions = {
+                    products: globalProducts,
+                    markets: globalMarkets,
+                    teams: globalTeams,
+                    shifts: globalShifts
+                };
+
+                setOptions(newOptions);
+
+                // Initialize filters with all options selected by default
+                setFilters(prev => ({
+                    ...prev,
+                    products: globalProducts,
+                    markets: globalMarkets,
+                    teams: globalTeams,
+                    shifts: globalShifts
+                }));
+
+            } catch (err) {
+                console.warn('Could not fetch global options:', err);
+            }
+        };
+        fetchGlobalOptions();
+    }, []);
+
+    // 3. Fetch Data
     useEffect(() => {
         const fetchData = async () => {
             // Wait for dates to be initialized
@@ -159,36 +203,71 @@ export default function BaoCaoSale() {
             // --------------------------
 
             try {
-                // Pass date params to API for server-side optimization if supported
-                const res = await fetch(`${API_HOST}/report/generate?tableName=Báo cáo sale&startDate=${filters.startDate}&endDate=${filters.endDate}`);
+                // Call Supabase RPC
+                const { data, error } = await supabase.rpc('get_sales_analytics', {
+                    p_start_date: filters.startDate,
+                    p_end_date: filters.endDate
+                });
 
-                if (!res.ok) {
-                    throw new Error(`API Error: ${res.status} ${res.statusText}`);
-                }
+                if (error) throw error;
 
-                // Get raw text first to handle large responses
-                const rawText = await res.text();
+                // Transform data to match existing component logic
+                const transformedData = (data || []).map(item => ({
+                    'Tên': item["Tên"],
+                    'Chức vụ': item["Chức vụ"],
+                    'Email': item["Email"],
+                    'Team': item["Team"],
+                    'Chi nhánh': item["Chi nhánh"], // Adjust if case differs
+                    'Ngày': item["Ngày"], // YYYY-MM-DD
+                    'Ca': item["Ca"],
+                    'Sản phẩm': item["Sản phẩm"],
+                    'Thị trường': item["Thị trường"],
 
-                // Try to parse JSON
-                let result;
-                try {
-                    result = JSON.parse(rawText);
-                } catch (parseError) {
-                    console.error('JSON Parse Error:', parseError);
-                    console.error('Response size:', rawText.length, 'bytes');
-                    alert(`Lỗi khi tải dữ liệu: Dữ liệu trả về không hợp lệ (${(rawText.length / 1024 / 1024).toFixed(2)}MB). Vui lòng chọn khoảng thời gian nhỏ hơn hoặc liên hệ IT support.`);
-                    setLoading(false);
-                    return;
-                }
+                    'Số Mess': item["Số Mess"],
+                    'Phản hồi': item["Phản hồi"],
+                    'Đơn Mess': item["Đơn Mess"],
+                    'Doanh số Mess': item["Doanh số Mess"],
 
-                processFetchedData(result.data, result.employeeData);
+                    // Actual metrics
+                    'Số đơn thực tế': item["Số đơn thực tế"],
+                    'Doanh thu chốt thực tế': item["Doanh thu chốt thực tế"],
+                    'Số đơn Hoàn huỷ': item["Số đơn Hoàn huỷ"],
+                    'Doanh số hoàn huỷ': item["Doanh số hoàn huỷ"],
+                    'Số đơn thành công': item["Số đơn thành công"],
+                    'Doanh số thành công': item["Doanh số thành công"],
 
+                    'Doanh số đi': item["Doanh số đi"],
+                    'Doanh số đi thực tế': item["Doanh số đi thực tế"],
+                    'Số đơn hoàn hủy thực tế': item["Số đơn hoàn hủy thực tế"],
+                    'Doanh số hoàn hủy thực tế': item["Doanh số hoàn hủy thực tế"],
+                    'Doanh số sau hoàn hủy thực tế': item["Doanh số sau hoàn hủy thực tế"]
+                }));
 
+                // Fetch employee list for permissions - reusing same fetch logic or simple supabase fetch
+                // Efficiently get employee list (distinct users)
+                // For now, let's just list unique users from the report or fetching profiles if needed.
+                // The original code expected `employeeData`.
+                // Let's create a minimal employee list from the report data itself for now to resolve permission logic.
+                const uniqueEmployees = Array.from(new Map(transformedData.map(item => [item['Email'], item])).values());
+                const employeeData = uniqueEmployees.map(u => ({
+                    'id': u['Email'], // Mock ID using email
+                    'Họ Và Tên': u['Tên'],
+                    'Email': u['Email'],
+                    'Chức vụ': u['Chức vụ'],
+                    'Team': u['Team'],
+                    'Chi nhánh': u['Chi nhánh'] || u['chi nhánh'],
+                    'Vị trí': u['Chức vụ']
+                }));
+
+                processFetchedData(transformedData, employeeData);
 
             } catch (err) {
                 console.error('Fetch Error:', err);
-                alert(`Đã xảy ra lỗi khi tải dữ liệu: ${err.message}`);
-                setLoading(false); // Ensure loading is off on error
+                // alert(`Đã xảy ra lỗi khi tải dữ liệu: ${err.message}`);
+                // Don't alert detailed error to user, maybe show empty state or log
+                setRawData([]);
+            } finally {
+                setLoading(false);
             }
         };
 
@@ -286,25 +365,6 @@ export default function BaoCaoSale() {
             }
 
             setRawData(visibleData);
-
-            // Populate Options
-            const unique = (key) => [...new Set(visibleData.map(d => d[key]).filter(Boolean))].sort();
-            setOptions({
-                products: unique('sanPham'),
-                markets: unique('thiTruong'),
-                shifts: unique('ca'),
-                teams: unique('team')
-            });
-
-            // Initial Select All
-            setFilters(prev => ({
-                ...prev,
-                products: unique('sanPham'),
-                markets: unique('thiTruong'),
-                shifts: unique('ca'),
-                teams: unique('team')
-            }));
-
             setLoading(false);
         };
 

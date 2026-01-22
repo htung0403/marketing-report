@@ -288,23 +288,24 @@ export default function BaoCaoMarketing() {
 
     try {
       const rowsData = tableRows.map((row) => {
-        const rowObject = {};
+        const rowObject = {
+          id: row.id // Include the ID generated at the row level
+        };
 
         // Map fields
         // Must match Supabase detail_reports columns exactly
-        // "Tên", "Email", "Ngày", "ca", "Sản_phẩm", "Thị_trường", etc.
-
         Object.keys(row.data).forEach((key) => {
           let value = row.data[key];
 
           // Process numeric fields
-          const numberFields = ['Số Mess', 'Phản hồi', 'Đơn Mess', 'Doanh số Mess', 'CPQC', 'Số_Mess_Cmt', 'Số đơn', 'Doanh số'];
+          const numberFields = ['Số Mess', 'Phản hồi', 'Đơn Mess', 'Doanh số Mess', 'CPQC', 'Số_Mess_Cmt', 'Số đơn', 'Doanh số', 'Doanh số đi', 'Số đơn hoàn hủy', 'DS chốt', 'DS sau hoàn hủy', 'Doanh số sau ship', 'Doanh số TC', 'KPIs'];
           if (numberFields.includes(key)) {
-            // Remove non-numeric chars for calculation, but keeping raw string might be safe for now 
-            // if Supabase column is TEXT. But script uses numeric().
-            // Let's clean it to be safe.
             if (typeof value === 'string') {
-              value = Number(value.replace(/[^0-9]/g, '')) || 0;
+              // Extract numbers, signs and dots for floats
+              const cleaned = value.replace(/[^0-9.-]/g, '');
+              value = parseFloat(cleaned) || 0;
+            } else if (typeof value !== 'number') {
+              value = 0;
             }
           }
           rowObject[key] = value;
@@ -312,7 +313,20 @@ export default function BaoCaoMarketing() {
 
         // Ensure critical fields
         if (!rowObject['Email']) rowObject['Email'] = userEmail;
-        if (!rowObject['Tên']) rowObject['Tên'] = employeeNameFromUrl || userEmail; // Fallback
+        if (!rowObject['Tên']) rowObject['Tên'] = employeeNameFromUrl || userEmail;
+
+        // Ensure Team - CRITICAL for 400 error fix
+        // If not in row data, try to get from appData or fallback to 'MKT'
+        if (!rowObject['Team']) {
+          const emp = appData.employeeDetails?.find(e => e.email?.toLowerCase() === rowObject['Email']?.toLowerCase() || e.name === rowObject['Tên']);
+          rowObject['Team'] = emp?.team || localStorage.getItem('userTeam') || 'MKT';
+        }
+
+        // Ensure id_NS
+        if (!rowObject['id_NS']) {
+          const emp = appData.employeeDetails?.find(e => e.email?.toLowerCase() === rowObject['Email']?.toLowerCase() || e.name === rowObject['Tên']);
+          rowObject['id_NS'] = emp?.id_ns || '';
+        }
 
         // Auto-fields if missing
         if (!rowObject['Ngày']) rowObject['Ngày'] = getToday();
@@ -367,8 +381,16 @@ export default function BaoCaoMarketing() {
 
     } catch (error) {
       console.error('Lỗi khi gửi dữ liệu:', error);
-      setResponseMsg({ text: 'Lỗi khi gửi dữ liệu: ' + error.message, isSuccess: false, visible: true });
-      updateStatus('Gửi báo cáo thất bại: ' + error.message, true);
+      const errorMsg = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+      const errorDetail = error.details || '';
+      const errorHint = error.hint || '';
+
+      setResponseMsg({
+        text: `Lỗi khi gửi dữ liệu: ${errorMsg} ${errorDetail ? `(${errorDetail})` : ''} ${errorHint ? `- Gợi ý: ${errorHint}` : ''}`,
+        isSuccess: false,
+        visible: true
+      });
+      updateStatus('Gửi báo cáo thất bại: ' + errorMsg, true);
     } finally {
       setLoading(false);
     }
