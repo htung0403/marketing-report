@@ -5,8 +5,6 @@ import { useSearchParams } from 'react-router-dom';
 import usePermissions from '../hooks/usePermissions'; // Added missing import
 import { supabase } from '../supabase/config';
 
-const HR_URL = import.meta.env.VITE_HR_URL || "https://lumi-6dff7-default-rtdb.asia-southeast1.firebasedatabase.app/datasheet/Nh%C3%A2n_s%E1%BB%B1.json";
-const PAGE_URL = import.meta.env.VITE_PAGE_URL || "https://lumi-6dff7-default-rtdb.asia-southeast1.firebasedatabase.app/datasheet/Pages.json";
 const ADMIN_MAIL = import.meta.env.VITE_ADMIN_MAIL || "admin@marketing.com";
 
 // Simple Button component
@@ -323,19 +321,30 @@ export default function NhapDonMoi({ isEdit = false }) {
         setLoadingSale(true);
         setLoadingMkt(true);
         try {
-            // 1. Fetch HR Data (Keep this for Sale employees for now, or fetch from DB if available)
-            // For now, assuming HR_URL is still valid for fetching ALL employees to filter Sales
-            const hrRes = await fetch(HR_URL);
-            const hrData = await hrRes.json();
-            const hrList = Array.isArray(hrData) ? hrData : Object.values(hrData || {}).filter(i => i && typeof i === 'object');
+            // 1. Nhân viên sale: distinct sale_staff từ orders, team (chi nhánh) từ orders
+            const { data: ordersData, error: ordersError } = await supabase
+                .from('orders')
+                .select('sale_staff, team')
+                .not('sale_staff', 'is', null)
+                .order('created_at', { ascending: false })
+                .limit(3000);
 
-            // Filter Sale employees
-            const saleList = hrList.filter((e) => {
-                const dep = (e['Bộ_phận'] || e['Bộ phận'] || "").toString().trim().toLowerCase();
-                return dep === 'sale' || dep === 'sales';
-            });
-            setSaleEmployees(saleList);
-
+            if (!ordersError && ordersData?.length) {
+                const seen = new Set();
+                const saleList = [];
+                for (const row of ordersData) {
+                    const name = (row.sale_staff || "").trim();
+                    if (!name || seen.has(name)) continue;
+                    seen.add(name);
+                    saleList.push({
+                        'Họ_và_tên': name,
+                        'Team': (row.team || "").trim(),
+                    });
+                }
+                setSaleEmployees(saleList);
+            } else {
+                setSaleEmployees([]);
+            }
 
             // 2. Fetch Pages from Supabase 'marketing_pages'
             const { data: pagesData, error: pagesError } = await supabase
@@ -375,11 +384,6 @@ export default function NhapDonMoi({ isEdit = false }) {
                     setSelectedMkt(userName);
                 }
             }
-
-            const currentEmp = hrList.find((e) =>
-                (e.Email || e.email || "").toString().toLowerCase().trim() === userEmail
-            );
-
 
             // Filter Pages logic based on Permissions
             // Assign all pages directly without permission filtering
@@ -544,6 +548,18 @@ export default function NhapDonMoi({ isEdit = false }) {
         if (!saleSearch) return saleEmployees;
         return saleEmployees.filter(e => (e['Họ_và_tên'] || e['Họ và tên'] || "").toLowerCase().includes(saleSearch.toLowerCase()));
     }, [saleEmployees, saleSearch]);
+
+    // --- Tự động điền team (chi nhánh) theo nhân viên sale ---
+    useEffect(() => {
+        if (!selectedSale || !saleEmployees.length) return;
+        const emp = saleEmployees.find((e) => {
+            const n = (e['Họ_và_tên'] || e['Họ và tên'] || "").trim();
+            return n === selectedSale.trim();
+        });
+        if (!emp) return;
+        const branch = emp['chi nhánh'] ?? emp['Chi_nhánh'] ?? emp['Chi nhánh'] ?? emp['Team'] ?? emp['Bộ_phận'] ?? emp.branch ?? emp.team ?? "";
+        if (branch) setFormData((prev) => ({ ...prev, team: String(branch).trim() }));
+    }, [selectedSale, saleEmployees]);
 
     const filteredMktEmployees = useMemo(() => {
         if (!mktSearch) return mktEmployees;
@@ -1490,6 +1506,17 @@ export default function NhapDonMoi({ isEdit = false }) {
                                                             )}
                                                         </div>
                                                     </Popover>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>Chi nhánh</Label>
+                                                    <Input
+                                                        id="team"
+                                                        value={formData.team || ""}
+                                                        onChange={handleInputChange}
+                                                        placeholder="Tự động theo nhân viên sale..."
+                                                        readOnly
+                                                        className="bg-gray-100 cursor-not-allowed"
+                                                    />
                                                 </div>
                                                 <div className="space-y-2">
                                                     <Label>Phân loại khách hàng</Label>
