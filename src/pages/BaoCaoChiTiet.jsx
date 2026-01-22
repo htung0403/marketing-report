@@ -1,6 +1,7 @@
-import { ChevronLeft, Download, RefreshCw, Search, Settings, X } from 'lucide-react';
+import { ChevronLeft, Download, RefreshCw, Search, Settings, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import usePermissions from '../hooks/usePermissions';
 import { supabase } from '../supabase/config';
 import { COLUMN_MAPPING, PRIMARY_KEY_COLUMN } from '../types';
@@ -265,6 +266,120 @@ function BaoCaoChiTiet() {
         return Array.from(statuses).sort();
     }, [allData]);
 
+    // Helper: Parse Excel Date
+    const parseExcelDate = (excelDate) => {
+        if (!excelDate) return null;
+        if (typeof excelDate === 'number') {
+            const date = new Date(Math.round((excelDate - 25569) * 86400 * 1000));
+            return date.toISOString().split('T')[0];
+        }
+        return String(excelDate).split('T')[0];
+    };
+
+    // Import from Excel
+    const handleImportExcel = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!window.confirm("Bạn có chắc chắn muốn nhập dữ liệu từ file Excel này? Dữ liệu sẽ được update dựa trên 'Mã đơn hàng'.")) return;
+
+        setLoading(true);
+        try {
+            const data = await file.arrayBuffer();
+            const workbook = XLSX.read(data);
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+            console.log("Imported data:", jsonData);
+
+            if (jsonData.length === 0) {
+                alert("File Excel không có dữ liệu!");
+                setLoading(false);
+                return;
+            }
+
+            // Helper to get value case-insensitively
+            const getValue = (item, keys) => {
+                const itemKeys = Object.keys(item);
+                for (const key of keys) {
+                    const foundKey = itemKeys.find(k => k.trim().toLowerCase() === key.toLowerCase());
+                    if (foundKey) return item[foundKey];
+                }
+                return undefined;
+            };
+
+            // Map Excel columns back to Supabase schema
+            const validItems = jsonData.map((item, index) => {
+                const orderCode = getValue(item, ['Mã đơn hàng', 'Order Code', 'ma don hang']);
+
+                // If no order code found, skip generating one if possible to avoid duplicates, 
+                // BUT if user really wants to create new, we fallback. 
+                // Ideally, we shouldn't create "IMP-" unless we are sure it's NEW.
+                // For now, let's keep logic but rely on better matching.
+                const finalOrderCode = orderCode || `IMP-${Date.now()}-${index}`;
+
+                // Validate essential fields
+                const name = getValue(item, ['Name*', 'Tên khách hàng', 'Ten khach hang', 'Name']);
+                const phone = getValue(item, ['Phone*', 'SĐT', 'SDT', 'Phone']);
+
+                if (!finalOrderCode && !name && !phone) return null;
+
+                // Helper for parsing integers but keeping undefined if missing
+                const parseOrUndefined = (val) => {
+                    if (val === undefined || val === null || String(val).trim() === '') return undefined;
+                    const parsed = parseInt(String(val).replace(/\D/g, ''));
+                    return isNaN(parsed) ? undefined : parsed;
+                };
+
+                return {
+                    order_code: finalOrderCode,
+                    order_date: getValue(item, ['Ngày lên đơn', 'Order Date', 'Ngay len don']) ? parseExcelDate(getValue(item, ['Ngày lên đơn', 'Order Date', 'Ngay len don'])) : (finalOrderCode.startsWith('IMP') ? new Date().toISOString() : undefined), // Only default date if new
+                    customer_name: name || undefined,
+                    customer_phone: phone || undefined,
+                    customer_address: getValue(item, ['Add', 'Địa chỉ', 'Dia chi', 'Address']) || undefined,
+                    city: getValue(item, ['City', 'Tỉnh/Thành']) || undefined,
+                    state: getValue(item, ['State', 'Quận/Huyện']) || undefined,
+                    area: getValue(item, ['Khu vực', 'Area', 'Khu vuc']) || undefined,
+                    zipcode: getValue(item, ['Zipcode', 'Mã bưu điện']) || undefined,
+                    product: getValue(item, ['Mặt hàng', 'Sản phẩm', 'Product', 'Mat hang']) || undefined,
+                    total_amount_vnd: parseOrUndefined(getValue(item, ['Tổng tiền VNĐ', 'Tong tien VND', 'Total Amount'])),
+                    tracking_code: getValue(item, ['Mã Tracking', 'Tracking Code', 'Ma Tracking']) || undefined,
+                    payment_method: getValue(item, ['Hình thức thanh toán', 'Payment Method']) || undefined,
+                    shipping_fee: parseOrUndefined(getValue(item, ['Phí ship', 'Shipping Fee', 'Phi ship'])),
+                    marketing_staff: getValue(item, ['Nhân viên Marketing', 'MKT Staff', 'Nhan vien Marketing']) || undefined,
+                    sale_staff: getValue(item, ['Nhân viên Sale', 'Sale Staff', 'Nhan vien Sale']) || undefined,
+                    team: getValue(item, ['Team']) || undefined,
+                    delivery_status: getValue(item, ['Trạng thái giao hàng', 'Delivery Status', 'Trang thai']) || undefined,
+                    payment_status: getValue(item, ['Kết quả Check', 'Payment Status']) || undefined,
+                    note: getValue(item, ['Ghi chú', 'Note', 'Ghi chu']) || undefined,
+                    shipping_unit: getValue(item, ['Đơn vị vận chuyển', 'Shipping Unit', 'Don vi van chuyen']) || undefined,
+                    page_name: getValue(item, ['Page', 'Page Name']) || undefined
+                };
+            }).filter(Boolean);
+
+            if (validItems.length === 0) {
+                alert("Không tìm thấy dữ liệu hợp lệ để nhập.");
+                setLoading(false);
+                return;
+            }
+
+            const { error } = await supabase
+                .from('orders')
+                .upsert(validItems, { onConflict: 'order_code' });
+
+            if (error) throw error;
+
+            alert(`✅ Đã nhập thành công ${validItems.length} dòng!`);
+            loadData();
+        } catch (error) {
+            console.error("Import error:", error);
+            alert("❌ Lỗi nhập file: " + error.message);
+        } finally {
+            e.target.value = '';
+            setLoading(false);
+        }
+    };
+
     // Filter and sort data
     const filteredData = useMemo(() => {
         let data = [...allData];
@@ -364,25 +479,26 @@ function BaoCaoChiTiet() {
     };
 
     // Export to CSV
-    const handleExport = () => {
-        const headers = displayColumns; // Use current visible columns
-        const csvRows = [
-            headers.join(','),
-            ...filteredData.map(row =>
-                headers.map(header => {
-                    const val = row[header] || '';
-                    const str = String(val).replace(/"/g, '""');
-                    return `"${str}"`;
-                }).join(',')
-            )
-        ];
-        const csv = '\uFEFF' + csvRows.join('\n');
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `bao-cao-chi-tiet-${new Date().toISOString().slice(0, 10)}.csv`;
-        link.click();
+    // Export to Excel
+    const handleExportExcel = () => {
+        const dataToExport = filteredData.map(row => {
+            // Reconstruct row based on displayColumns, but simpler just to export all visible
+            const newRow = {};
+            displayColumns.forEach(col => {
+                newRow[col] = row[col];
+            });
+            return newRow;
+        });
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+
+        // Auto-width columns
+        const colWidths = displayColumns.map(key => ({ wch: 20 }));
+        ws['!cols'] = colWidths;
+
+        XLSX.utils.book_append_sheet(wb, ws, "DanhSachDon");
+        XLSX.writeFile(wb, `DanhSachDon_MKT_${new Date().toISOString().slice(0, 10)}.xlsx`);
     };
 
     // Handle column visibility toggle
@@ -558,12 +674,27 @@ function BaoCaoChiTiet() {
 
                         {/* Export Button */}
                         <button
-                            onClick={handleExport}
-                            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"
+                            onClick={handleExportExcel}
+                            style={{ background: '#20744a' }} // Excel Green
+                            className="px-4 py-2 text-white rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2 hover:opacity-90"
                         >
                             <Download className="w-4 h-4" />
-                            Excel
+                            Xuất Excel
                         </button>
+
+                        <label
+                            style={{ background: '#2b579a' }} // Import Blue
+                            className="px-4 py-2 text-white rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2 hover:opacity-90 cursor-pointer"
+                        >
+                            <Upload className="w-4 h-4" />
+                            Nhập Excel
+                            <input
+                                type="file"
+                                onChange={handleImportExcel}
+                                accept=".xlsx, .xls"
+                                style={{ display: 'none' }}
+                            />
+                        </label>
                     </div>
                 </div>
 

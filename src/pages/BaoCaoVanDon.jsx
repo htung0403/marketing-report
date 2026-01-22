@@ -3,7 +3,11 @@ import { ArcElement, BarElement, CategoryScale, Chart as ChartJS, Legend, Linear
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Bar, Doughnut } from 'react-chartjs-2';
+
+import { Download, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { fetchVanDon } from '../services/api';
+import { supabase } from '../supabase/config';
 import './BaoCaoVanDon.css';
 
 // Register ChartJS
@@ -407,6 +411,98 @@ export default function BaoCaoVanDon() {
         });
     }, [rawData, detailFilters, reportFilters]);
 
+    // --- EXCEL HANDLERS ---
+    const handleExportExcel = () => {
+        // Export filteredDetailData
+        const dataToExport = filteredDetailData.map(row => ({
+            'Ngày lên đơn': row["Ngày lên đơn"] || row["Thời gian lên đơn"],
+            'Mã đơn hàng': row["Mã đơn hàng"],
+            'NV Vận đơn': row["NV Vận đơn"] || row["NV_Vận_đơn"],
+            'Đơn vị vận chuyển': row["Đơn vị vận chuyển"] || row["Đơn_vị_vận_chuyển"],
+            'Tên khách hàng': row["Name*"],
+            'SĐT': row["Phone*"],
+            'Sản phẩm': row["Mặt hàng"],
+            'Tổng tiền': row["Tổng tiền VNĐ"] || row["Tổng_tiền_VNĐ"],
+            'Kết quả check': row["Kết quả check"],
+            'Trạng thái giao hàng': row["Trạng thái giao hàng NB"],
+            'Trạng thái thu tiền': row["Trạng thái thu tiền"],
+            'Mã Tracking': row["Mã Tracking"],
+            'Ghi chú': row["Ghi chú"]
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        XLSX.utils.book_append_sheet(wb, ws, "ChiTietVanDon");
+        XLSX.writeFile(wb, `ChiTietVanDon_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    };
+
+    const handleImportExcel = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!window.confirm("Bạn có chắc chắn muốn nhập dữ liệu? Dữ liệu sẽ update theo 'Mã đơn hàng' (Order Code) nếu tìm thấy.")) return;
+
+        setLoading(true);
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const wb = XLSX.read(arrayBuffer);
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(ws);
+
+            if (jsonData.length === 0) {
+                alert("File không có dữ liệu!");
+                setLoading(false);
+                return;
+            }
+
+            // Helper
+            const parseNum = (v) => {
+                if (v === undefined || v === null || String(v).trim() === '') return undefined;
+                return parseInt(String(v).replace(/\D/g, '')) || 0;
+            };
+
+            const validItems = jsonData.map(item => {
+                const orderCode = item['Mã đơn hàng'] || item['Order Code'] || item['order_code'];
+                if (!orderCode) return null;
+
+                return {
+                    order_code: orderCode,
+                    // Allow updating fields relevant to Delivery Report Context
+                    tracking_code: item['Mã Tracking'] || item['Tracking Code'] || undefined,
+                    delivery_status: item['Trạng thái'] || item['Status'] || item['Trạng thái giao hàng'] || undefined,
+                    payment_status: item['Trạng thái thu tiền'] || item['Payment Status'] || undefined,
+                    shipping_unit: item['Đơn vị vận chuyển'] || item['Carrier'] || undefined,
+                    shipping_fee: parseNum(item['Phí ship']),
+                    note: item['Ghi chú'] || item['Note'] || undefined,
+                    // Add more if needed
+                };
+            }).filter(Boolean);
+
+            if (validItems.length === 0) {
+                alert("Không tìm thấy mã đơn hàng trong file!");
+                setLoading(false);
+                return;
+            }
+
+            const { error } = await supabase
+                .from('orders') // Assuming same table as VanDon
+                .upsert(validItems, { onConflict: 'order_code' });
+
+            if (error) throw error;
+
+            alert(`✅ Đã nhập thành công ${validItems.length} dòng!`);
+            fetchData(); // Reload data
+
+        } catch (err) {
+            console.error("Import Error:", err);
+            alert("❌ Lỗi nhập file: " + err.message);
+        } finally {
+            e.target.value = '';
+            setLoading(false);
+        }
+    };
+    // --- END EXCEL HANDLERS ---
+
     // --- REFUND LIST LOGIC ---
     const refundData = useMemo(() => {
         return filteredReportData.filter(r => {
@@ -774,6 +870,20 @@ export default function BaoCaoVanDon() {
                                 <button className="bcvd-btn bcvd-clear-filter-btn" onClick={() => setDetailFilters({
                                     checkResult: '', deliveryStatus: '', paymentStatus: '', search: ''
                                 })}>Xóa lọc</button>
+                                <button
+                                    onClick={handleExportExcel}
+                                    className="bcvd-btn"
+                                    style={{ backgroundColor: '#20744a', color: 'white' }}
+                                >
+                                    <Download size={14} style={{ marginRight: '4px' }} /> Xuất Excel
+                                </button>
+                                <label
+                                    className="bcvd-btn"
+                                    style={{ backgroundColor: '#2b579a', color: 'white', display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+                                >
+                                    <Upload size={14} style={{ marginRight: '4px' }} /> Nhập Excel
+                                    <input type="file" accept=".xlsx, .xls" onChange={handleImportExcel} style={{ display: 'none' }} />
+                                </label>
                             </div>
                         </div>
 

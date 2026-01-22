@@ -1,10 +1,12 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Upload } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import * as XLSX from 'xlsx';
 import ColumnSettingsModal from '../components/ColumnSettingsModal';
 import MultiSelect from '../components/MultiSelect';
 import usePermissions from '../hooks/usePermissions';
 import * as API from '../services/api';
 import '../styles/selection.css';
+import { supabase } from '../supabase/config';
 import {
   BILL_LADING_COLUMNS, COLUMN_MAPPING,
   DEFAULT_BILL_LADING_COLUMNS,
@@ -398,6 +400,109 @@ function VanDon() {
     setDateTo(endDate.toISOString().split('T')[0]);
     setEnableDateFilter(true);
   };
+
+
+
+  // --- EXCEL HANDLERS ---
+  const handleExportExcel = () => {
+    // Flatten data for export
+    const dataToExport = getFilteredData.map(row => {
+      const flatRow = {};
+      // Map visible columns
+      currentColumns.forEach(col => {
+        flatRow[col] = row[col];
+      });
+      return flatRow;
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    XLSX.utils.book_append_sheet(wb, ws, "VanDon");
+    XLSX.writeFile(wb, `VanDon_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleImportExcel = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!window.confirm("Bạn có chắc chắn muốn nhập dữ liệu? Dữ liệu sẽ update theo 'Mã đơn hàng' (Order Code).")) return;
+
+    setLoading(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const wb = XLSX.read(arrayBuffer);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(ws);
+
+      if (jsonData.length === 0) {
+        alert("File không có dữ liệu!");
+        setLoading(false);
+        return;
+      }
+
+      const validItems = jsonData.map((item, index) => {
+        // Try to find Order Code
+        let orderCode = item['Mã đơn hàng'] || item['Order Code'] || item['order_code'];
+        if (!orderCode) return null; // Must have ID
+
+        // Helper
+        const parseNum = (v) => {
+          if (v === undefined || v === null || String(v).trim() === '') return undefined;
+          return parseInt(String(v).replace(/\D/g, '')) || 0;
+        };
+
+        // Basic Mapping
+        return {
+          order_code: orderCode,
+          // Fields to update - primarily Tracking and Status for Delivery team
+          tracking_code: item['Mã Tracking'] || item['Tracking Code'] || undefined,
+          delivery_status: item['Trạng thái'] || item['Status'] || undefined,
+          shipping_unit: item['Đơn vị vận chuyển'] || item['Carrier'] || undefined,
+          shipping_fee: parseNum(item['Phí ship']),
+          note: item['Ghi chú'] || item['Note'] || undefined,
+          // Add more fields if needed
+        };
+      }).filter(Boolean);
+
+      if (validItems.length === 0) {
+        alert("Không tìm thấy mã đơn hàng trong file!");
+        setLoading(false);
+        return;
+      }
+
+      // Upsert to Supabase
+      // Note: For partial updates, we might want to be careful not to overwrite other fields with null 
+      // using 'undefined' in the map above helps if using some libraries, but Supabase `upsert` 
+      // might overwrite missing keys if we are not careful? 
+      // Actually Supabase `upsert` replaces the row unless we use `ignoreDuplicates`, but we WANT to update.
+      // To update ONLY specific fields, we actually need `update`.
+      // But `upsert` is typically fine if we include all needed keys. 
+      // However, if we only have partial data, `update` loop might be safer but slower.
+      // Let's try `upsert` assuming the user brings a full-ish export back, OR accept that we update specific cols.
+      // Wait, if I just send `order_code` and `tracking_code`, `upsert` might null out others?
+      // NO, Supabase `upsert` (Postgres `INSERT ... ON CONFLICT DO UPDATE`) updates the columns provided.
+      // BUT if I provide a partial object, it might be fine?
+      // Let's verify: In PG, `DO UPDATE SET col = EXCLUDED.col` works on provided cols.
+      // Supabase JS library `upsert`: "Performs an UPSERT into the table."
+
+      const { error } = await supabase
+        .from('orders')
+        .upsert(validItems, { onConflict: 'order_code' });
+
+      if (error) throw error;
+
+      alert(`✅ Đã nhập thành công ${validItems.length} dòng!`);
+      refreshData();
+
+    } catch (err) {
+      console.error("Import Error:", err);
+      alert("❌ Lỗi nhập file: " + err.message);
+    } finally {
+      e.target.value = '';
+      setLoading(false);
+    }
+  };
+  // --- END EXCEL HANDLERS ---
 
   // --- UI Helpers ---
   const getUniqueValues = useMemo(() => (key) => {
@@ -1298,9 +1403,22 @@ function VanDon() {
             <button onClick={() => setShowColumnSettings(true)} className="p-1 px-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-xs font-bold transition-all flex items-center gap-1">
               ⚙️ Cài đặt cột
             </button>
-            <button onClick={handleDownloadExcel} className="p-1 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition-all flex items-center gap-1 shadow-sm">
-              📊 Xuất Excel
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleExportExcel}
+                className="p-1 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition-all flex items-center gap-1 shadow-sm"
+                title="Xuất Excel danh sách hiện tại"
+              >
+                <Download size={14} /> Xuất Excel
+              </button>
+              <label
+                className="p-1 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold transition-all flex items-center gap-1 shadow-sm cursor-pointer"
+                title="Nhập Excel để cập nhật Mã vận đơn/Trạng thái..."
+              >
+                <Upload size={14} /> Nhập Excel
+                <input type="file" accept=".xlsx, .xls" onChange={handleImportExcel} style={{ display: 'none' }} />
+              </label>
+            </div>
 
 
             <div className="flex items-center gap-1 text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded border border-gray-100">

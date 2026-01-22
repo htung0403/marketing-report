@@ -79,6 +79,7 @@ function Home() {
       label: "Dashboard điều hành",
       icon: <BarChart3 className="w-5 h-5" />,
       path: "#",
+      adminOnly: true,
       subItems: [
         {
           id: "dashboard-growth",
@@ -519,6 +520,7 @@ function Home() {
           path: "https://redirect.zalo.me/v3/verifyv2/pc?token=P6BqnjfrMGXk3lx3rnrRPsWD_gdV7LDYO0Ft-uiMM6Gt1FsbWXaDF3KEhlRQ45yqPWpm-pTZP0&continue=https%3A%2F%2Fdashboard-lumiquantri.vercel.app%2F",
           status: "Mở ứng dụng",
           isExternal: true,
+          adminOnly: true,
         },
         {
           title: "Dashboard KPI",
@@ -527,6 +529,7 @@ function Home() {
           path: "https://redirect.zalo.me/v3/verifyv2/pc?token=P6BqnjfrMGXk3lx3rnrRPsWD_gdV7LDYO0Ft-uiMM6Gt1FsbWXaDF3KEhlRQ45yqPWpm-pTZP0&continue=https%3A%2F%2Fdashboard-lumiquantri.vercel.app%2F",
           status: "Mở ứng dụng",
           isExternal: true,
+          adminOnly: true,
         },
         {
           title: "Dashboard OKR",
@@ -535,6 +538,7 @@ function Home() {
           path: "https://redirect.zalo.me/v3/verifyv2/pc?token=P6BqnjfrMGXk3lx3rnrRPsWD_gdV7LDYO0Ft-uiMM6Gt1FsbWXaDF3KEhlRQ45yqPWpm-pTZP0&continue=https%3A%2F%2Fdashboard-lumiquantri.vercel.app%2F",
           status: "Mở ứng dụng",
           isExternal: true,
+          adminOnly: true,
         },
         {
           title: "Dashboard Đơn hủy",
@@ -542,6 +546,7 @@ function Home() {
           color: "bg-red-600",
           path: "#",
           status: "Sắp ra mắt",
+          adminOnly: true,
         },
         {
           title: "Dashboard Vận hành",
@@ -550,6 +555,7 @@ function Home() {
           path: "https://dashboard-psi-six-69.vercel.app/",
           status: "Mở ứng dụng",
           isExternal: true,
+          adminOnly: true,
         },
       ],
     },
@@ -1122,10 +1128,13 @@ function Home() {
 
   // --- RECURSIVE PERMISSION FILTERING ---
 
+  // Leadership roles (ban lãnh đạo) that can view adminOnly items like Dashboard điều hành
+  const isAdminOrLeadership = ['admin', 'leader', 'director', 'boss', 'manager'].includes((userRole || '').toLowerCase());
+
   // Helper to check if an item (or any of its children) is visible
   const isItemVisible = (item) => {
     // 1. Admin Bypass - admins see everything
-    if (userRole === 'admin' || userRole === 'leader') return true;
+    if (isAdminOrLeadership) return true;
 
     // 2. Check adminOnly flag
     if (item.adminOnly) return false;
@@ -1236,6 +1245,7 @@ function Home() {
   };
 
   const handleAddNews = async () => {
+    if (userRole !== 'hr') return alert("Bạn không có quyền đăng tin");
     if (!newPost.title) return alert("Vui lòng nhập tiêu đề");
     setNewsLoading(true);
     try {
@@ -1384,7 +1394,7 @@ function Home() {
                 {!sidebarCollapsed && item.subItems && isExpanded && (
                   <div className="ml-4 mt-1 space-y-1">
                     {item.subItems.filter(subItem => {
-                      if (subItem.adminOnly && userRole !== 'admin') return false;
+                      if (subItem.adminOnly && !isAdminOrLeadership) return false;
                       if (subItem.permission && !canView(subItem.permission)) return false;
                       return true;
                     }).map((subItem) => (
@@ -1473,9 +1483,11 @@ function Home() {
           <div className="mb-12">
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-2xl font-bold text-red-600">Bảng tin</h1>
-              <button onClick={() => setIsAddNewsOpen(true)} className="text-sm bg-red-50 text-red-600 px-3 py-1 rounded hover:bg-red-100 flex items-center gap-1">
-                <PlusCircle size={16} /> Đăng tin
-              </button>
+              {userRole === 'hr' && (
+                <button onClick={() => setIsAddNewsOpen(true)} className="text-sm bg-red-50 text-red-600 px-3 py-1 rounded hover:bg-red-100 flex items-center gap-1">
+                  <PlusCircle size={16} /> Đăng tin
+                </button>
+              )}
             </div>
 
             {/* News Add Modal */}

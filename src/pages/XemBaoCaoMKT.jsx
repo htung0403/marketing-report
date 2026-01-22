@@ -1,5 +1,7 @@
+import { Download, Upload } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import usePermissions from '../hooks/usePermissions';
 import { supabase } from '../supabase/config';
 import { isDateInRange, parseSmartDate } from '../utils/dateParsing';
@@ -459,6 +461,129 @@ export default function XemBaoCaoMKT() {
 
   }, [data, selectedProduct, selectedMarket, selectedTeam]);
 
+  // --- EXCEL HANDLERS ---
+
+  // Helper: Parse Excel Date
+  const parseExcelDate = (excelDate) => {
+    if (!excelDate) return null;
+    if (typeof excelDate === 'number') {
+      const date = new Date(Math.round((excelDate - 25569) * 86400 * 1000));
+      return date.toISOString().split('T')[0];
+    }
+    return String(excelDate).split('T')[0];
+  };
+
+  const handleExportExcel = () => {
+    // Export the processed rows (detailed view)
+    if (activeTab === 'DetailedReport') {
+      const { rows } = processData;
+      const dataToExport = rows.map((r, i) => ({
+        'STT': i + 1,
+        'Team': r.team,
+        'Tên': r.name,
+        'CPQC': r.cpqc,
+        'Số Mess': r.mess,
+        'Số Đơn': r.orders,
+        'DS Chốt': r.dsChot,
+        'Tỉ lệ chốt (%)': r.tiLeChot ? r.tiLeChot.toFixed(2) : 0,
+        'Giá Mess': r.giaMess,
+        'CPS': r.cps,
+        '%CP/DS': r.cp_ds ? r.cp_ds.toFixed(2) : 0,
+        'Giá TB Đơn': r.giaTBDon,
+        'Số Đơn (TT)': r.ordersTT,
+        'Số Đơn Hủy': r.soDonHuyTT,
+        'DS Chốt (TT)': r.dsChotTT,
+        'DS Hủy': r.dsHuyTT,
+        'Tỉ lệ chốt TT (%)': r.tiLeChotTT ? r.tiLeChotTT.toFixed(2) : 0
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+
+      // Widths
+      const wscols = [
+        { wch: 5 }, { wch: 10 }, { wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 15 },
+        { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 10 }
+      ];
+      ws['!cols'] = wscols;
+
+      XLSX.utils.book_append_sheet(wb, ws, "BaoCaoTongHop");
+      XLSX.writeFile(wb, `BaoCaoMKT_TongHop_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } else {
+      alert("Chức năng xuất Excel hiện tại chỉ hỗ trợ tab 'Báo cáo chi tiết'.");
+    }
+  };
+
+  const handleImportExcel = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!window.confirm("Bạn có chắc chắn muốn nhập dữ liệu? Hệ thống sẽ cập nhật nếu tìm thấy ID, hoặc thêm mới.")) return;
+
+    setLoading(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const wb = XLSX.read(arrayBuffer);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(ws);
+
+      if (jsonData.length === 0) {
+        alert("File không có dữ liệu!");
+        setLoading(false);
+        return;
+      }
+
+      // Map to detail_reports schema
+      // Map to detail_reports schema
+      const mappedData = jsonData.map(item => {
+        // Parse helper
+        const parseNum = (v) => {
+          if (v === undefined || v === null || String(v).trim() === '') return undefined;
+          return parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0;
+        };
+
+        return {
+          id: item['id'] || item['ID'] || undefined, // Use existing ID if present for update
+          'Ngày': parseExcelDate(item['Ngày'] || item['Date']) || (item['id'] ? undefined : new Date().toISOString().split('T')[0]),
+          'Team': item['Team'] || 'MKT',
+          'Tên': item['Tên'] || item['Name'] || undefined,
+          'Sản_phẩm': item['Sản_phẩm'] || item['Product'] || undefined,
+          'Thị_trường': item['Thị_trường'] || item['Market'] || undefined,
+          'CPQC': parseNum(item['CPQC']),
+          'Số_Mess_Cmt': parseNum(item['Số_Mess_Cmt'] || item['Số Mess']),
+          'Số đơn': parseNum(item['Số đơn'] || item['Orders']),
+          'Doanh số': parseNum(item['Doanh số'] || item['Revenue']),
+          'Số đơn thực tế': parseNum(item['Số đơn thực tế']),
+          'Doanh thu chốt thực tế': parseNum(item['Doanh thu chốt thực tế'] || item['DS Chốt (TT)']),
+          'Số đơn hoàn hủy thực tế': parseNum(item['Số đơn hoàn hủy thực tế'] || item['Số Đơn Hủy']),
+          'Doanh số hoàn hủy thực tế': parseNum(item['Doanh số hoàn hủy thực tế'] || item['DS Hủy']),
+          'Doanh số sau ship': parseNum(item['Doanh số sau ship']),
+          'Doanh số TC': parseNum(item['Doanh số TC'])
+          // Add other fields as necessary
+        };
+      });
+
+      // Upsert
+      const { error } = await supabase
+        .from('detail_reports')
+        .upsert(mappedData, { onConflict: 'id' }); // Assuming 'id' is the primary key
+
+      if (error) throw error;
+
+      alert(`✅ Đã nhập thành công ${mappedData.length} dòng!`);
+      fetchData();
+
+    } catch (err) {
+      console.error("Import Error:", err);
+      alert("❌ Lỗi nhập file: " + err.message);
+    } finally {
+      e.target.value = ''; // Reset input
+      setLoading(false);
+    }
+  };
+
+  // --- END EXCEL HANDLERS ---
+
   // Format Helper
   const fmtNum = (n) => n ? Math.round(n).toLocaleString('vi-VN') : '0';
   const fmtCurrency = (n) => n ? Math.round(n).toLocaleString('vi-VN') + ' ₫' : '0 ₫';
@@ -678,291 +803,314 @@ export default function XemBaoCaoMKT() {
                 height: 'fit-content',
                 marginTop: '19px'
               }}>Áp dụng</button>
+
+              <button
+                onClick={handleExportExcel}
+                className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800 transition-colors mt-[19px] h-fit border-none cursor-pointer font-medium"
+              >
+                <Download size={16} /> Xuất Excel
+              </button>
+
+              <label
+                className="flex items-center gap-2 px-4 py-2 bg-blue-700 text-white rounded hover:bg-blue-800 transition-colors mt-[19px] h-fit border-none cursor-pointer font-medium"
+              >
+                <Upload size={16} /> Nhập Excel
+                <input type="file" accept=".xlsx, .xls" onChange={handleImportExcel} style={{ display: 'none' }} />
+              </label>
             </div>
           </div>
         </>
-      )}
+      )
+      }
 
       {/* TAB 1: Detailed Report */}
-      {activeTab === 'DetailedReport' && (
-        <div className="table-responsive-container">
-          {/* Column Toggles Panel */}
-          <div className="bg-white p-4 mb-4 rounded-lg shadow-sm border border-gray-200">
-            <h3 className="text-sm font-bold text-gray-700 mb-3">Cột hiển thị</h3>
-            <div className="flex flex-wrap gap-3">
-              {[
-                { key: 'stt', label: 'STT' },
-                { key: 'team', label: 'Team' },
-                { key: 'marketing', label: 'Marketing' },
-                { key: 'cpqc', label: 'CPQC' },
-                { key: 'mess', label: 'Số Mess' },
-                { key: 'orders', label: 'Số Đơn' },
-                { key: 'dsChot', label: 'DS Chốt' },
-                { key: 'tiLeChot', label: 'Tỉ lệ chốt' },
-                { key: 'giaMess', label: 'Giá Mess' },
-                { key: 'cps', label: 'CPS' },
-                { key: 'cp_ds', label: '%CP/DS' },
-                { key: 'giaTBDon', label: 'Giá TB Đơn' },
-                { key: 'ordersTT', label: 'Số Đơn (TT)' },
-                { key: 'soDonHuy', label: 'Số đơn Huỷ' },
-                { key: 'dsChotTT', label: 'DS Chốt (TT)' },
-                { key: 'dsHuy', label: 'DS Huỷ' },
-                { key: 'tiLeChotTT', label: 'Tỉ lệ chốt (TT)' }
-              ].map(col => (
-                <label key={col.key} className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={visibleColumns[col.key]}
-                    onChange={() => setVisibleColumns(prev => ({ ...prev, [col.key]: !prev[col.key] }))}
-                    className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
-                  />
-                  {col.label}
-                </label>
-              ))}
+      {
+        activeTab === 'DetailedReport' && (
+          <div className="table-responsive-container">
+            {/* Column Toggles Panel */}
+            <div className="bg-white p-4 mb-4 rounded-lg shadow-sm border border-gray-200">
+              <h3 className="text-sm font-bold text-gray-700 mb-3">Cột hiển thị</h3>
+              <div className="flex flex-wrap gap-3">
+                {[
+                  { key: 'stt', label: 'STT' },
+                  { key: 'team', label: 'Team' },
+                  { key: 'marketing', label: 'Marketing' },
+                  { key: 'cpqc', label: 'CPQC' },
+                  { key: 'mess', label: 'Số Mess' },
+                  { key: 'orders', label: 'Số Đơn' },
+                  { key: 'dsChot', label: 'DS Chốt' },
+                  { key: 'tiLeChot', label: 'Tỉ lệ chốt' },
+                  { key: 'giaMess', label: 'Giá Mess' },
+                  { key: 'cps', label: 'CPS' },
+                  { key: 'cp_ds', label: '%CP/DS' },
+                  { key: 'giaTBDon', label: 'Giá TB Đơn' },
+                  { key: 'ordersTT', label: 'Số Đơn (TT)' },
+                  { key: 'soDonHuy', label: 'Số đơn Huỷ' },
+                  { key: 'dsChotTT', label: 'DS Chốt (TT)' },
+                  { key: 'dsHuy', label: 'DS Huỷ' },
+                  { key: 'tiLeChotTT', label: 'Tỉ lệ chốt (TT)' }
+                ].map(col => (
+                  <label key={col.key} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={visibleColumns[col.key]}
+                      onChange={() => setVisibleColumns(prev => ({ ...prev, [col.key]: !prev[col.key] }))}
+                      className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                    />
+                    {col.label}
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Banner Header */}
-          <div className="bg-[#2d7c2d] text-white p-3 font-bold text-lg uppercase mb-0 rounded-t-lg">
-            BÁO CÁO TỔNG HỢP
-          </div>
+            {/* Banner Header */}
+            <div className="bg-[#2d7c2d] text-white p-3 font-bold text-lg uppercase mb-0 rounded-t-lg">
+              BÁO CÁO TỔNG HỢP
+            </div>
 
-          {loading ? (
-            <div style={{ padding: '20px', textAlign: 'center' }}>Đang tải dữ liệu...</div>
-          ) : (
-            // Main Summary Table
-            <>
-              <table className="report-table" style={{ marginTop: 0 }}>
+            {loading ? (
+              <div style={{ padding: '20px', textAlign: 'center' }}>Đang tải dữ liệu...</div>
+            ) : (
+              // Main Summary Table
+              <>
+                <table className="report-table" style={{ marginTop: 0 }}>
+                  <thead>
+                    <tr>
+                      {visibleColumns.stt && <th className="green-header">STT</th>}
+                      {visibleColumns.team && <th className="green-header">TEAM</th>}
+                      {visibleColumns.marketing && <th className="green-header">MARKETING</th>}
+                      {visibleColumns.cpqc && <th className="green-header">CPQC<br /><span className="text-xs font-normal">(MKT)</span></th>}
+                      {visibleColumns.mess && <th className="green-header">SỐ MESS<br /><span className="text-xs font-normal">(MKT)</span></th>}
+                      {visibleColumns.orders && <th className="green-header">SỐ ĐƠN<br /><span className="text-xs font-normal">(MKT)</span></th>}
+                      {visibleColumns.dsChot && <th className="green-header">DS CHỐT<br /><span className="text-xs font-normal">(MKT)</span></th>}
+
+                      {visibleColumns.tiLeChot && <th className="yellow-header">TỈ LỆ CHỐT</th>}
+                      {visibleColumns.giaMess && <th className="yellow-header">GIÁ MESS</th>}
+                      {visibleColumns.cps && <th className="yellow-header">CPS</th>}
+                      {visibleColumns.cp_ds && <th className="yellow-header">%CP/DS</th>}
+                      {visibleColumns.giaTBDon && <th className="yellow-header">GIÁ TB ĐƠN</th>}
+
+                      {visibleColumns.ordersTT && <th className="blue-header">SỐ ĐƠN (TT)<br /><span className="text-xs font-normal">(F3)</span></th>}
+                      {visibleColumns.soDonHuy && <th className="blue-header">SỐ ĐƠN HỦY<br /><span className="text-xs font-normal">(F3)</span></th>}
+                      {visibleColumns.dsChotTT && <th className="blue-header">DS CHỐT (TT)<br /><span className="text-xs font-normal">(F3)</span></th>}
+                      {visibleColumns.dsHuy && <th className="blue-header">DS HỦY<br /><span className="text-xs font-normal">(F3)</span></th>}
+
+                      {visibleColumns.tiLeChotTT && <th className="yellow-header">TỈ LỆ CHỐT (TT)</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="total-row">
+                      {(visibleColumns.stt || visibleColumns.team || visibleColumns.marketing) && (
+                        <td colSpan={(visibleColumns.stt ? 1 : 0) + (visibleColumns.team ? 1 : 0) + (visibleColumns.marketing ? 1 : 0)} className="text-center">TỔNG CỘNG</td>
+                      )}
+                      {visibleColumns.cpqc && <td>{fmtCurrency(processData.total.cpqc)}</td>}
+                      {visibleColumns.mess && <td>{fmtNum(processData.total.mess)}</td>}
+                      {visibleColumns.orders && <td>{fmtNum(processData.total.orders)}</td>}
+                      {visibleColumns.dsChot && <td>{fmtCurrency(processData.total.dsChot)}</td>}
+                      {visibleColumns.tiLeChot && <td>{fmtPct(processData.total.tiLeChot)}</td>}
+                      {visibleColumns.giaMess && <td>{fmtCurrency(processData.total.giaMess)}</td>}
+                      {visibleColumns.cps && <td>{fmtCurrency(processData.total.cps)}</td>}
+                      {visibleColumns.cp_ds && <td>{fmtPct(processData.total.cp_ds)}</td>}
+                      {visibleColumns.giaTBDon && <td>{fmtCurrency(processData.total.giaTBDon)}</td>}
+                      {visibleColumns.ordersTT && <td>{fmtNum(processData.total.ordersTT)}</td>}
+                      {visibleColumns.soDonHuy && <td>{fmtNum(processData.total.soDonHuyTT)}</td>}
+                      {visibleColumns.dsChotTT && <td>{fmtCurrency(processData.total.dsChotTT)}</td>}
+                      {visibleColumns.dsHuy && <td>{fmtCurrency(processData.total.dsHuyTT)}</td>}
+                      {visibleColumns.tiLeChotTT && <td>{fmtPct(processData.total.tiLeChotTT)}</td>}
+                    </tr>
+                    {processData.rows.map((row, index) => (
+                      <tr key={index}>
+                        {visibleColumns.stt && <td className="text-center">{index + 1}</td>}
+                        {visibleColumns.team && <td>{row.team}</td>}
+                        {visibleColumns.marketing && <td>{row.name}</td>}
+                        {visibleColumns.cpqc && <td>{fmtCurrency(row.cpqc)}</td>}
+                        {visibleColumns.mess && <td>{fmtNum(row.mess)}</td>}
+                        {visibleColumns.orders && <td>{fmtNum(row.orders)}</td>}
+                        {visibleColumns.dsChot && <td>{fmtCurrency(row.dsChot)}</td>}
+                        {visibleColumns.tiLeChot && <td className={`text-center ${getRateClass(row.tiLeChot)}`}>{fmtPct(row.tiLeChot)}</td>}
+                        {visibleColumns.giaMess && <td>{fmtCurrency(row.giaMess)}</td>}
+                        {visibleColumns.cps && <td className={getCpsCellStyle(row.cps)}>{fmtCurrency(row.cps)}</td>}
+                        {visibleColumns.cp_ds && <td className={`text-center ${row.cp_ds > 33 ? 'bg-yellow' : ''}`}>{fmtPct(row.cp_ds)}</td>}
+                        {visibleColumns.giaTBDon && <td>{fmtCurrency(row.giaTBDon)}</td>}
+                        {visibleColumns.ordersTT && <td>{fmtNum(row.ordersTT)}</td>}
+                        {visibleColumns.soDonHuy && <td>{fmtNum(row.soDonHuyTT)}</td>}
+                        {visibleColumns.dsChotTT && <td>{fmtCurrency(row.dsChotTT)}</td>}
+                        {visibleColumns.dsHuy && <td>{fmtCurrency(row.dsHuyTT)}</td>}
+                        {visibleColumns.tiLeChotTT && <td className={`text-center ${getRateClass(row.tiLeChotTT)}`}>{fmtPct(row.tiLeChotTT)}</td>}
+                      </tr>
+                    ))}
+                    {processData.rows.length === 0 && (
+                      <tr>
+                        <td colSpan={15} className="text-center" style={{ padding: '30px' }}>
+                          Không có dữ liệu trong khoảng thời gian này
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+
+                {/* Daily Breakdown */}
+                {processData.dailyData && processData.dailyData.length > 0 && processData.dailyData.map((dayData, dIdx) => (
+                  <div key={dIdx} style={{ marginTop: '30px' }}>
+                    <h3 style={{ borderBottom: '2px solid #2d7c2d', paddingBottom: '5px', marginBottom: '10px' }}>
+                      {dayData.date.split('-').reverse().join('/')}
+                    </h3>
+                    <table className="report-table" style={{ marginTop: '10px' }}>
+                      <thead>
+                        <tr>
+                          {visibleColumns.stt && <th className="green-header">STT</th>}
+                          {visibleColumns.team && <th className="green-header">TEAM</th>}
+                          {visibleColumns.marketing && <th className="green-header">MARKETING</th>}
+                          {visibleColumns.cpqc && <th className="green-header">CPQC<br /><span className="text-xs font-normal">(MKT)</span></th>}
+                          {visibleColumns.mess && <th className="green-header">SỐ MESS<br /><span className="text-xs font-normal">(MKT)</span></th>}
+                          {visibleColumns.orders && <th className="green-header">SỐ ĐƠN<br /><span className="text-xs font-normal">(MKT)</span></th>}
+                          {visibleColumns.dsChot && <th className="green-header">DS CHỐT<br /><span className="text-xs font-normal">(MKT)</span></th>}
+
+                          {visibleColumns.tiLeChot && <th className="yellow-header">TỈ LỆ CHỐT</th>}
+                          {visibleColumns.giaMess && <th className="yellow-header">GIÁ MESS</th>}
+                          {visibleColumns.cps && <th className="yellow-header">CPS</th>}
+                          {visibleColumns.cp_ds && <th className="yellow-header">%CP/DS</th>}
+                          {visibleColumns.giaTBDon && <th className="yellow-header">GIÁ TB ĐƠN</th>}
+
+                          {visibleColumns.ordersTT && <th className="blue-header">SỐ ĐƠN (TT)<br /><span className="text-xs font-normal">(F3)</span></th>}
+                          {visibleColumns.soDonHuy && <th className="blue-header">SỐ ĐƠN HỦY<br /><span className="text-xs font-normal">(F3)</span></th>}
+                          {visibleColumns.dsChotTT && <th className="blue-header">DS CHỐT (TT)<br /><span className="text-xs font-normal">(F3)</span></th>}
+                          {visibleColumns.dsHuy && <th className="blue-header">DS HỦY<br /><span className="text-xs font-normal">(F3)</span></th>}
+
+                          {visibleColumns.tiLeChotTT && <th className="yellow-header">TỈ LỆ CHỐT (TT)</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="total-row">
+                          {(visibleColumns.stt || visibleColumns.team || visibleColumns.marketing) && (
+                            <td colSpan={(visibleColumns.stt ? 1 : 0) + (visibleColumns.team ? 1 : 0) + (visibleColumns.marketing ? 1 : 0)} className="text-center">TỔNG CỘNG</td>
+                          )}
+                          {visibleColumns.cpqc && <td>{fmtCurrency(dayData.total.cpqc)}</td>}
+                          {visibleColumns.mess && <td>{fmtNum(dayData.total.mess)}</td>}
+                          {visibleColumns.orders && <td>{fmtNum(dayData.total.orders)}</td>}
+                          {visibleColumns.dsChot && <td>{fmtCurrency(dayData.total.dsChot)}</td>}
+                          {visibleColumns.tiLeChot && <td>{fmtPct(dayData.total.tiLeChot)}</td>}
+                          {visibleColumns.giaMess && <td>{fmtCurrency(dayData.total.giaMess)}</td>}
+                          {visibleColumns.cps && <td>{fmtCurrency(dayData.total.cps)}</td>}
+                          {visibleColumns.cp_ds && <td>{fmtPct(dayData.total.cp_ds)}</td>}
+                          {visibleColumns.giaTBDon && <td>{fmtCurrency(dayData.total.giaTBDon)}</td>}
+                          {visibleColumns.ordersTT && <td>{fmtNum(dayData.total.ordersTT)}</td>}
+                          {visibleColumns.soDonHuy && <td>{fmtNum(dayData.total.soDonHuyTT)}</td>}
+                          {visibleColumns.dsChotTT && <td>{fmtCurrency(dayData.total.dsChotTT)}</td>}
+                          {visibleColumns.dsHuy && <td>{fmtCurrency(dayData.total.dsHuyTT)}</td>}
+                          {visibleColumns.tiLeChotTT && <td>{fmtPct(dayData.total.tiLeChotTT)}</td>}
+                        </tr>
+                        {dayData.rows.map((row, rIdx) => (
+                          <tr key={rIdx}>
+                            {visibleColumns.stt && <td className="text-center">{rIdx + 1}</td>}
+                            {visibleColumns.team && <td>{row.team}</td>}
+                            {visibleColumns.marketing && <td>{row.name}</td>}
+                            {visibleColumns.cpqc && <td>{fmtCurrency(row.cpqc)}</td>}
+                            {visibleColumns.mess && <td>{fmtNum(row.mess)}</td>}
+                            {visibleColumns.orders && <td>{fmtNum(row.orders)}</td>}
+                            {visibleColumns.dsChot && <td>{fmtCurrency(row.dsChot)}</td>}
+                            {visibleColumns.tiLeChot && <td className={`text-center ${getRateClass(row.tiLeChot)}`}>{fmtPct(row.tiLeChot)}</td>}
+                            {visibleColumns.giaMess && <td>{fmtCurrency(row.giaMess)}</td>}
+                            {visibleColumns.cps && <td className={getCpsCellStyle(row.cps)}>{fmtCurrency(row.cps)}</td>}
+                            {visibleColumns.cp_ds && <td className={`text-center ${row.cp_ds > 33 ? 'bg-yellow' : ''}`}>{fmtPct(row.cp_ds)}</td>}
+                            {visibleColumns.giaTBDon && <td>{fmtCurrency(row.giaTBDon)}</td>}
+                            {visibleColumns.ordersTT && <td>{fmtNum(row.ordersTT)}</td>}
+                            {visibleColumns.soDonHuy && <td>{fmtNum(row.soDonHuyTT)}</td>}
+                            {visibleColumns.dsChotTT && <td>{fmtCurrency(row.dsChotTT)}</td>}
+                            {visibleColumns.dsHuy && <td>{fmtCurrency(row.dsHuyTT)}</td>}
+                            {visibleColumns.tiLeChotTT && <td className={`text-center ${getRateClass(row.tiLeChotTT)}`}>{fmtPct(row.tiLeChotTT)}</td>}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )
+      }
+
+      {/* TAB 2: KPI Report */}
+      {
+        activeTab === 'KpiReport' && (
+          <div className="table-responsive-container">
+            {loading ? (
+              <div style={{ padding: '20px', textAlign: 'center' }}>Đang tải dữ liệu...</div>
+            ) : (
+              <table className="report-table">
                 <thead>
                   <tr>
-                    {visibleColumns.stt && <th className="green-header">STT</th>}
-                    {visibleColumns.team && <th className="green-header">TEAM</th>}
-                    {visibleColumns.marketing && <th className="green-header">MARKETING</th>}
-                    {visibleColumns.cpqc && <th className="green-header">CPQC<br /><span className="text-xs font-normal">(MKT)</span></th>}
-                    {visibleColumns.mess && <th className="green-header">SỐ MESS<br /><span className="text-xs font-normal">(MKT)</span></th>}
-                    {visibleColumns.orders && <th className="green-header">SỐ ĐƠN<br /><span className="text-xs font-normal">(MKT)</span></th>}
-                    {visibleColumns.dsChot && <th className="green-header">DS CHỐT<br /><span className="text-xs font-normal">(MKT)</span></th>}
-
-                    {visibleColumns.tiLeChot && <th className="yellow-header">TỈ LỆ CHỐT</th>}
-                    {visibleColumns.giaMess && <th className="yellow-header">GIÁ MESS</th>}
-                    {visibleColumns.cps && <th className="yellow-header">CPS</th>}
-                    {visibleColumns.cp_ds && <th className="yellow-header">%CP/DS</th>}
-                    {visibleColumns.giaTBDon && <th className="yellow-header">GIÁ TB ĐƠN</th>}
-
-                    {visibleColumns.ordersTT && <th className="blue-header">SỐ ĐƠN (TT)<br /><span className="text-xs font-normal">(F3)</span></th>}
-                    {visibleColumns.soDonHuy && <th className="blue-header">SỐ ĐƠN HỦY<br /><span className="text-xs font-normal">(F3)</span></th>}
-                    {visibleColumns.dsChotTT && <th className="blue-header">DS CHỐT (TT)<br /><span className="text-xs font-normal">(F3)</span></th>}
-                    {visibleColumns.dsHuy && <th className="blue-header">DS HỦY<br /><span className="text-xs font-normal">(F3)</span></th>}
-
-                    {visibleColumns.tiLeChotTT && <th className="yellow-header">TỈ LỆ CHỐT (TT)</th>}
+                    <th className="green-header">STT</th>
+                    <th className="green-header">Team</th>
+                    <th className="green-header">Marketing</th>
+                    <th className="green-header">CPQC</th>
+                    <th className="green-header">DS Chốt</th>
+                    <th className="blue-header">DS Chốt (TT)</th>
+                    <th className="blue-header">Số đơn hủy (TT)</th>
+                    <th className="blue-header">Doanh số Hủy (TT)</th>
+                    <th className="blue-header">DS Thành Công (TT)</th>
+                    <th className="yellow-header">%CP/DS</th>
+                    <th className="yellow-header">% KPI</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr className="total-row">
-                    {(visibleColumns.stt || visibleColumns.team || visibleColumns.marketing) && (
-                      <td colSpan={(visibleColumns.stt ? 1 : 0) + (visibleColumns.team ? 1 : 0) + (visibleColumns.marketing ? 1 : 0)} className="text-center">TỔNG CỘNG</td>
-                    )}
-                    {visibleColumns.cpqc && <td>{fmtCurrency(processData.total.cpqc)}</td>}
-                    {visibleColumns.mess && <td>{fmtNum(processData.total.mess)}</td>}
-                    {visibleColumns.orders && <td>{fmtNum(processData.total.orders)}</td>}
-                    {visibleColumns.dsChot && <td>{fmtCurrency(processData.total.dsChot)}</td>}
-                    {visibleColumns.tiLeChot && <td>{fmtPct(processData.total.tiLeChot)}</td>}
-                    {visibleColumns.giaMess && <td>{fmtCurrency(processData.total.giaMess)}</td>}
-                    {visibleColumns.cps && <td>{fmtCurrency(processData.total.cps)}</td>}
-                    {visibleColumns.cp_ds && <td>{fmtPct(processData.total.cp_ds)}</td>}
-                    {visibleColumns.giaTBDon && <td>{fmtCurrency(processData.total.giaTBDon)}</td>}
-                    {visibleColumns.ordersTT && <td>{fmtNum(processData.total.ordersTT)}</td>}
-                    {visibleColumns.soDonHuy && <td>{fmtNum(processData.total.soDonHuyTT)}</td>}
-                    {visibleColumns.dsChotTT && <td>{fmtCurrency(processData.total.dsChotTT)}</td>}
-                    {visibleColumns.dsHuy && <td>{fmtCurrency(processData.total.dsHuyTT)}</td>}
-                    {visibleColumns.tiLeChotTT && <td>{fmtPct(processData.total.tiLeChotTT)}</td>}
+                    <td colSpan={3} className="text-center">TỔNG CỘNG</td>
+                    <td>{fmtCurrency(processData.total.cpqc)}</td>
+                    <td>{fmtCurrency(processData.total.dsChot)}</td>
+                    <td>{fmtCurrency(processData.total.dsChotTT)}</td>
+                    <td>{fmtNum(processData.total.soDonHuyTT)}</td>
+                    <td>{fmtCurrency(processData.total.dsHuyTT)}</td>
+                    <td>{fmtCurrency(processData.total.dsThanhCongTT)}</td>
+                    <td>{fmtPct(processData.total.cp_ds_sau_ship)}</td>
+                    <td>{fmtPct(processData.total.kpi_percent)}</td>
                   </tr>
                   {processData.rows.map((row, index) => (
                     <tr key={index}>
-                      {visibleColumns.stt && <td className="text-center">{index + 1}</td>}
-                      {visibleColumns.team && <td>{row.team}</td>}
-                      {visibleColumns.marketing && <td>{row.name}</td>}
-                      {visibleColumns.cpqc && <td>{fmtCurrency(row.cpqc)}</td>}
-                      {visibleColumns.mess && <td>{fmtNum(row.mess)}</td>}
-                      {visibleColumns.orders && <td>{fmtNum(row.orders)}</td>}
-                      {visibleColumns.dsChot && <td>{fmtCurrency(row.dsChot)}</td>}
-                      {visibleColumns.tiLeChot && <td className={`text-center ${getRateClass(row.tiLeChot)}`}>{fmtPct(row.tiLeChot)}</td>}
-                      {visibleColumns.giaMess && <td>{fmtCurrency(row.giaMess)}</td>}
-                      {visibleColumns.cps && <td className={getCpsCellStyle(row.cps)}>{fmtCurrency(row.cps)}</td>}
-                      {visibleColumns.cp_ds && <td className={`text-center ${row.cp_ds > 33 ? 'bg-yellow' : ''}`}>{fmtPct(row.cp_ds)}</td>}
-                      {visibleColumns.giaTBDon && <td>{fmtCurrency(row.giaTBDon)}</td>}
-                      {visibleColumns.ordersTT && <td>{fmtNum(row.ordersTT)}</td>}
-                      {visibleColumns.soDonHuy && <td>{fmtNum(row.soDonHuyTT)}</td>}
-                      {visibleColumns.dsChotTT && <td>{fmtCurrency(row.dsChotTT)}</td>}
-                      {visibleColumns.dsHuy && <td>{fmtCurrency(row.dsHuyTT)}</td>}
-                      {visibleColumns.tiLeChotTT && <td className={`text-center ${getRateClass(row.tiLeChotTT)}`}>{fmtPct(row.tiLeChotTT)}</td>}
+                      <td className="text-center">{index + 1}</td>
+                      <td>{row.team}</td>
+                      <td>{row.name}</td>
+                      <td>{fmtCurrency(row.cpqc)}</td>
+                      <td>{fmtCurrency(row.dsChot)}</td>
+                      <td>{fmtCurrency(row.dsChotTT)}</td>
+                      <td>{fmtNum(row.soDonHuyTT)}</td>
+                      <td>{fmtCurrency(row.dsHuyTT)}</td>
+                      <td>{fmtCurrency(row.dsThanhCongTT)}</td>
+                      <td className="text-center">{fmtPct(row.cp_ds_sau_ship)}</td>
+                      <td className="text-center">{fmtPct(row.kpi_percent)}</td>
                     </tr>
                   ))}
-                  {processData.rows.length === 0 && (
-                    <tr>
-                      <td colSpan={15} className="text-center" style={{ padding: '30px' }}>
-                        Không có dữ liệu trong khoảng thời gian này
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
-
-              {/* Daily Breakdown */}
-              {processData.dailyData && processData.dailyData.length > 0 && processData.dailyData.map((dayData, dIdx) => (
-                <div key={dIdx} style={{ marginTop: '30px' }}>
-                  <h3 style={{ borderBottom: '2px solid #2d7c2d', paddingBottom: '5px', marginBottom: '10px' }}>
-                    {dayData.date.split('-').reverse().join('/')}
-                  </h3>
-                  <table className="report-table" style={{ marginTop: '10px' }}>
-                    <thead>
-                      <tr>
-                        {visibleColumns.stt && <th className="green-header">STT</th>}
-                        {visibleColumns.team && <th className="green-header">TEAM</th>}
-                        {visibleColumns.marketing && <th className="green-header">MARKETING</th>}
-                        {visibleColumns.cpqc && <th className="green-header">CPQC<br /><span className="text-xs font-normal">(MKT)</span></th>}
-                        {visibleColumns.mess && <th className="green-header">SỐ MESS<br /><span className="text-xs font-normal">(MKT)</span></th>}
-                        {visibleColumns.orders && <th className="green-header">SỐ ĐƠN<br /><span className="text-xs font-normal">(MKT)</span></th>}
-                        {visibleColumns.dsChot && <th className="green-header">DS CHỐT<br /><span className="text-xs font-normal">(MKT)</span></th>}
-
-                        {visibleColumns.tiLeChot && <th className="yellow-header">TỈ LỆ CHỐT</th>}
-                        {visibleColumns.giaMess && <th className="yellow-header">GIÁ MESS</th>}
-                        {visibleColumns.cps && <th className="yellow-header">CPS</th>}
-                        {visibleColumns.cp_ds && <th className="yellow-header">%CP/DS</th>}
-                        {visibleColumns.giaTBDon && <th className="yellow-header">GIÁ TB ĐƠN</th>}
-
-                        {visibleColumns.ordersTT && <th className="blue-header">SỐ ĐƠN (TT)<br /><span className="text-xs font-normal">(F3)</span></th>}
-                        {visibleColumns.soDonHuy && <th className="blue-header">SỐ ĐƠN HỦY<br /><span className="text-xs font-normal">(F3)</span></th>}
-                        {visibleColumns.dsChotTT && <th className="blue-header">DS CHỐT (TT)<br /><span className="text-xs font-normal">(F3)</span></th>}
-                        {visibleColumns.dsHuy && <th className="blue-header">DS HỦY<br /><span className="text-xs font-normal">(F3)</span></th>}
-
-                        {visibleColumns.tiLeChotTT && <th className="yellow-header">TỈ LỆ CHỐT (TT)</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="total-row">
-                        {(visibleColumns.stt || visibleColumns.team || visibleColumns.marketing) && (
-                          <td colSpan={(visibleColumns.stt ? 1 : 0) + (visibleColumns.team ? 1 : 0) + (visibleColumns.marketing ? 1 : 0)} className="text-center">TỔNG CỘNG</td>
-                        )}
-                        {visibleColumns.cpqc && <td>{fmtCurrency(dayData.total.cpqc)}</td>}
-                        {visibleColumns.mess && <td>{fmtNum(dayData.total.mess)}</td>}
-                        {visibleColumns.orders && <td>{fmtNum(dayData.total.orders)}</td>}
-                        {visibleColumns.dsChot && <td>{fmtCurrency(dayData.total.dsChot)}</td>}
-                        {visibleColumns.tiLeChot && <td>{fmtPct(dayData.total.tiLeChot)}</td>}
-                        {visibleColumns.giaMess && <td>{fmtCurrency(dayData.total.giaMess)}</td>}
-                        {visibleColumns.cps && <td>{fmtCurrency(dayData.total.cps)}</td>}
-                        {visibleColumns.cp_ds && <td>{fmtPct(dayData.total.cp_ds)}</td>}
-                        {visibleColumns.giaTBDon && <td>{fmtCurrency(dayData.total.giaTBDon)}</td>}
-                        {visibleColumns.ordersTT && <td>{fmtNum(dayData.total.ordersTT)}</td>}
-                        {visibleColumns.soDonHuy && <td>{fmtNum(dayData.total.soDonHuyTT)}</td>}
-                        {visibleColumns.dsChotTT && <td>{fmtCurrency(dayData.total.dsChotTT)}</td>}
-                        {visibleColumns.dsHuy && <td>{fmtCurrency(dayData.total.dsHuyTT)}</td>}
-                        {visibleColumns.tiLeChotTT && <td>{fmtPct(dayData.total.tiLeChotTT)}</td>}
-                      </tr>
-                      {dayData.rows.map((row, rIdx) => (
-                        <tr key={rIdx}>
-                          {visibleColumns.stt && <td className="text-center">{rIdx + 1}</td>}
-                          {visibleColumns.team && <td>{row.team}</td>}
-                          {visibleColumns.marketing && <td>{row.name}</td>}
-                          {visibleColumns.cpqc && <td>{fmtCurrency(row.cpqc)}</td>}
-                          {visibleColumns.mess && <td>{fmtNum(row.mess)}</td>}
-                          {visibleColumns.orders && <td>{fmtNum(row.orders)}</td>}
-                          {visibleColumns.dsChot && <td>{fmtCurrency(row.dsChot)}</td>}
-                          {visibleColumns.tiLeChot && <td className={`text-center ${getRateClass(row.tiLeChot)}`}>{fmtPct(row.tiLeChot)}</td>}
-                          {visibleColumns.giaMess && <td>{fmtCurrency(row.giaMess)}</td>}
-                          {visibleColumns.cps && <td className={getCpsCellStyle(row.cps)}>{fmtCurrency(row.cps)}</td>}
-                          {visibleColumns.cp_ds && <td className={`text-center ${row.cp_ds > 33 ? 'bg-yellow' : ''}`}>{fmtPct(row.cp_ds)}</td>}
-                          {visibleColumns.giaTBDon && <td>{fmtCurrency(row.giaTBDon)}</td>}
-                          {visibleColumns.ordersTT && <td>{fmtNum(row.ordersTT)}</td>}
-                          {visibleColumns.soDonHuy && <td>{fmtNum(row.soDonHuyTT)}</td>}
-                          {visibleColumns.dsChotTT && <td>{fmtCurrency(row.dsChotTT)}</td>}
-                          {visibleColumns.dsHuy && <td>{fmtCurrency(row.dsHuyTT)}</td>}
-                          {visibleColumns.tiLeChotTT && <td className={`text-center ${getRateClass(row.tiLeChotTT)}`}>{fmtPct(row.tiLeChotTT)}</td>}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ))}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* TAB 2: KPI Report */}
-      {activeTab === 'KpiReport' && (
-        <div className="table-responsive-container">
-          {loading ? (
-            <div style={{ padding: '20px', textAlign: 'center' }}>Đang tải dữ liệu...</div>
-          ) : (
-            <table className="report-table">
-              <thead>
-                <tr>
-                  <th className="green-header">STT</th>
-                  <th className="green-header">Team</th>
-                  <th className="green-header">Marketing</th>
-                  <th className="green-header">CPQC</th>
-                  <th className="green-header">DS Chốt</th>
-                  <th className="blue-header">DS Chốt (TT)</th>
-                  <th className="blue-header">Số đơn hủy (TT)</th>
-                  <th className="blue-header">Doanh số Hủy (TT)</th>
-                  <th className="blue-header">DS Thành Công (TT)</th>
-                  <th className="yellow-header">%CP/DS</th>
-                  <th className="yellow-header">% KPI</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="total-row">
-                  <td colSpan={3} className="text-center">TỔNG CỘNG</td>
-                  <td>{fmtCurrency(processData.total.cpqc)}</td>
-                  <td>{fmtCurrency(processData.total.dsChot)}</td>
-                  <td>{fmtCurrency(processData.total.dsChotTT)}</td>
-                  <td>{fmtNum(processData.total.soDonHuyTT)}</td>
-                  <td>{fmtCurrency(processData.total.dsHuyTT)}</td>
-                  <td>{fmtCurrency(processData.total.dsThanhCongTT)}</td>
-                  <td>{fmtPct(processData.total.cp_ds_sau_ship)}</td>
-                  <td>{fmtPct(processData.total.kpi_percent)}</td>
-                </tr>
-                {processData.rows.map((row, index) => (
-                  <tr key={index}>
-                    <td className="text-center">{index + 1}</td>
-                    <td>{row.team}</td>
-                    <td>{row.name}</td>
-                    <td>{fmtCurrency(row.cpqc)}</td>
-                    <td>{fmtCurrency(row.dsChot)}</td>
-                    <td>{fmtCurrency(row.dsChotTT)}</td>
-                    <td>{fmtNum(row.soDonHuyTT)}</td>
-                    <td>{fmtCurrency(row.dsHuyTT)}</td>
-                    <td>{fmtCurrency(row.dsThanhCongTT)}</td>
-                    <td className="text-center">{fmtPct(row.cp_ds_sau_ship)}</td>
-                    <td className="text-center">{fmtPct(row.kpi_percent)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )
+      }
 
       {/* TAB 3: Hieu Suat KPI - Legacy Iframe */}
-      {activeTab === 'HieuSuatKPI' && (
-        <div style={{ width: '100%', height: 'calc(100vh - 100px)' }}>
-          <iframe
-            src="/baocaokpiCEO.html"
-            style={{ width: '100%', height: '100%', border: 'none' }}
-            title="Hiệu suất KPI"
-          />
-        </div>
-      )}
+      {
+        activeTab === 'HieuSuatKPI' && (
+          <div style={{ width: '100%', height: 'calc(100vh - 100px)' }}>
+            <iframe
+              src="/baocaokpiCEO.html"
+              style={{ width: '100%', height: '100%', border: 'none' }}
+              title="Hiệu suất KPI"
+            />
+          </div>
+        )
+      }
 
       {/* TAB 4: Market Report */}
-      {activeTab === 'MarketReport' && (
-        <>
-          {renderMarketTable(processMarketData.nonAsia, 'THỊ TRƯỜNG NGOÀI CHÂU Á')}
-          {renderMarketTable(processMarketData.asia, 'THỊ TRƯỜNG CHÂU Á')}
-          {renderMarketTable(processMarketData.summary, 'TỔNG HỢP')}
-        </>
-      )}
-    </div>
+      {
+        activeTab === 'MarketReport' && (
+          <>
+            {renderMarketTable(processMarketData.nonAsia, 'THỊ TRƯỜNG NGOÀI CHÂU Á')}
+            {renderMarketTable(processMarketData.asia, 'THỊ TRƯỜNG CHÂU Á')}
+            {renderMarketTable(processMarketData.summary, 'TỔNG HỢP')}
+          </>
+        )
+      }
+    </div >
   );
 }
