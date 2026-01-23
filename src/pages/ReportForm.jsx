@@ -5,37 +5,27 @@ import 'react-toastify/dist/ReactToastify.css';
 import { supabase } from '../services/supabaseClient';
 
 function ReportForm() {
-  // State cho thông tin cố định
-  const [fixedInfo, setFixedInfo] = useState({
+  const navigate = useNavigate();
+
+  // Initial defaults for new rows
+  const [defaultInfo, setDefaultInfo] = useState({
     name: '',
     email: '',
     date: new Date().toISOString().split('T')[0],
     shift: ''
   });
 
-  // State cho các báo cáo (chỉ chứa thông tin thay đổi)
-  const [reports, setReports] = useState([{
-    product: '',
-    market: '',
-    tkqc: '',
-    cpqc: '',
-    mess_cmt: '',
-    response: '',
-    orders: '',
-    revenue: ''
-  }]);
-
+  // State for reports, initialized empty until user info loads
+  const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
-  const [expandedRows, setExpandedRows] = useState(new Set([0]));
 
   // State for dropdown options
   const [productOptions, setProductOptions] = useState([]);
   const [marketOptions, setMarketOptions] = useState([]);
   const [dropdownLoading, setDropdownLoading] = useState(false);
-  const navigate = useNavigate();
 
-  // Fetch dropdown data from Supabase (Dynamic from existing data)
+  // Fetch dropdown data
   useEffect(() => {
     const fetchDropdownData = async () => {
       try {
@@ -49,38 +39,27 @@ function ReportForm() {
 
         if (error) throw error;
 
-        // Extract unique sets
         const productsSet = new Set();
         const marketsSet = new Set();
 
         if (data) {
           data.forEach(item => {
-            if (item.product && item.product.trim()) productsSet.add(item.product.trim());
-            if (item.market && item.market.trim()) marketsSet.add(item.market.trim());
+            if (item.product?.trim()) productsSet.add(item.product.trim());
+            if (item.market?.trim()) marketsSet.add(item.market.trim());
           });
         }
 
-        // Fallback defaults if empty (initial state)
         if (productsSet.size === 0) {
-          productsSet.add('Lumi Eyes');
-          productsSet.add('Lumi Nano');
-          productsSet.add('Lumi Skin');
+          ['Lumi Eyes', 'Lumi Nano', 'Lumi Skin'].forEach(p => productsSet.add(p));
         }
         if (marketsSet.size === 0) {
-          marketsSet.add('Việt Nam');
-          marketsSet.add('Thái Lan');
-          marketsSet.add('Philippines');
-          marketsSet.add('Malaysia');
+          ['Việt Nam', 'Thái Lan', 'Philippines', 'Malaysia'].forEach(m => marketsSet.add(m));
         }
 
-        const products = Array.from(productsSet).sort((a, b) => a.localeCompare(b, 'vi'));
-        const markets = Array.from(marketsSet).sort((a, b) => a.localeCompare(b, 'vi'));
-
-        setProductOptions(products);
-        setMarketOptions(markets);
+        setProductOptions(Array.from(productsSet).sort((a, b) => a.localeCompare(b, 'vi')));
+        setMarketOptions(Array.from(marketsSet).sort((a, b) => a.localeCompare(b, 'vi')));
       } catch (err) {
         console.error('Error fetching dropdown data:', err);
-        // Default fallbacks in case of error
         setProductOptions(['Lumi Eyes', 'Lumi Nano']);
         setMarketOptions(['Việt Nam', 'Thái Lan']);
       } finally {
@@ -91,16 +70,32 @@ function ReportForm() {
     fetchDropdownData();
   }, []);
 
-  // Load current user info (name, email) from localStorage on mount
+  // Load current user info
   useEffect(() => {
     const name = localStorage.getItem('username') || '';
     const email = localStorage.getItem('userEmail') || '';
+    const currentDate = new Date().toISOString().split('T')[0];
 
-    setFixedInfo(prev => ({
+    setDefaultInfo(prev => ({
       ...prev,
       name,
-      email
+      email,
+      date: currentDate
     }));
+
+    // Initialize first row
+    setReports([{
+      name: name,
+      email: email,
+      date: currentDate,
+      shift: '',
+      product: '',
+      market: '',
+      mess_cmt: '',
+      response: '',
+      orders: '',
+      revenue: ''
+    }]);
   }, []);
 
   const formatNumberInput = (value) => {
@@ -110,11 +105,6 @@ function ReportForm() {
 
   const cleanNumberInput = (value) => {
     return value.replace(/[^0-9]/g, '');
-  };
-
-  const handleFixedInfoChange = (e) => {
-    const { name, value } = e.target;
-    setFixedInfo(prev => ({ ...prev, [name]: value }));
   };
 
   const handleReportChange = (e, reportIndex) => {
@@ -140,20 +130,42 @@ function ReportForm() {
     }
   };
 
+  const addReport = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+
+    const lastReport = reports[reports.length - 1] || defaultInfo;
+    const newReport = {
+      name: lastReport.name,
+      email: lastReport.email,
+      date: lastReport.date,
+      shift: lastReport.shift,
+      product: lastReport.product || '',
+      market: lastReport.market || '',
+      mess_cmt: '',
+      response: '',
+      orders: '',
+      revenue: ''
+    };
+    setReports(prev => [...prev, newReport]);
+  };
+
+  const deleteReport = (reportIndex) => {
+    if (reports.length <= 1) {
+      toast.warn("Cần ít nhất 1 dòng báo cáo!");
+      return;
+    }
+    const newReports = reports.filter((_, index) => index !== reportIndex);
+    setReports(newReports);
+  };
+
   const validateForm = () => {
     const newErrors = {};
-
-    // Validate fixed info
-    if (!fixedInfo.name.trim()) newErrors['fixed-name'] = 'Required';
-    // if (!fixedInfo.email.trim()) newErrors['fixed-email'] = 'Required';
-    if (!fixedInfo.date) newErrors['fixed-date'] = 'Required';
-    if (!fixedInfo.shift) newErrors['fixed-shift'] = 'Required';
-
-    // Validate reports
     reports.forEach((report, index) => {
-      if (!report.product.trim()) newErrors[`${index}-product`] = 'Required';
-      if (!report.market.trim()) newErrors[`${index}-market`] = 'Required';
-      // TKQC and CPQC validation skipped
+      if (!report.name?.trim()) newErrors[`${index}-name`] = 'Required';
+      if (!report.date) newErrors[`${index}-date`] = 'Required';
+      if (!report.shift) newErrors[`${index}-shift`] = 'Required';
+      if (!report.product?.trim()) newErrors[`${index}-product`] = 'Required';
+      if (!report.market?.trim()) newErrors[`${index}-market`] = 'Required';
       if (!report.mess_cmt) newErrors[`${index}-mess_cmt`] = 'Required';
       if (!report.response) newErrors[`${index}-response`] = 'Required';
       if (!report.orders) newErrors[`${index}-orders`] = 'Required';
@@ -166,34 +178,25 @@ function ReportForm() {
 
   const handleSubmit = async () => {
     if (!validateForm()) {
-      toast.error('Vui lòng điền đầy đủ thông tin bắt buộc', { position: 'top-right', autoClose: 3000 });
+      toast.error('Vui lòng điền đầy đủ thông tin bắt buộc (các ô viền đỏ)', { position: 'top-right', autoClose: 3000 });
       return;
     }
 
     setLoading(true);
     try {
-      // Prepare data for Supabase
       const payload = reports.map(report => ({
-        name: fixedInfo.name,
-        email: fixedInfo.email,
-        date: fixedInfo.date, // YYYY-MM-DD
-        shift: fixedInfo.shift,
-
+        name: report.name,
+        email: report.email,
+        date: report.date,
+        shift: report.shift,
         product: report.product,
         market: report.market,
-        // tkqc: report.tkqc, // Skipped
-        // cpqc: ... // Skipped
-
         mess_count: Number(cleanNumberInput(String(report.mess_cmt || ''))) || 0,
         response_count: Number(cleanNumberInput(String(report.response || ''))) || 0,
         order_count: Number(cleanNumberInput(String(report.orders || ''))) || 0,
         revenue_mess: Number(cleanNumberInput(String(report.revenue || ''))) || 0,
-
         team: localStorage.getItem('userTeam') || 'Sale',
-        // user_id: localStorage.getItem('userId'), // DB does not have user_id column
-
         created_at: new Date().toISOString(),
-        // status: 'pending' // Skipped
       }));
 
       const { error } = await supabase
@@ -204,19 +207,20 @@ function ReportForm() {
 
       toast.success(`Đã lưu thành công ${reports.length} báo cáo!`, { position: 'top-right', autoClose: 3000 });
 
-      // Reset reports but keep fixed info
+      // Reset but keep user info settings for next entry
       setReports([{
+        name: defaultInfo.name,
+        email: defaultInfo.email,
+        date: new Date().toISOString().split('T')[0],
+        shift: '',
         product: '',
         market: '',
-        tkqc: '',
-        cpqc: '',
         mess_cmt: '',
         response: '',
         orders: '',
         revenue: ''
       }]);
       setErrors({});
-      setExpandedRows(new Set([0]));
     } catch (err) {
       console.error('Error saving reports:', err);
       toast.error('Lỗi khi lưu báo cáo: ' + (err.message || ''), { position: 'top-right', autoClose: 5000 });
@@ -225,62 +229,12 @@ function ReportForm() {
     }
   };
 
-  const addReport = () => {
-    const lastReport = reports[reports.length - 1] || {};
-    const newReport = {
-      product: lastReport.product || '',
-      market: lastReport.market || '',
-      tkqc: '',
-      cpqc: '',
-      mess_cmt: '',
-      response: '',
-      orders: '',
-      revenue: ''
-    };
-
-    setReports(prev => [...prev, newReport]);
-
-    const newExpanded = new Set(expandedRows);
-    newExpanded.add(reports.length);
-    setExpandedRows(newExpanded);
-  };
-
-  const deleteReport = (reportIndex) => {
-    const newReports = reports.filter((_, index) => index !== reportIndex);
-    setReports(newReports);
-    const newExpanded = new Set(expandedRows);
-    newExpanded.delete(reportIndex);
-    setExpandedRows(newExpanded);
-  };
-
-  const toggleReport = (reportIndex) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(reportIndex)) {
-      newExpanded.delete(reportIndex);
-    } else {
-      newExpanded.add(reportIndex);
-    }
-    setExpandedRows(newExpanded);
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <div className="w-full mx-auto px-4 py-8">
-        {/* Modern Header */}
+        {/* Header */}
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-8 border border-gray-100">
           <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center">
-              <button
-                onClick={() => navigate(-1)}
-                className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-150"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Quay lại
-              </button>
-            </div>
-
             <div className="flex items-center gap-6 mx-auto justify-center">
               <img
                 src="https://www.appsheet.com/template/gettablefileurl?appName=Appsheet-325045268&tableName=Kho%20%E1%BA%A3nh&fileName=Kho%20%E1%BA%A3nh_Images%2Ff930e667.%E1%BA%A2nh.025539.jpg"
@@ -294,272 +248,187 @@ function ReportForm() {
                 <p className="text-gray-500 mt-1">LumiGlobal Report System</p>
               </div>
             </div>
-
-            <div className="flex items-center">
-              <button
-                onClick={addReport}
-                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Thêm báo cáo
-              </button>
-            </div>
           </div>
         </div>
 
-        {/* Fixed Information Section */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 mb-6">
-          <h4 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
-            <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            Thông tin cố định
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tên</label>
-              <input
-                type="text"
-                name="name"
-                value={fixedInfo.name}
-                disabled
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-500 cursor-not-allowed"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-              <input
-                type="email"
-                name="email"
-                value={fixedInfo.email}
-                disabled
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-500 cursor-not-allowed"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Ngày <span className="text-red-500">*</span></label>
-              <input
-                type="date"
-                name="date"
-                value={fixedInfo.date}
-                onChange={handleFixedInfoChange}
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${errors['fixed-date'] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Ca <span className="text-red-500">*</span></label>
-              <select
-                name="shift"
-                value={fixedInfo.shift}
-                onChange={handleFixedInfoChange}
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${errors['fixed-shift'] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-              >
-                <option value="">Chọn ca</option>
-                <option value="Hết ca">Hết ca</option>
-                <option value="Giữa ca">Giữa ca</option>
-              </select>
+        {/* Main Table */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 overflow-hidden">
+          <div className="mb-4 flex items-center justify-between">
+            <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+            </h4>
+            <div className="text-sm text-gray-500 italic">
+              * Mẹo: Các dòng mới sẽ tự động sao chép Tên, Email, Ngày, Ca từ dòng trên.
             </div>
           </div>
-        </div>
 
-        {/* Reports Section */}
-        <div className="space-y-6">
-          {reports.map((report, reportIndex) => {
-            const isExpanded = expandedRows.has(reportIndex);
-            const hasErrors = Object.keys(errors).some(key => key.startsWith(`${reportIndex}-`));
-
-            return (
-              <div key={reportIndex} className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-xl">
-                {/* Card Header */}
-                <div
-                  className={`p-6 cursor-pointer select-none transition-colors ${hasErrors ? 'bg-red-50' : 'bg-gradient-to-r from-blue-50 to-purple-50'}`}
-                  onClick={() => toggleReport(reportIndex)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white shadow-md ${hasErrors ? 'bg-red-500' : 'bg-gradient-to-br from-green-500 to-green-300'}`}>
-                        {reportIndex + 1}
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-800">
-                          {report.product || 'Báo cáo chưa có sản phẩm'}
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          {report.market || 'Chưa chọn thị trường'} • {fixedInfo.shift || 'Chưa chọn ca'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {hasErrors && (
-                        <span className="text-xs font-medium text-red-600 bg-red-100 px-3 py-1 rounded-full">
-                          Thiếu thông tin
-                        </span>
-                      )}
-                      {reports.length > 1 && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteReport(reportIndex);
-                          }}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      )}
-                      <svg
-                        className={`w-6 h-6 text-gray-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+          <div className="overflow-x-auto pb-4">
+            <table className="w-full min-w-[1400px] border-collapse">
+              <thead>
+                <tr className="bg-gray-50 text-left text-sm font-semibold text-gray-600 border-b border-gray-200">
+                  <th className="p-3 w-10 text-center">#</th>
+                  <th className="p-3 min-w-[150px]">Tên nhân viên</th>
+                  <th className="p-3 min-w-[200px]">Email</th>
+                  <th className="p-3 min-w-[140px]">Ngày <span className="text-red-500">*</span></th>
+                  <th className="p-3 min-w-[120px]">Ca <span className="text-red-500">*</span></th>
+                  <th className="p-3 min-w-[160px]">Sản phẩm <span className="text-red-500">*</span></th>
+                  <th className="p-3 min-w-[140px]">Thị trường <span className="text-red-500">*</span></th>
+                  <th className="p-3 min-w-[100px]">Data <span className="text-red-500">*</span></th>
+                  <th className="p-3 min-w-[100px]">Phản hồi <span className="text-red-500">*</span></th>
+                  <th className="p-3 min-w-[100px]">Đơn chốt <span className="text-red-500">*</span></th>
+                  <th className="p-3 min-w-[140px]">Doanh thu <span className="text-red-500">*</span></th>
+                  <th className="p-3 w-16 text-center">Xóa</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {reports.map((report, idx) => (
+                  <tr key={idx} className="hover:bg-blue-50 transition-colors group">
+                    <td className="p-3 text-center text-gray-400 font-medium">
+                      {idx + 1}
+                    </td>
+                    <td className="p-3">
+                      <input
+                        type="text"
+                        name="name"
+                        value={report.name}
+                        readOnly
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-500 cursor-not-allowed text-sm"
+                      />
+                    </td>
+                    <td className="p-3">
+                      <input
+                        type="email"
+                        name="email"
+                        value={report.email}
+                        readOnly
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-500 cursor-not-allowed text-sm"
+                      />
+                    </td>
+                    <td className="p-3">
+                      <input
+                        type="date"
+                        name="date"
+                        value={report.date}
+                        onChange={(e) => handleReportChange(e, idx)}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm transition-all ${errors[`${idx}-date`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                      />
+                    </td>
+                    <td className="p-3">
+                      <select
+                        name="shift"
+                        value={report.shift}
+                        onChange={(e) => handleReportChange(e, idx)}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm transition-all ${errors[`${idx}-shift`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                       >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
+                        <option value="">Chọn ca</option>
+                        <option value="Hết ca">Hết ca</option>
+                        <option value="Giữa ca">Giữa ca</option>
+                      </select>
+                    </td>
+                    <td className="p-3">
+                      <select
+                        name="product"
+                        value={report.product}
+                        onChange={(e) => handleReportChange(e, idx)}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm transition-all ${errors[`${idx}-product`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                      >
+                        <option value="">Chọn sản phẩm</option>
+                        {productOptions.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </td>
+                    <td className="p-3">
+                      <select
+                        name="market"
+                        value={report.market}
+                        onChange={(e) => handleReportChange(e, idx)}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm transition-all ${errors[`${idx}-market`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                      >
+                        <option value="">Chọn thị trường</option>
+                        {marketOptions.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </td>
+                    <td className="p-3">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        name="mess_cmt"
+                        value={report.mess_cmt}
+                        onChange={(e) => handleReportChange(e, idx)}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm transition-all ${errors[`${idx}-mess_cmt`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                        placeholder="0"
+                      />
+                    </td>
+                    <td className="p-3">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        name="response"
+                        value={report.response}
+                        onChange={(e) => handleReportChange(e, idx)}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm transition-all ${errors[`${idx}-response`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                        placeholder="0"
+                      />
+                    </td>
+                    <td className="p-3">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        name="orders"
+                        value={report.orders}
+                        onChange={(e) => handleReportChange(e, idx)}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm transition-all ${errors[`${idx}-orders`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                        placeholder="0"
+                      />
+                    </td>
+                    <td className="p-3">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        name="revenue"
+                        value={report.revenue}
+                        onChange={(e) => handleReportChange(e, idx)}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm transition-all ${errors[`${idx}-revenue`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                        placeholder="0"
+                      />
+                    </td>
+                    <td className="p-3 text-center">
+                      <button
+                        onClick={() => deleteReport(idx)}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Xóa dòng"
+                        disabled={reports.length <= 1}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-                {/* Card Content - Tất cả trường trên 1 dòng */}
-                {isExpanded && (
-                  <div className="p-6 border-t border-gray-100">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-                      {/* Sản phẩm */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Sản phẩm <span className="text-red-500">*</span></label>
-                        <select
-                          name="product"
-                          value={report.product}
-                          onChange={(e) => handleReportChange(e, reportIndex)}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${errors[`${reportIndex}-product`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                        >
-                          <option value="">Chọn sản phẩm</option>
-                          {dropdownLoading ? (
-                            <option value="" disabled>Đang tải...</option>
-                          ) : productOptions.length === 0 ? (
-                            <option value="">Không có dữ liệu</option>
-                          ) : (
-                            productOptions.map(p => (
-                              <option key={p} value={p}>{p}</option>
-                            ))
-                          )}
-                        </select>
-                      </div>
-
-                      {/* Thị trường */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Thị trường <span className="text-red-500">*</span></label>
-                        <select
-                          name="market"
-                          value={report.market}
-                          onChange={(e) => handleReportChange(e, reportIndex)}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${errors[`${reportIndex}-market`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                        >
-                          <option value="">Chọn thị trường</option>
-                          {dropdownLoading ? (
-                            <option value="" disabled>Đang tải...</option>
-                          ) : marketOptions.length === 0 ? (
-                            <option value="">Không có dữ liệu</option>
-                          ) : (
-                            marketOptions.map(m => (
-                              <option key={m} value={m}>{m}</option>
-                            ))
-                          )}
-                        </select>
-                      </div>
-
-                      {/* Mess/Cmt */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Mess/Cmt <span className="text-red-500">*</span></label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          name="mess_cmt"
-                          value={report.mess_cmt}
-                          onChange={(e) => handleReportChange(e, reportIndex)}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${errors[`${reportIndex}-mess_cmt`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                          placeholder="0"
-                        />
-                      </div>
-
-                      {/* Phản hồi (Response) */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Phản hồi <span className="text-red-500">*</span></label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          name="response"
-                          value={report.response}
-                          onChange={(e) => handleReportChange(e, reportIndex)}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${errors[`${reportIndex}-response`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                          placeholder="0"
-                        />
-                      </div>
-
-                      {/* Số đơn */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Số đơn <span className="text-red-500">*</span></label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          name="orders"
-                          value={report.orders}
-                          onChange={(e) => handleReportChange(e, reportIndex)}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${errors[`${reportIndex}-orders`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                          placeholder="0"
-                        />
-                      </div>
-
-                      {/* Doanh số */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Doanh số <span className="text-red-500">*</span></label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          name="revenue"
-                          value={report.revenue}
-                          onChange={(e) => handleReportChange(e, reportIndex)}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${errors[`${reportIndex}-revenue`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                          placeholder="0"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Submit Button */}
-          <div className="flex justify-center pt-4">
+          <div className="mt-4">
             <button
-              onClick={handleSubmit}
-              disabled={loading}
-              className={`flex items-center gap-3 px-12 py-4 rounded-2xl font-bold text-lg text-white shadow-xl transition-all duration-300 ${loading
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-green-500 hover:shadow-2xl hover:scale-105'
-                }`}
+              onClick={addReport}
+              className="flex items-center gap-2 px-4 py-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg font-medium transition-colors"
             >
-              {loading ? (
-                <>
-                  <svg className="animate-spin h-6 w-6" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Đang gửi...
-                </>
-              ) : (
-                <>
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  Gửi {reports.length} báo cáo
-                </>
-              )}
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Thêm dòng
             </button>
           </div>
+        </div>
+
+        <div className="flex justify-center pt-8 pb-12">
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className={`flex items-center gap-3 px-12 py-4 rounded-2xl font-bold text-lg text-white shadow-xl transition-all ${loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:shadow-2xl hover:scale-105'}`}
+          >
+            {loading ? 'Đang gửi...' : `Gửi ${reports.length} báo cáo`}
+          </button>
         </div>
       </div>
     </div>
