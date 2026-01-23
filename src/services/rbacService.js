@@ -64,6 +64,18 @@ export const assignUserRole = async (email, role_code) => {
     return data[0];
 };
 
+export const updateUserTeam = async (email, team) => {
+    // Update users table
+    const { data, error } = await supabase
+        .from('users')
+        .update({ team: team })
+        .eq('email', email)
+        .select();
+
+    if (error) throw error;
+    return data[0];
+};
+
 export const removeUserRole = async (email) => {
     // Reset to default 'user' role
     const { error } = await supabase
@@ -97,8 +109,9 @@ export const getEmployees = async () => {
         const employees = data.map(u => ({
             email: u.email,
             'Họ Và Tên': u.name || u.username || u.email, // Fallback to email if name missing
-            position: u.position || 'Nhân viên', // Column 'position' in users table? If not, generic
-            department: u.team || u.department || 'Chưa phân loại'
+            position: u.position || 'Nhân viên',
+            department: u.department || 'Chưa phân loại',
+            team: u.team || '' // Explicitly separate team from department
         }));
 
         return employees;

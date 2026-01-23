@@ -2,11 +2,56 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Check, ChevronDown, Edit, Lock, Plus, Shield, Trash2, Users } from 'lucide-react';
+import { Check, ChevronDown, Edit, Lock, Plus, Shield, Trash2, Users, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import * as rbacService from '../../services/rbacService';
 import PermissionTree from './PermissionTree';
+
+const TeamEditor = ({ email, currentTeam, department, onSave }) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [value, setValue] = useState(currentTeam || '');
+
+    useEffect(() => {
+        setValue(currentTeam || '');
+    }, [currentTeam]);
+
+    const handleSave = () => {
+        if (value !== currentTeam) {
+            onSave(value);
+        }
+        setIsEditing(false);
+    };
+
+    if (isEditing) {
+        return (
+            <div className="flex items-center gap-1">
+                <input
+                    autoFocus
+                    className="border rounded px-2 py-1 text-xs w-24 md:w-32 focus:outline-blue-500 uppercase placeholder-gray-300"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value.toUpperCase())}
+                    placeholder={`${department}_...`}
+                />
+                <button onClick={handleSave} className="text-green-600 hover:text-green-700 p-1"><Check size={14} /></button>
+                <button onClick={() => { setIsEditing(false); setValue(currentTeam || ''); }} className="text-red-500 hover:text-red-600 p-1"><X size={14} /></button>
+            </div>
+        );
+    }
+
+    return (
+        <div
+            className="group flex items-center justify-between cursor-pointer hover:bg-gray-100 p-1 rounded -ml-1 pr-2"
+            onClick={() => setIsEditing(true)}
+            title="Nhấn để sửa Team"
+        >
+            <span className={`text-sm ${!currentTeam ? 'text-gray-400 italic' : 'text-gray-700'}`}>
+                {currentTeam || 'Chưa gán'}
+            </span>
+            <Edit size={12} className="text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+    );
+};
 
 // Helper Component for Multi-Select Columns
 const MultiSelectColumn = ({ resourceCode, selectedColumns, onChange }) => {
@@ -102,7 +147,7 @@ const MultiSelectColumn = ({ resourceCode, selectedColumns, onChange }) => {
     );
 };
 
-const PermissionManager = () => {
+const PermissionManager = ({ searchQuery = "" }) => {
     // Dynamic DEPARTMENTS derived from employees "department" field
     // const DEPARTMENTS = ["SALE", "MKT", "RND", "CSKH", "KHO", "HR", "ADMIN", "ACCOUNTANT"];
     // const POSITIONS = [...now derived from employees data...];
@@ -154,12 +199,22 @@ const PermissionManager = () => {
     const handleCreateRole = async () => {
         if (!newRole.code || !newRole.name) return toast.warning("Vui lòng nhập Mã và Tên nhóm quyền");
         try {
-            await rbacService.createRole(newRole);
+            // Sanitize payload: only send fields that exist in DB
+            const payload = {
+                code: newRole.code,
+                name: newRole.name,
+                department: newRole.department
+            };
+            await rbacService.createRole(payload);
             toast.success("Đã tạo nhóm quyền mới");
             setNewRole({ code: '', name: '', department: '' });
             loadData();
         } catch (error) {
-            toast.error("Lỗi tạo nhóm: " + error.message);
+            if (error.message?.includes('duplicate key') || error.code === '23505') {
+                toast.error("Mã nhóm quyền này đã tồn tại! Vui lòng đặt mã khác.");
+            } else {
+                toast.error("Lỗi tạo nhóm: " + error.message);
+            }
         }
     };
 
@@ -284,6 +339,17 @@ const PermissionManager = () => {
         return CODE_MAP[rawCode] || rawCode;
     };
 
+    // --- FILTERING ---
+    const filteredRoles = roles.filter(role => {
+        const q = searchQuery.toLowerCase();
+        return role.name.toLowerCase().includes(q) || role.code.toLowerCase().includes(q);
+    });
+
+    const filteredUserRoles = userRoles.filter(ur => {
+        const q = searchQuery.toLowerCase();
+        return ur.email.toLowerCase().includes(q) || ur.role_code.toLowerCase().includes(q);
+    });
+
     return (
         <div className="bg-white rounded-xl shadow-md border border-gray-100 animate-fadeIn overflow-hidden">
             {/* SUB-TABS */}
@@ -384,7 +450,7 @@ const PermissionManager = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                    {roles.map(role => (
+                                    {filteredRoles.map(role => (
                                         <tr key={role.code} className="hover:bg-gray-50">
                                             <td className="p-3 font-medium text-blue-800">{role.code}</td>
                                             <td className="p-3">{role.name}</td>
@@ -396,6 +462,13 @@ const PermissionManager = () => {
                                             </td>
                                         </tr>
                                     ))}
+                                    {filteredRoles.length === 0 && (
+                                        <tr>
+                                            <td colSpan={4} className="p-4 text-center text-gray-500">
+                                                Không tìm thấy kết quả
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -464,17 +537,39 @@ const PermissionManager = () => {
                                 <thead className="bg-gray-100 font-semibold text-gray-600">
                                     <tr>
                                         <th className="p-3">Email</th>
+                                        <th className="p-3">Tên nhân viên</th>
+                                        <th className="p-3">Bộ phận</th>
+                                        <th className="p-3">Nhóm (Team)</th>
                                         <th className="p-3">Vai trò</th>
                                         <th className="p-3">Updated At</th>
                                         <th className="p-3 text-center">Hành động</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                    {userRoles.map(ur => {
+                                    {filteredUserRoles.map(ur => {
                                         const role = roles.find(r => r.code === ur.role_code);
+                                        const emp = employees.find(e => e.email === ur.email);
                                         return (
                                             <tr key={ur.email} className="hover:bg-gray-50">
                                                 <td className="p-3 font-medium">{ur.email}</td>
+                                                <td className="p-3 text-gray-700">{emp ? emp['Họ Và Tên'] : '-'}</td>
+                                                <td className="p-3 text-gray-600">{emp ? emp.department : '-'}</td>
+                                                <td className="p-3">
+                                                    <TeamEditor
+                                                        email={ur.email}
+                                                        currentTeam={emp ? emp.team : ''}
+                                                        department={emp ? emp.department : ''}
+                                                        onSave={async (newTeam) => {
+                                                            try {
+                                                                await rbacService.updateUserTeam(ur.email, newTeam);
+                                                                toast.success(`Đã cập nhật team cho ${ur.email}`);
+                                                                loadData();
+                                                            } catch (error) {
+                                                                toast.error("Lỗi cập nhật team: " + error.message);
+                                                            }
+                                                        }}
+                                                    />
+                                                </td>
                                                 <td className="p-3">
                                                     <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-semibold">
                                                         {role ? role.name : ur.role_code}
@@ -505,6 +600,13 @@ const PermissionManager = () => {
                                             </tr>
                                         )
                                     })}
+                                    {filteredUserRoles.length === 0 && (
+                                        <tr>
+                                            <td colSpan={6} className="p-4 text-center text-gray-500">
+                                                Không tìm thấy kết quả
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
