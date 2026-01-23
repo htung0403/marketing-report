@@ -21,9 +21,7 @@ const BULK_THRESHOLD = 1;
 
 function FFM() {
   const { canView } = usePermissions();
-  if (!canView('ORDERS_FFM')) {
-    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (ORDERS_FFM).</div>;
-  }
+
 
 
   const [allData, setAllData] = useState([]);

@@ -27,9 +27,7 @@ const BULK_THRESHOLD = 1;
 
 function VanDon() {
   const { canView, role } = usePermissions();
-  if (!canView('ORDERS_LIST')) {
-    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (ORDERS_LIST).</div>;
-  }
+
 
 
   // --- Data State ---
