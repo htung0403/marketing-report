@@ -11,9 +11,7 @@ function QuanLyCSKH() {
   const navigate = useNavigate(); // Add hook for navigation if needed, or just use Link
   const { canView, canEdit, canDelete } = usePermissions();
 
-  if (!canView('CSKH_LIST')) {
-    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (CSKH_LIST).</div>;
-  }
+
 
   const [allData, setAllData] = useState([]);
 
@@ -759,6 +757,10 @@ function QuanLyCSKH() {
       alert("❌ Lỗi xóa đơn: " + error.message);
     }
   };
+
+  if (!canView('CSKH_LIST')) {
+    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (CSKH_LIST).</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

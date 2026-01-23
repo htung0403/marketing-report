@@ -123,22 +123,7 @@ export const usePermissions = () => {
         const p = permissions.find(x => x.page_code === pageCode);
         if (p) return !!p.can_view;
 
-        // Fallback: Check if role has implicit access to module
-        const storedRole = localStorage.getItem('userRole');
-        const r = (role || storedRole || '').toLowerCase();
 
-        // Marketing
-        if (r === 'marketing' && pageCode.startsWith('MKT_')) return true;
-        // Sales
-        if (r === 'sale' && pageCode.startsWith('SALE_')) return true;
-        // CSKH
-        if (r === 'cskh' && (pageCode.startsWith('CSKH_') || pageCode === 'SALE_ORDERS' || pageCode === 'SALE_NEW_ORDER')) return true;
-        // Delivery
-        if (r === 'delivery' && pageCode.startsWith('ORDERS_')) return true;
-        // R&D - sees everything in R&D + duplicates
-        if (r === 'rnd' && (pageCode.startsWith('RND_') || pageCode.includes('MKT_') || pageCode.includes('SALE_'))) return true;
-        // HR
-        if (r === 'hr') return true; // HR sees their menu (no specific prefixes used yet except implicit)
 
         return false;
     };

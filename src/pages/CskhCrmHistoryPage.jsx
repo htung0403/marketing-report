@@ -6,9 +6,7 @@ import { supabase } from "../services/supabaseClient";
 
 export default function CskhCrmHistoryPage() {
     const { canView } = usePermissions();
-    if (!canView('CSKH_HISTORY')) {
-        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (CSKH_HISTORY).</div>;
-    }
+
 
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -74,6 +72,10 @@ export default function CskhCrmHistoryPage() {
         const userMatch = !filterUser || (log.changed_by && log.changed_by.toLowerCase().includes(filterUser.toLowerCase()));
         return searchMatch && userMatch;
     });
+
+    if (!canView('CSKH_HISTORY')) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (CSKH_HISTORY).</div>;
+    }
 
     return (
         <div className="min-h-screen bg-gray-50">

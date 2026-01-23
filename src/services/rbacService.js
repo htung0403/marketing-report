@@ -135,6 +135,8 @@ export const AVAILABLE_RESOURCES = [
     { code: 'MODULE_SALE', name: 'Module Sale (Báo cáo, Đơn hàng)' },
     { code: 'MODULE_ORDERS', name: 'Quản lý Đơn (Vận đơn / Kho)' },
     { code: 'MODULE_CSKH', name: 'CSKH & CRM' },
+    { code: 'MODULE_HR', name: 'Quản lý Nhân sự' },
+    { code: 'MODULE_FINANCE', name: 'Quản lý Tài chính' },
     { code: 'MODULE_ADMIN', name: 'Admin Tools (Cấu hình)' }
 ];
 
@@ -178,6 +180,8 @@ export const MODULE_PAGES = {
         pages: [
             { code: 'ORDERS_LIST', name: 'Danh sách đơn', path: '/quan-ly-van-don' },
             { code: 'ORDERS_NEW', name: 'Nhập đơn mới', path: '/nhap-don' },
+            { code: 'ORDERS_UPDATE', name: 'Chỉnh sửa đơn', path: '/chinh-sua-don' },
+            { code: 'ORDERS_REPORT', name: 'Báo cáo vận đơn', path: '/bao-cao-van-don' },
             { code: 'ORDERS_FFM', name: 'FFM', path: '/ffm' },
             { code: 'ORDERS_HISTORY', name: 'Lịch sử thay đổi', path: '/lich-su-van-don' }
         ]
@@ -191,6 +195,22 @@ export const MODULE_PAGES = {
             { code: 'CSKH_INPUT', name: 'Nhập báo cáo', path: '/nhap-bao-cao-cskh' },
             { code: 'CSKH_VIEW', name: 'Xem báo cáo CSKH', path: '/xem-bao-cao-cskh' },
             { code: 'CSKH_HISTORY', name: 'Lịch sử thay đổi', path: '/lich-su-cskh' }
+        ]
+    },
+    'MODULE_HR': {
+        name: 'QUẢN LÝ NHÂN SỰ',
+        pages: [
+            { code: 'HR_LIST', name: 'Danh sách nhân sự', path: '/nhan-su' },
+            { code: 'HR_DASHBOARD', name: 'HR Dashboard', path: '/hr-dashboard' },
+            { code: 'HR_KPI', name: 'Báo cáo hiệu suất', path: '/bao-cao-hieu-suat-kpi' },
+            { code: 'HR_PROFILE', name: 'Hồ sơ cá nhân', path: '/ho-so' }
+        ]
+    },
+    'MODULE_FINANCE': {
+        name: 'QUẢN LÝ TÀI CHÍNH',
+        pages: [
+            { code: 'FINANCE_DASHBOARD', name: 'Finance Dashboard', path: '/finance-dashboard' },
+            { code: 'FINANCE_KPI', name: 'Báo cáo KPI', path: '/bao-cao-kpi' }
         ]
     },
     'MODULE_ADMIN': {
@@ -234,6 +254,12 @@ export const COLUMN_DEFINITIONS = {
         'Mã đơn hàng', 'Ngày lên đơn', 'Name*', 'Phone*', 'Add', 'City', 'Mặt hàng',
         'Tổng tiền VNĐ', 'Trạng thái giao hàng', 'Trạng thái thu tiền', 'CSKH',
         'Kết quả Check', 'Lý do', 'Ghi chú', 'GHI CHÚ', 'Nhân viên Sale', 'Team'
+    ],
+    'MODULE_HR': [
+        '*'
+    ],
+    'MODULE_FINANCE': [
+        '*'
     ],
     'MODULE_ADMIN': [
         // Admin không giới hạn columns

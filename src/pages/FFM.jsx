@@ -25,6 +25,7 @@ function FFM() {
     return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (ORDERS_FFM).</div>;
   }
 
+
   const [allData, setAllData] = useState([]);
   const [loading, setLoading] = useState(false);
   // Only ORDER_MANAGEMENT mode - BILL_OF_LADING removed
@@ -974,6 +975,10 @@ function FFM() {
     return classes;
   };
 
+  if (!canView('ORDERS_FFM')) {
+    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (ORDERS_FFM).</div>;
+  }
+
   return (
     <div className="min-h-screen flex flex-col p-5 font-sans text-gray-800 bg-[#f8f9fa]">
       <div className="flex justify-center items-center gap-4 mb-6">
@@ -1055,8 +1060,8 @@ function FFM() {
         <div className="bg-white p-2 rounded shadow-sm flex flex-wrap gap-2">
           <button
             className={`px-3 py-1.5 text-sm rounded border transition ${omActiveTeam === 'all'
-                ? 'bg-primary text-white border-primaryHover font-bold'
-                : 'bg-gray-100 hover:bg-gray-200 border-gray-300'
+              ? 'bg-primary text-white border-primaryHover font-bold'
+              : 'bg-gray-100 hover:bg-gray-200 border-gray-300'
               }`}
             onClick={() => setOmActiveTeam('all')}
           >
@@ -1354,12 +1359,12 @@ function FFM() {
           <div
             key={t.id}
             className={`pointer-events-auto min-w-[300px] p-4 rounded shadow-lg bg-white border-l-4 transform transition-all animate-in slide-in-from-right-10 duration-300 ${t.type === 'success'
-                ? 'border-success bg-green-50'
-                : t.type === 'error'
-                  ? 'border-danger bg-red-50'
-                  : t.type === 'loading'
-                    ? 'border-primary bg-blue-50'
-                    : 'border-primary bg-white'
+              ? 'border-success bg-green-50'
+              : t.type === 'error'
+                ? 'border-danger bg-red-50'
+                : t.type === 'loading'
+                  ? 'border-primary bg-blue-50'
+                  : 'border-primary bg-white'
               }`}
           >
             <div className="flex justify-between items-start">

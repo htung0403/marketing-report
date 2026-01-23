@@ -33,9 +33,7 @@ export default function BaoCaoSale() {
     const { canView } = usePermissions();
     const permissionCode = teamFilter === 'RD' ? 'RND_VIEW' : 'SALE_VIEW';
 
-    if (!canView(permissionCode)) {
-        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
-    }
+
     // --- State ---
     const [loading, setLoading] = useState(true);
     const [rawData, setRawData] = useState([]);
@@ -689,6 +687,10 @@ export default function BaoCaoSale() {
 
     // --- Render Helpers ---
     const getRateClass = (rate) => rate >= 0.1 ? 'bg-green' : (rate > 0.05 ? 'bg-yellow' : '');
+
+    if (!canView(permissionCode)) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+    }
 
     return (
         <div className="bao-cao-sale-container">

@@ -27,11 +27,9 @@ export default function DanhSachBaoCaoTayMKT() {
     // Assuming MKT_REPORT_LIST is the specific permission for MKT manual lists if it exists, 
     // otherwise MKT_VIEW or similar. Dynamic based on context.
     // Let's stick to standard naming: RND_REPORT_LIST for R&D context, MKT_REPORT_LIST for MKT.
-    const permissionCode = teamFilter === 'RD' ? 'RND_REPORT_LIST' : 'MKT_REPORT_LIST';
+    const permissionCode = teamFilter === 'RD' ? 'RND_MANUAL' : 'MKT_MANUAL';
 
-    if (!canView(permissionCode)) {
-        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
-    }
+
 
     const [loading, setLoading] = useState(true);
     const [manualReports, setManualReports] = useState([]);
@@ -79,6 +77,10 @@ export default function DanhSachBaoCaoTayMKT() {
 
         fetchData();
     }, [filters.startDate, filters.endDate]);
+
+    if (!canView(permissionCode)) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+    }
 
     return (
         <div className="bao-cao-sale-container">

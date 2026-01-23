@@ -14,9 +14,7 @@ export default function SalesOrderHistoryPage() {
     const { canView } = usePermissions();
     const permissionCode = teamFilter === 'RD' ? 'RND_HISTORY' : 'SALE_HISTORY';
 
-    if (!canView(permissionCode)) {
-        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
-    }
+
 
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -82,6 +80,10 @@ export default function SalesOrderHistoryPage() {
         const userMatch = !filterUser || (log.changed_by && log.changed_by.toLowerCase().includes(filterUser.toLowerCase()));
         return searchMatch && userMatch;
     });
+
+    if (!canView(permissionCode)) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+    }
 
     return (
         <div className="min-h-screen bg-gray-50">

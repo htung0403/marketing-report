@@ -14,11 +14,15 @@ function DanhSachDon() {
   const teamFilter = searchParams.get('team'); // e.g. 'RD'
 
   // Permission Logic
-  const { canEdit, canDelete } = usePermissions();
+  const { canView, canEdit, canDelete } = usePermissions();
   // Determine relevant page code based on team switch
   // If team=RD, we are in R&D context -> RND_ORDERS
   // Else (default), we are in Sale context -> SALE_ORDERS
   const permissionCode = teamFilter === 'RD' ? 'RND_ORDERS' : 'SALE_ORDERS';
+
+  if (!canView(permissionCode)) {
+    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+  }
 
   const [allData, setAllData] = useState([]);
   const [loading, setLoading] = useState(false);

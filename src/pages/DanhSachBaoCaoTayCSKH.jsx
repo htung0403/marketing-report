@@ -18,9 +18,7 @@ const formatDate = (dateValue) => {
 export default function DanhSachBaoCaoTayCSKH() {
     const { canView } = usePermissions();
 
-    if (!canView('CSKH_VIEW')) {
-        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (CSKH_VIEW).</div>;
-    }
+
 
     const [loading, setLoading] = useState(true);
     const [reports, setReports] = useState([]);
@@ -66,6 +64,10 @@ export default function DanhSachBaoCaoTayCSKH() {
 
         fetchData();
     }, [filters.startDate, filters.endDate]);
+
+    if (!canView('CSKH_VIEW')) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (CSKH_VIEW).</div>;
+    }
 
     return (
         <div className="bao-cao-sale-container">

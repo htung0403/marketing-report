@@ -4,9 +4,7 @@ import { supabase } from '../supabase/config';
 
 export default function BaoCaoRnD() {
     const { canView } = usePermissions();
-    if (!canView('RND_INPUT')) {
-        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (RND_INPUT).</div>;
-    }
+
 
     const [appData, setAppData] = useState({
         employeeDetails: [],
@@ -68,6 +66,10 @@ export default function BaoCaoRnD() {
 
         initializeApp(email, hoten);
     }, []);
+
+    if (!canView('RND_INPUT')) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (RND_INPUT).</div>;
+    }
 
     const fetchEmployeeList = async () => {
         updateStatus('Đang tải danh sách nhân viên...');

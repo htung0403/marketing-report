@@ -21,9 +21,7 @@ export default function XemBaoCaoMKT() {
   const { canView } = usePermissions();
   const permissionCode = teamFilter === 'RD' ? 'RND_VIEW' : 'MKT_VIEW';
 
-  if (!canView(permissionCode)) {
-    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
-  }
+
 
   const [activeTab, setActiveTab] = useState('DetailedReport');
   const [data, setData] = useState([]);
@@ -713,6 +711,10 @@ export default function XemBaoCaoMKT() {
       </div>
     );
   };
+
+  if (!canView(permissionCode)) {
+    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+  }
 
   return (
     <div className="report-view-container">

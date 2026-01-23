@@ -13,9 +13,7 @@ const MARKET_GROUPS = {
 
 export default function XemBaoCaoRnD() {
     const { canView } = usePermissions();
-    if (!canView('RND_VIEW')) {
-        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (RND_VIEW).</div>;
-    }
+
 
     const [activeTab, setActiveTab] = useState('DetailedReport');
     const [data, setData] = useState([]);
@@ -495,6 +493,10 @@ export default function XemBaoCaoRnD() {
             </div>
         );
     };
+
+    if (!canView('RND_VIEW')) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (RND_VIEW).</div>;
+    }
 
     return (
         <div className="report-view-container">

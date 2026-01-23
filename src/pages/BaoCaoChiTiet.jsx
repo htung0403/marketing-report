@@ -16,9 +16,7 @@ function BaoCaoChiTiet() {
     const { canView } = usePermissions();
     const permissionCode = teamFilter === 'RD' ? 'RND_ORDERS' : 'MKT_ORDERS';
 
-    if (!canView(permissionCode)) {
-        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
-    }
+
 
     const [allData, setAllData] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -542,6 +540,10 @@ function BaoCaoChiTiet() {
         });
         setVisibleColumns(defaultCols);
     };
+
+    if (!canView(permissionCode)) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+    }
 
     return (
         <div className="min-h-screen bg-gray-50">

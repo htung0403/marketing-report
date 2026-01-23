@@ -22,9 +22,7 @@ const formatDate = (dateValue) => {
 export default function XemBaoCaoCSKH() {
     // Permission Logic
     const { canView } = usePermissions();
-    if (!canView('CSKH_VIEW')) {
-        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (CSKH_VIEW).</div>;
-    }
+
 
     // --- State ---
     const [loading, setLoading] = useState(true);
@@ -214,6 +212,10 @@ export default function XemBaoCaoCSKH() {
     };
 
     const { flatList: summaryList, total: summaryTotal } = useMemo(() => summarizeData(filteredData), [filteredData]);
+
+    if (!canView('CSKH_VIEW')) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (CSKH_VIEW).</div>;
+    }
 
     return (
         <div className="bao-cao-sale-container">

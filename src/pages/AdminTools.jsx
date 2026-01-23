@@ -36,9 +36,7 @@ const GLOBAL_SETTINGS_ID = 'global_config';
 
 const AdminTools = () => {
     const { canView } = usePermissions();
-    if (!canView('ADMIN_TOOLS')) {
-        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (ADMIN_TOOLS).</div>;
-    }
+
 
     // --- TABS STATE ---
     const [activeTab, setActiveTab] = useState('maintenance'); // 'maintenance' | 'settings' | 'verification'
@@ -356,6 +354,10 @@ const AdminTools = () => {
         ...settings.rndProducts,
         ...settings.keyProducts
     ])).sort();
+
+    if (!canView('ADMIN_TOOLS')) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (ADMIN_TOOLS).</div>;
+    }
 
     return (
         <div className="p-6 max-w-6xl mx-auto min-h-screen bg-gray-50">

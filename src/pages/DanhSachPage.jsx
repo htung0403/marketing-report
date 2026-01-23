@@ -13,9 +13,7 @@ export default function DanhSachPage() {
     const { canView } = usePermissions();
     const permissionCode = teamFilter === 'RD' ? 'RND_PAGES' : 'MKT_PAGES';
 
-    if (!canView(permissionCode)) {
-        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
-    }
+
 
     const [data, setData] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
@@ -157,6 +155,10 @@ export default function DanhSachPage() {
     const marketOptions = [...new Set(data.map(i => i.market).filter(Boolean))].sort();
     const staffOptions = [...new Set(data.map(i => i.mkt_staff).filter(Boolean))].sort();
     const productOptions = [...new Set(data.map(i => i.product).filter(Boolean))].sort();
+
+    if (!canView(permissionCode)) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+    }
 
     return (
         <div className="min-h-screen bg-gray-50 p-6">

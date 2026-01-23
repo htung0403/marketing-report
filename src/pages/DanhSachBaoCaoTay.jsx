@@ -25,9 +25,7 @@ export default function DanhSachBaoCaoTay() {
     const { canView } = usePermissions();
     const permissionCode = teamFilter === 'RD' ? 'RND_MANUAL' : 'SALE_MANUAL';
 
-    if (!canView(permissionCode)) {
-        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
-    }
+
 
     const [loading, setLoading] = useState(true);
     const [manualReports, setManualReports] = useState([]);
@@ -73,6 +71,10 @@ export default function DanhSachBaoCaoTay() {
 
         fetchData();
     }, [filters.startDate, filters.endDate]);
+
+    if (!canView(permissionCode)) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+    }
 
     return (
         <div className="bao-cao-sale-container">

@@ -31,6 +31,7 @@ function VanDon() {
     return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (ORDERS_LIST).</div>;
   }
 
+
   // --- Data State ---
 
   // --- Data State ---
@@ -1237,6 +1238,10 @@ function VanDon() {
     }
   };
 
+
+  if (!canView('ORDERS_LIST')) {
+    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (ORDERS_LIST).</div>;
+  }
 
   /* End Component Logic */
   return (

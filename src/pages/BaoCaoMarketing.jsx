@@ -12,9 +12,7 @@ export default function BaoCaoMarketing() {
   const { canView } = usePermissions();
   const permissionCode = teamFilter === 'RD' ? 'RND_INPUT' : 'MKT_INPUT';
 
-  if (!canView(permissionCode)) {
-    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
-  }
+
 
   const [appData, setAppData] = useState({
     employeeDetails: [],
@@ -53,6 +51,8 @@ export default function BaoCaoMarketing() {
   const [responseMsg, setResponseMsg] = useState({ text: '', isSuccess: true, visible: false });
   const [loading, setLoading] = useState(false);
   const employeeDatalistRef = useRef(null);
+
+
 
   const EMPLOYEE_API_URL =
     'https://n-api-rouge.vercel.app/sheet/getSheets?rangeSheet=A:K&sheetName=Nh%C3%A2n%20s%E1%BB%B1&spreadsheetId=1Cl-56By1eYFB4G7ITuG0IQhH39ITwo0AkZPFvsLfo54';
@@ -96,6 +96,8 @@ export default function BaoCaoMarketing() {
 
     initializeApp(email, hoten);
   }, []);
+
+
 
   const fetchEmployeeList = async () => {
     updateStatus('Đang tải danh sách nhân viên...');
@@ -398,6 +400,10 @@ export default function BaoCaoMarketing() {
 
   const numberFields = ['Số Mess', 'Phản hồi', 'Đơn Mess', 'Doanh số Mess', 'CPQC', 'Số_Mess_Cmt', 'Số đơn', 'Doanh số'];
   const hiddenFields = ['id', 'id phản hồi', 'id số mess', 'team', 'id_ns', 'trạng thái', 'chi nhánh', 'doanh số đi', 'số đơn hoàn huỷ', 'số đơn hoàn hủy', 'doanh số hoàn huỷ', 'số đơn thành công', 'doanh số thành công', 'khách mới', 'khách cũ', 'bán chéo', 'bán chéo team', 'ds chốt', 'ds sau hoàn hủy', 'số đơn sau hoàn hủy', 'doanh số sau ship', 'doanh số tc', 'kpis', 'cpqc theo tkqc', 'báo cáo theo page', 'cảnh báo'];
+
+  if (!canView(permissionCode)) {
+    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 p-3">

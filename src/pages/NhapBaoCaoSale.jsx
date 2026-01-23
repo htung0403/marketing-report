@@ -12,9 +12,7 @@ export default function NhapBaoCaoSale() {
     const { canView } = usePermissions();
     const permissionCode = teamFilter === 'RD' ? 'RND_INPUT' : 'SALE_INPUT';
 
-    if (!canView(permissionCode)) {
-        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
-    }
+
 
     const [currentUserInfo, setCurrentUserInfo] = useState({ ten: '', email: '' });
 
@@ -25,6 +23,10 @@ export default function NhapBaoCaoSale() {
         setCurrentUserInfo({ ten, email });
     }, []);
 
+
+    if (!canView(permissionCode)) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+    }
 
     if (!currentUserInfo.ten || !currentUserInfo.email) {
         return (

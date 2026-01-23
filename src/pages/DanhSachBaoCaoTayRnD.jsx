@@ -42,8 +42,9 @@ export default function DanhSachBaoCaoTayRnD() {
             setLoading(true);
             try {
                 const { data, error } = await supabase
-                    .from('rd_reports')
+                    .from('detail_reports')
                     .select('*')
+                    .eq('department', 'RD')
                     .gte('date', filters.startDate)
                     .lte('date', filters.endDate)
                     .order('created_at', { ascending: false });
@@ -59,6 +60,11 @@ export default function DanhSachBaoCaoTayRnD() {
 
         fetchData();
     }, [filters.startDate, filters.endDate]);
+
+    const { canView } = usePermissions();
+    if (!canView('RND_MANUAL')) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (RND_MANUAL).</div>;
+    }
 
     return (
         <div className="bao-cao-sale-container">
