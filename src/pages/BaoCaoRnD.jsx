@@ -3,7 +3,8 @@ import usePermissions from '../hooks/usePermissions';
 import { supabase } from '../supabase/config';
 
 export default function BaoCaoRnD() {
-    const { canView } = usePermissions();
+    const { canView, role } = usePermissions();
+    const isAdmin = ['ADMIN', 'SUPER_ADMIN', 'DIRECTOR', 'MANAGER'].includes(role);
 
 
     const [appData, setAppData] = useState({
@@ -177,9 +178,15 @@ export default function BaoCaoRnD() {
             data['id_NS'] = data['id_NS'] || employeeToUse.id_ns;
             data['Chi nhánh'] = data['Chi nhánh'] || employeeToUse.branch;
         } else {
-            data['Email'] = data['Email'] || userEmail;
-            if (employeeNameFromUrl) {
-                data['Tên'] = data['Tên'] || employeeNameFromUrl;
+            // For regular users, force their own identity if not admin
+            if (!isAdmin) {
+                data['Email'] = userEmail;
+                data['Tên'] = employeeNameFromUrl || localStorage.getItem('userName') || '';
+            } else {
+                data['Email'] = data['Email'] || userEmail;
+                if (employeeNameFromUrl) {
+                    data['Tên'] = data['Tên'] || employeeNameFromUrl;
+                }
             }
         }
 
@@ -212,6 +219,9 @@ export default function BaoCaoRnD() {
     };
 
     const handleRowChange = (index, field, value) => {
+        // Prevent non-admins from changing distinct identity fields
+        if (!isAdmin && (field === 'Tên' || field === 'Email')) return;
+
         const newRows = [...tableRows];
         newRows[index].data[field] = value;
 
@@ -410,16 +420,18 @@ export default function BaoCaoRnD() {
                                                                 placeholder="--"
                                                                 value={row.data[header] || ''}
                                                                 onChange={(e) => handleRowChange(rowIndex, header, e.target.value)}
-                                                                className="w-32 px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-pink-600"
+                                                                className={`w-32 px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-pink-600 ${!isAdmin ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                                                readOnly={!isAdmin}
                                                             />
                                                         ) : header === 'Tên' ? (
                                                             <input
                                                                 type="text"
-                                                                list="employee-datalist"
+                                                                list={isAdmin ? "employee-datalist" : undefined}
                                                                 placeholder="--"
                                                                 value={row.data[header] || ''}
                                                                 onChange={(e) => handleRowChange(rowIndex, header, e.target.value)}
-                                                                className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-pink-600"
+                                                                className={`w-full px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-pink-600 ${!isAdmin ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                                                readOnly={!isAdmin}
                                                             />
                                                         ) : numberFields.includes(header) ? (
                                                             <input

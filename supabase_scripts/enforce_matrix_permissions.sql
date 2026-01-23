@@ -241,9 +241,9 @@ USING (
   has_permission(ARRAY['MKT_VIEW', 'MKT_INPUT', 'MKT_MANUAL', 'RND_VIEW', 'RND_INPUT', 'RND_MANUAL', 'FINANCE_KPI'], 'view')
   AND
   check_hierarchical_access(
-    department, -- Maps to team
-    ARRAY[name], -- Assumes 'name' column exists
-    ARRAY[email] -- Assumes 'email' column exists
+    "Team", -- Use "Team" column instead of department
+    ARRAY["Tên"], 
+    ARRAY[email]
   )
 );
 
@@ -258,7 +258,7 @@ CREATE POLICY "Matrix Update Reports" ON public.detail_reports FOR UPDATE
 USING (
   has_permission(ARRAY['MKT_INPUT', 'RND_INPUT'], 'edit')
   AND
-  check_hierarchical_access(department, ARRAY[name], ARRAY[email])
+  check_hierarchical_access(department, ARRAY["Tên"], ARRAY[email])
 );
 
 -- DELETE
@@ -266,7 +266,7 @@ CREATE POLICY "Matrix Delete Reports" ON public.detail_reports FOR DELETE
 USING (
   has_permission(ARRAY['MKT_INPUT', 'RND_INPUT'], 'delete')
   AND
-  check_hierarchical_access(department, ARRAY[name], ARRAY[email])
+  check_hierarchical_access(department, ARRAY["Tên"], ARRAY[email])
 );
 
 -- ==============================================================================
@@ -293,10 +293,7 @@ USING (
   has_permission(ARRAY['MKT_PAGES', 'RND_PAGES'], 'view')
   AND
   check_hierarchical_access(
-    NULL, -- Pages might not have 'Team' column? schema says: mkt_staff, product, market. No team explicit?
-          -- If no team column, pass NULL. Leaders might not see pages unless they own them?
-          -- Or we assume pages are global for the team context.
-          -- Schema has 'mkt_staff'.
+    NULL, 
     ARRAY[mkt_staff], 
     NULL
   )
@@ -320,6 +317,54 @@ USING (
   check_hierarchical_access(NULL, ARRAY[mkt_staff], NULL)
 );
 
+-- ==============================================================================
+-- 4b. Apply RLS to `rd_pages` (NEW)
+-- Maps to: RND_PAGES
+-- ==============================================================================
+
+ALTER TABLE public.rd_pages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow all access" ON public.rd_pages;
+DROP POLICY IF EXISTS "Allow all read" ON public.rd_pages;
+DROP POLICY IF EXISTS "Allow all insert" ON public.rd_pages;
+DROP POLICY IF EXISTS "Allow all update" ON public.rd_pages;
+DROP POLICY IF EXISTS "Allow all delete" ON public.rd_pages;
+DROP POLICY IF EXISTS "Matrix View RD Pages" ON public.rd_pages;
+DROP POLICY IF EXISTS "Matrix Insert RD Pages" ON public.rd_pages;
+DROP POLICY IF EXISTS "Matrix Update RD Pages" ON public.rd_pages;
+DROP POLICY IF EXISTS "Matrix Delete RD Pages" ON public.rd_pages;
+
+-- SELECT
+CREATE POLICY "Matrix View RD Pages" ON public.rd_pages FOR SELECT
+USING (
+  has_permission(ARRAY['RND_PAGES'], 'view')
+  AND
+  check_hierarchical_access(
+    NULL, 
+    ARRAY[rd_staff], 
+    NULL
+  )
+);
+
+-- INSERT
+CREATE POLICY "Matrix Insert RD Pages" ON public.rd_pages FOR INSERT
+WITH CHECK ( has_permission(ARRAY['RND_PAGES'], 'edit') );
+
+-- UPDATE
+CREATE POLICY "Matrix Update RD Pages" ON public.rd_pages FOR UPDATE
+USING (
+  has_permission(ARRAY['RND_PAGES'], 'edit')
+  AND
+  check_hierarchical_access(NULL, ARRAY[rd_staff], NULL)
+);
+
+-- DELETE
+CREATE POLICY "Matrix Delete RD Pages" ON public.rd_pages FOR DELETE
+USING (
+  has_permission(ARRAY['RND_PAGES'], 'delete')
+  AND
+  check_hierarchical_access(NULL, ARRAY[rd_staff], NULL)
+);
 
 -- ==============================================================================
 -- 5. Apply RLS to `human_resources`

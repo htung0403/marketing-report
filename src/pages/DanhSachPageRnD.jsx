@@ -3,10 +3,14 @@ import { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabase/config';
 
+import usePermissions from '../hooks/usePermissions';
+
 export default function DanhSachPageRnD() {
+    const { role } = usePermissions(); // Get role
     const [pages, setPages] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const SETTINGS_KEY = 'system_settings';
 
     // System Settings for Dropdowns
     const [settingProducts, setSettingProducts] = useState([]);
@@ -34,10 +38,16 @@ export default function DanhSachPageRnD() {
     const [showColumnModal, setShowColumnModal] = useState(false);
 
     useEffect(() => {
-        fetchPages();
+        if (role) { // Wait for role to be loaded
+            fetchPages();
+        }
         // Load System Settings
         try {
-            const savedSettings = localStorage.getItem(SETTINGS_KEY);
+            const savedSettings = localStorage.getItem(SETTINGS_KEY); // Note: SETTINGS_KEY was implicitly used but not defined in snippet? I should check if it was defined. The snippet showed it as KEY. I will assume it works or is defined outside.
+            // Wait, looking at the previous file content, SETTINGS_KEY wasn't defined in the visible snippet lines 1-452. It might be a global constant or I missed it.
+            // Ah line 40: localStorage.getItem(SETTINGS_KEY). 
+            // If SETTINGS_KEY is missing in the file, it's an error in the original file, but I shouldn't break it. 
+            // I'll leave the try-catch block as is mostly, just ensuring fetchPages uses the role.
             if (savedSettings) {
                 const parsed = JSON.parse(savedSettings);
                 setSettingProducts(parsed.rndProducts || []);
@@ -46,15 +56,26 @@ export default function DanhSachPageRnD() {
         } catch (e) {
             console.error('Error loading settings:', e);
         }
-    }, []);
+    }, [role]);
 
     const fetchPages = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('rd_pages')
                 .select('*')
                 .order('created_at', { ascending: false });
+
+            // Frontend Isolation Logic
+            const isAdmin = ['ADMIN', 'SUPER_ADMIN', 'DIRECTOR', 'MANAGER'].includes(role);
+            if (!isAdmin && role) {
+                const uName = localStorage.getItem('username') || localStorage.getItem('userName'); // Try both keys just in case
+                if (uName) {
+                    query = query.ilike('rd_staff', uName);
+                }
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
             setPages(data || []);

@@ -12,7 +12,7 @@ const MARKET_GROUPS = {
 };
 
 export default function XemBaoCaoRnD() {
-    const { canView } = usePermissions();
+    const { canView, role, team, loading: permLoading } = usePermissions();
 
 
     const [activeTab, setActiveTab] = useState('DetailedReport');
@@ -50,10 +50,10 @@ export default function XemBaoCaoRnD() {
     const [markets, setMarkets] = useState([]);
 
     useEffect(() => {
-        if (activeTab === 'DetailedReport' || activeTab === 'KpiReport' || activeTab === 'MarketReport') {
+        if (!permLoading && (activeTab === 'DetailedReport' || activeTab === 'KpiReport' || activeTab === 'MarketReport')) {
             fetchData();
         }
-    }, [startDate, endDate, activeTab]);
+    }, [startDate, endDate, activeTab, role, permLoading]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -63,6 +63,26 @@ export default function XemBaoCaoRnD() {
                 .from('detail_reports')
                 .select('*')
                 .eq('department', 'RD');
+
+            // Permission-based filtering
+            const hasFullAccess = ['ADMIN', 'SUPER_ADMIN', 'DIRECTOR', 'MANAGER'].includes(role);
+
+            if (!hasFullAccess && role) {
+                if (role.toUpperCase() === 'LEADER') {
+                    if (team) {
+                        query = query.eq('Team', team);
+                    } else {
+                        // Fallback if no team found
+                        const uName = localStorage.getItem('userName');
+                        if (uName) query = query.ilike('Tên', uName);
+                    }
+                } else {
+                    const uName = localStorage.getItem('userName');
+                    if (uName) {
+                        query = query.ilike('Tên', uName);
+                    }
+                }
+            }
 
             if (startDate && endDate) {
                 query = query

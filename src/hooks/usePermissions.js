@@ -4,6 +4,7 @@ import { supabase } from '../supabase/config';
 // Cache to prevent repetitive fetching
 let cachedPermissions = null;
 let cachedRole = null;
+let cachedTeam = null; // Add team to cache
 let cachedEmail = null; // Add email to cache key
 let permissionPromise = null;
 
@@ -16,6 +17,7 @@ export const usePermissions = () => {
     // Ideally, we depend on the effect to set it.
     const [permissions, setPermissions] = useState([]);
     const [role, setRole] = useState(null);
+    const [team, setTeam] = useState(null); // Add team state
     const [loading, setLoading] = useState(true);
 
     const userEmail = localStorage.getItem('userEmail');
@@ -35,6 +37,7 @@ export const usePermissions = () => {
             if (isCacheValid) {
                 setPermissions(cachedPermissions);
                 setRole(cachedRole);
+                setTeam(cachedTeam); // Set team from cache
                 setLoading(false);
                 return;
             }
@@ -47,33 +50,33 @@ export const usePermissions = () => {
                 // But for simplicity, we assume one active session.
                 setPermissions(data.permissions);
                 setRole(data.role);
+                setTeam(data.team); // Set team from promise
                 setLoading(false);
                 return;
             }
 
             permissionPromise = (async () => {
                 try {
-                    // 1. Get User Role from 'users' table (Source of Truth)
-                    const { data: userRoleData, error: urError } = await supabase
+                    // 1. Get User Role and Team from 'users' table (Source of Truth)
+                    const { data: userData, error: urError } = await supabase
                         .from('users')
-                        .select('role')
+                        .select('role, team') // Add team
                         .eq('email', userEmail)
                         .maybeSingle();
 
                     if (urError) {
-                        console.error("Error fetching user role", urError);
+                        console.error("Error fetching user data", urError);
                     }
 
-                    // Map 'users.role' to 'role_code' if necessary, or use directly if they match
-                    // Assuming 'user' in users table maps to 'USER' or 'user' in permissions
-                    const userRoleCode = userRoleData?.role;
+                    const userRoleCode = userData?.role;
+                    const userTeam = userData?.team; // Get team
 
                     if (!userRoleCode) {
                         // Default to no role
-                        return { permissions: [], role: null };
+                        return { permissions: [], role: null, team: null }; // Add team
                     }
 
-                    // 2. Get Permissions for Role (New Table)
+                    // 2. Get Permissions for Role
                     const { data: permData, error: pError } = await supabase
                         .from('app_page_permissions')
                         .select('*')
@@ -86,13 +89,14 @@ export const usePermissions = () => {
                     // Update Cache
                     cachedPermissions = finalPerms;
                     cachedRole = userRoleCode;
-                    cachedEmail = userEmail; // Save email
+                    cachedTeam = userTeam; // Cache team
+                    cachedEmail = userEmail;
                     lastFetchTime = Date.now();
 
-                    return { permissions: finalPerms, role: userRoleCode };
+                    return { permissions: finalPerms, role: userRoleCode, team: userTeam }; // Return team
                 } catch (e) {
                     console.error("Permission load error", e);
-                    return { permissions: [], role: null };
+                    return { permissions: [], role: null, team: null };
                 } finally {
                     permissionPromise = null;
                 }
@@ -156,6 +160,7 @@ export const usePermissions = () => {
 
     return {
         role,
+        team,
         loading,
         canView,
         canEdit,
