@@ -480,12 +480,19 @@ function BaoCaoChiTiet() {
 
     // Export to CSV
     // Export to Excel
+    // Export to Excel
     const handleExportExcel = () => {
+        if (filteredData.length === 0) {
+            alert("Không có dữ liệu để xuất Excel.");
+            return;
+        }
+
         const dataToExport = filteredData.map(row => {
-            // Reconstruct row based on displayColumns, but simpler just to export all visible
             const newRow = {};
-            displayColumns.forEach(col => {
-                newRow[col] = row[col];
+            // Export all available columns (from settings list) in defined order
+            allAvailableColumns.forEach(col => {
+                const key = COLUMN_MAPPING[col] || col;
+                newRow[col] = row[key] ?? row[col] ?? '';
             });
             return newRow;
         });
@@ -493,9 +500,9 @@ function BaoCaoChiTiet() {
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(dataToExport);
 
-        // Auto-width columns
-        const colWidths = displayColumns.map(key => ({ wch: 20 }));
-        ws['!cols'] = colWidths;
+        // Auto-width columns (approximate)
+        const wscols = allAvailableColumns.map(() => ({ wch: 20 }));
+        ws['!cols'] = wscols;
 
         XLSX.utils.book_append_sheet(wb, ws, "DanhSachDon");
         XLSX.writeFile(wb, `DanhSachDon_MKT_${new Date().toISOString().slice(0, 10)}.xlsx`);
