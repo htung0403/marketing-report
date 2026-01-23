@@ -208,7 +208,24 @@ const AdminTools = () => {
                     // Sanitizing data: Remove implicit fields if necessary, or let Supabase handle it.
                     // Ideally we should strip 'id' if we want auto-increment, but usually we keep it for sync.
 
-                    const { error } = await supabase.from(tableName).upsert(chunk, { onConflict: 'id', ignoreDuplicates: false });
+
+                    // Determine Conflict Key
+                    let conflictKey = 'id';
+                    if (tableName === 'orders' && chunk[0]?.order_code) {
+                        conflictKey = 'order_code';
+                    }
+
+                    let error = null;
+                    try {
+                        const res = await supabase.from(tableName).upsert(chunk, { onConflict: conflictKey, ignoreDuplicates: false });
+                        error = res.error;
+                        if (error && conflictKey !== 'id') {
+                            // Fallback to ID if custom key fails (e.g. no constraint)
+                            console.warn(`Upsert with ${conflictKey} failed, retrying with id...`);
+                            const res2 = await supabase.from(tableName).upsert(chunk, { onConflict: 'id', ignoreDuplicates: false });
+                            error = res2.error;
+                        }
+                    } catch (e) { error = e; }
 
                     if (error) {
                         console.error(`Chunk ${i} error:`, error);
