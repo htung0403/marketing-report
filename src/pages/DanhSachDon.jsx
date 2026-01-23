@@ -1,7 +1,7 @@
-import { Download, RefreshCw, Search, Settings, Trash2, Upload, X } from 'lucide-react';
+import { RefreshCw, Search, Settings, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import * as XLSX from 'xlsx';
+
 import usePermissions from '../hooks/usePermissions';
 import { logDataChange } from '../services/logging';
 import { supabase } from '../supabase/config';
@@ -748,128 +748,7 @@ function DanhSachDon() {
     }
   };
 
-  // Export to Excel
-  const handleExportExcel = () => {
-    if (filteredData.length === 0) {
-      alert("Không có dữ liệu để xuất Excel.");
-      return;
-    }
 
-    const dataToExport = filteredData.map(row => {
-      const newRow = {};
-      // Export all available columns (from settings list) in defined order
-      // This ensures we get all potential columns, not just what's in this specific row object
-      allAvailableColumns.forEach(col => {
-        const key = COLUMN_MAPPING[col] || col;
-        // value fallback: row[mappedKey] or row[columnName] or empty
-        newRow[col] = row[key] ?? row[col] ?? '';
-      });
-      return newRow;
-    });
-
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-
-    // Auto-width columns (approximate)
-    const wscols = allAvailableColumns.map(() => ({ wch: 20 }));
-    ws['!cols'] = wscols;
-
-    XLSX.utils.book_append_sheet(wb, ws, "DanhSachDon");
-
-    XLSX.writeFile(wb, `DanhSachDon_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  };
-
-  // Import from Excel
-  const handleImportExcel = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (!window.confirm("Bạn có chắc chắn muốn nhập dữ liệu từ file Excel này? Dữ liệu sẽ được update dựa trên 'Mã đơn hàng'.")) return;
-
-    setLoading(true);
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-      console.log("Imported data:", jsonData);
-
-      if (jsonData.length === 0) {
-        alert("File Excel không có dữ liệu!");
-        setLoading(false);
-        return;
-      }
-
-      // Map Excel columns back to Supabase schema
-      const validItems = jsonData.map((item, index) => {
-        // Basic mapping - expand as needed
-        const orderCode = item['Mã đơn hàng'] || item['Order Code'] || `IMP-${Date.now()}-${index}`;
-
-        // Skip empty rows
-        if (!orderCode && !item['Name*'] && !item['Phone*']) return null;
-
-        return {
-          order_code: orderCode,
-          order_date: item['Ngày lên đơn'] ? parseExcelDate(item['Ngày lên đơn']) : new Date().toISOString(),
-          customer_name: item['Khách hàng'] || item['Name*'] || '',
-          customer_phone: item['SĐT'] || item['Phone*'] || '',
-          customer_address: item['Địa chỉ'] || item['Add'] || '',
-          area: item['Khu vực'] || '',
-          product: item['Mặt hàng'] || '',
-          tracking_code: item['Mã Tracking'] || '',
-          delivery_status: item['Trạng thái'] || item['Trạng thái giao hàng'] || 'Mới',
-          total_amount_vnd: parseInt(String(item['Tổng tiền'] || item['Tổng tiền VNĐ'] || '0').replace(/\D/g, '')) || 0,
-          shipping_fee: parseInt(String(item['Phí ship'] || '0').replace(/\D/g, '')) || 0,
-          shipping_unit: item['Đơn vị VC'] || '',
-          note: item['Ghi chú'] || '',
-          team: item['Team'] || teamFilter || 'SALE', // Default to current context or SALE
-          sale_staff: item['Sale'] || '',
-          marketing_staff: item['MKT'] || '',
-          // Add other fields as needed
-        };
-      }).filter(Boolean);
-
-      if (validItems.length === 0) {
-        alert("Không tìm thấy dữ liệu hợp lệ để nhập.");
-        setLoading(false);
-        return;
-      }
-
-      // Upsert to Supabase
-      const { error } = await supabase
-        .from('orders')
-        .upsert(validItems, { onConflict: 'order_code' });
-
-      if (error) throw error;
-
-      alert(`✅ Đã nhập thành công ${validItems.length} dòng!`);
-      loadData(); // Reload list
-    } catch (error) {
-      console.error("Import error:", error);
-      alert("❌ Lỗi nhập file: " + error.message);
-    } finally {
-      // Reset input
-      e.target.value = '';
-      setLoading(false);
-    }
-  };
-
-  // Helper for Excel dates (which can be numbers)
-  const parseExcelDate = (excelDate) => {
-    if (!excelDate) return null;
-    // If number (Excel serial date)
-    if (typeof excelDate === 'number') {
-      const date = new Date(Math.round((excelDate - 25569) * 86400 * 1000));
-      return date.toISOString();
-    }
-    // If string
-    try {
-      return new Date(excelDate).toISOString();
-    } catch (e) {
-      return null;
-    }
-  };
 
   // Copy single cell content (double-click)
   const handleCellClick = async (e, value) => {
@@ -1091,32 +970,7 @@ function DanhSachDon() {
               Cài đặt cột
             </button>
 
-            {/* Import Button */}
-            <div className="relative">
-              <input
-                type="file"
-                onChange={handleImportExcel}
-                accept=".xlsx, .xls"
-                className="hidden"
-                id="excel-upload"
-              />
-              <label
-                htmlFor="excel-upload"
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2 cursor-pointer"
-              >
-                <Upload className="w-4 h-4" />
-                Nhập Excel
-              </label>
-            </div>
 
-            {/* Export Button */}
-            <button
-              onClick={handleExportExcel}
-              className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              Xuất Excel
-            </button>
           </div>
         </div>
 

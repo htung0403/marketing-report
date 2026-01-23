@@ -1,4 +1,4 @@
-import { Activity, AlertCircle, AlertTriangle, CheckCircle, Clock, Database, GitCompare, Globe, RefreshCw, Save, Search, Settings, Shield, Tag, Trash2 } from 'lucide-react';
+import { Activity, AlertCircle, AlertTriangle, ArrowLeft, CheckCircle, Clock, Database, Download, FileJson, GitCompare, Globe, RefreshCw, Save, Search, Settings, Shield, Table, Tag, Trash2, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import PermissionManager from '../components/admin/PermissionManager';
@@ -73,6 +73,7 @@ const AdminTools = () => {
         { id: 'maintenance', label: 'Bảo trì & Chốt ca', icon: Database, keywords: ['bảo trì', 'chốt ca', 'đồng bộ', 'snapshot', 'kiểm tra hệ thống', 'check'] },
         { id: 'settings', label: 'Cài đặt hệ thống', icon: Settings, keywords: ['cài đặt', 'cấu hình', 'setting', 'sản phẩm', 'product', 'thị trường', 'market', 'ngưỡng', 'threshold', 'chỉ số'] },
         { id: 'verification', label: 'Đối soát dữ liệu', icon: GitCompare, keywords: ['đối soát', 'kiểm tra', 'so sánh', 'verify', 'sheet', 'supabase', 'lệch'] },
+        { id: 'upload_download', label: 'Upload và Tải về', icon: Download, keywords: ['upload', 'download', 'excel', 'tải về', 'nhập', 'xuất'] },
         { id: 'permissions', label: 'Phân quyền (RBAC)', icon: Shield, keywords: ['phân quyền', 'rbac', 'nhân viên', 'user', 'role', 'nhóm quyền', 'matrix'] },
     ];
 
@@ -92,11 +93,148 @@ const AdminTools = () => {
     const [verifyResult, setVerifyResult] = useState(null);
     const [verifying, setVerifying] = useState(false);
 
+    const [downloadMode, setDownloadMode] = useState(false);
+    const [uploadMode, setUploadMode] = useState(false);
+
     useEffect(() => {
         // Load settings on mount
         fetchSettingsFromSupabase();
         fetchReferenceData();
     }, []);
+
+    const AVAILABLE_TABLES = [
+        // SALES
+        { id: 'sale_orders', name: 'Danh sách đơn (Sale)', desc: 'Danh sách đơn hàng của bộ phận Sale' },
+        { id: 'sale_reports', name: 'Xem báo cáo (Sale)', desc: 'Dữ liệu báo cáo doanh số Sale' },
+
+        // LOGISTICS (Vận đơn)
+        { id: 'delivery_orders', name: 'Quản lý vận đơn', desc: 'Danh sách vận đơn (Delivery)' },
+        { id: 'delivery_reports', name: 'Báo cáo vận đơn', desc: 'Dữ liệu báo cáo vận đơn' },
+
+        // MARKETING
+        { id: 'mkt_orders', name: 'Danh sách đơn (MKT)', desc: 'Danh sách đơn hàng Marketing' },
+        { id: 'mkt_reports', name: 'Xem báo cáo (MKT)', desc: 'Báo cáo chi tiết Marketing (detail_reports)' },
+
+        // CSKH (Customer Service)
+        { id: 'cskh_all', name: 'Danh sách đơn (CSKH)', desc: 'Toàn bộ đơn hàng (Dùng cho CSKH)' },
+        { id: 'cskh_money', name: 'Đơn đã thu tiền/cần CS (CSKH)', desc: 'Đơn hàng có trạng thái thu tiền/cần xử lý' },
+        { id: 'cskh_report', name: 'Xem báo cáo CSKH', desc: 'Dữ liệu nguồn cho báo cáo CSKH' },
+    ];
+
+    const handleDownloadTable = async (tableId) => {
+        const tableName = getRealTableName(tableId);
+
+        if (!window.confirm(`Bạn có muốn tải dữ liệu [${tableId}] (Bảng gốc: ${tableName}) về không?`)) return;
+
+        try {
+            toast.info(`Đang tải dữ liệu [${tableId}]...`);
+
+            // Custom logic for filtered downloads can go here
+            let query = supabase.from(tableName).select('*');
+
+            // Apply simple limits or filters if needed
+            // For now, we fetch a large chunk to ensure data sufficiency
+            query = query.limit(10000);
+
+            const { data, error } = await query;
+            if (error) throw error;
+
+            const jsonString = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${tableName}_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            toast.success(`Đã tải xong [${tableName}]!`);
+        } catch (err) {
+            console.error(err);
+            toast.error(`Lỗi tải bảng ${tableName}: ${err.message}`);
+        }
+    };
+
+    // --- UPLOAD LOGIC ---
+    const [selectedUploadTableId, setSelectedUploadTableId] = useState(null);
+
+    const getRealTableName = (tableId) => {
+        if (['cskh_all', 'cskh_money', 'cskh_report', 'sale_orders', 'delivery_orders', 'delivery_reports', 'mkt_orders'].includes(tableId)) {
+            return 'orders';
+        } else if (tableId === 'sale_reports') {
+            return 'sales_reports';
+        } else if (tableId === 'mkt_reports') {
+            return 'detail_reports';
+        }
+        return tableId;
+    };
+
+    const handleUploadCardClick = (tableId) => {
+        setSelectedUploadTableId(tableId);
+        // Trigger hidden input
+        document.getElementById('json-upload-input').click();
+    };
+
+    const handleFileUpload = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const tableId = selectedUploadTableId;
+        const tableName = getRealTableName(tableId);
+
+        if (!window.confirm(`Bạn có chắc muốn UPLOAD dữ liệu vào bảng [${tableName}] (ID: ${tableId})?\nHành động này sẽ ghi đè/thêm mới dữ liệu.`)) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const json = JSON.parse(e.target.result);
+                if (!Array.isArray(json)) {
+                    toast.error("File JSON phải là một danh sách (Array) các đối tượng.");
+                    return;
+                }
+
+                toast.info(`Đang upload ${json.length} dòng vào [${tableName}]...`);
+
+                // Chunking upsert to avoid payload limits
+                const CHUNK_SIZE = 100;
+                let successCount = 0;
+                let errorCount = 0;
+
+                for (let i = 0; i < json.length; i += CHUNK_SIZE) {
+                    const chunk = json.slice(i, i + CHUNK_SIZE);
+                    // Sanitizing data: Remove implicit fields if necessary, or let Supabase handle it.
+                    // Ideally we should strip 'id' if we want auto-increment, but usually we keep it for sync.
+
+                    const { error } = await supabase.from(tableName).upsert(chunk, { onConflict: 'id', ignoreDuplicates: false });
+
+                    if (error) {
+                        console.error(`Chunk ${i} error:`, error);
+                        errorCount += chunk.length;
+                    } else {
+                        successCount += chunk.length;
+                    }
+                }
+
+                if (errorCount > 0) {
+                    toast.warn(`Upload hoàn tất: ${successCount} thành công, ${errorCount} thất bại.`);
+                } else {
+                    toast.success(`Upload thành công toàn bộ ${successCount} dòng!`);
+                }
+
+            } catch (err) {
+                console.error("Parse error:", err);
+                toast.error("Lỗi đọc file JSON: " + err.message);
+            } finally {
+                // Reset input
+                event.target.value = null;
+                setSelectedUploadTableId(null);
+            }
+        };
+        reader.readAsText(file);
+    };
 
     const fetchSettingsFromSupabase = async () => {
         setLoadingSettings(true);
@@ -682,6 +820,125 @@ const AdminTools = () => {
                             </div>
                         )}
                     </div>
+                </div>
+            )}
+
+
+
+            {/* TAB CONTENT: UPLOAD & DOWNLOAD */}
+            {activeTab === 'upload_download' && (
+                <div className="bg-white rounded-xl shadow-md border border-gray-100 animate-fadeIn p-6">
+                    <input type="file" id="json-upload-input" accept=".json" hidden onChange={handleFileUpload} />
+
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-3 bg-purple-100 text-purple-600 rounded-lg">
+                            <Download size={24} />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-gray-800">Upload & Tải dữ liệu</h2>
+                            <p className="text-sm text-gray-500">Công cụ nhập và xuất dữ liệu hệ thống</p>
+                        </div>
+                    </div>
+
+                    {downloadMode ? (
+                        <div className="animate-fadeIn">
+                            <button
+                                onClick={() => setDownloadMode(false)}
+                                className="mb-4 flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors font-medium"
+                            >
+                                <ArrowLeft size={18} /> Quay lại
+                            </button>
+                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                <Table size={20} className="text-blue-600" />
+                                Chọn bảng dữ liệu cần tải về (JSON)
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                {AVAILABLE_TABLES.map(table => (
+                                    <div
+                                        key={table.id}
+                                        onClick={() => handleDownloadTable(table.id)}
+                                        className="bg-gray-50 border border-gray-200 rounded-lg p-4 cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-all hover:shadow-md group"
+                                    >
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className="p-2 bg-white rounded-md border border-gray-100 group-hover:border-blue-200">
+                                                <Database size={20} className="text-gray-500 group-hover:text-blue-600" />
+                                            </div>
+                                            <Download size={16} className="text-gray-400 group-hover:text-blue-500" />
+                                        </div>
+                                        <h4 className="font-bold text-gray-700 group-hover:text-blue-700">{table.name}</h4>
+                                        <p className="text-xs text-gray-500 mt-1">{table.desc}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : uploadMode ? (
+                        <div className="animate-fadeIn">
+                            <button
+                                onClick={() => setUploadMode(false)}
+                                className="mb-4 flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors font-medium"
+                            >
+                                <ArrowLeft size={18} /> Quay lại
+                            </button>
+                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                <Upload size={20} className="text-green-600" />
+                                Chọn bảng để Upload dữ liệu (JSON)
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                {AVAILABLE_TABLES.map(table => (
+                                    <div
+                                        key={table.id}
+                                        onClick={() => handleUploadCardClick(table.id)}
+                                        className="bg-green-50 border border-green-200 rounded-lg p-4 cursor-pointer hover:bg-green-100 hover:border-green-300 transition-all hover:shadow-md group"
+                                    >
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className="p-2 bg-white rounded-md border border-green-100 group-hover:border-green-200">
+                                                <Database size={20} className="text-gray-500 group-hover:text-green-600" />
+                                            </div>
+                                            <Upload size={16} className="text-gray-400 group-hover:text-green-500" />
+                                        </div>
+                                        <h4 className="font-bold text-gray-700 group-hover:text-green-700">{table.name}</h4>
+                                        <p className="text-xs text-gray-500 mt-1">{table.desc}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* DOWNLOAD SECTION */}
+                            <div className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow">
+                                <h3 className="font-bold text-gray-700 mb-2 flex items-center gap-2">
+                                    <FileJson size={18} className="text-blue-600" />
+                                    Tải dữ liệu JSON
+                                </h3>
+                                <p className="text-sm text-gray-500 mb-4">
+                                    Xuất dữ liệu hệ thống ra file JSON để lưu trữ hoặc xử lý offline.
+                                </p>
+                                <button
+                                    onClick={() => setDownloadMode(true)}
+                                    className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm flex items-center justify-center gap-2"
+                                >
+                                    <Table size={16} /> Chọn bảng để tải về
+                                </button>
+                            </div>
+
+                            {/* UPLOAD SECTION */}
+                            <div className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow">
+                                <h3 className="font-bold text-gray-700 mb-2 flex items-center gap-2">
+                                    <Upload size={18} className="text-green-600" />
+                                    Upload dữ liệu JSON
+                                </h3>
+                                <p className="text-sm text-gray-500 mb-4">
+                                    Nhập dữ liệu mới hoặc cập nhật từ file JSON vào hệ thống.
+                                </p>
+                                <button
+                                    onClick={() => setUploadMode(true)}
+                                    className="w-full py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors shadow-sm flex items-center justify-center gap-2"
+                                >
+                                    <Table size={16} /> Chọn bảng để Upload
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

@@ -1,7 +1,6 @@
-import { Download, Upload } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import * as XLSX from 'xlsx';
+
 import usePermissions from '../hooks/usePermissions';
 import { supabase } from '../supabase/config';
 import { isDateInRange, parseSmartDate } from '../utils/dateParsing';
@@ -459,128 +458,7 @@ export default function XemBaoCaoMKT() {
 
   }, [data, selectedProduct, selectedMarket, selectedTeam]);
 
-  // --- EXCEL HANDLERS ---
 
-  // Helper: Parse Excel Date
-  const parseExcelDate = (excelDate) => {
-    if (!excelDate) return null;
-    if (typeof excelDate === 'number') {
-      const date = new Date(Math.round((excelDate - 25569) * 86400 * 1000));
-      return date.toISOString().split('T')[0];
-    }
-    return String(excelDate).split('T')[0];
-  };
-
-  const handleExportExcel = () => {
-    // Export the processed rows (detailed view)
-    if (activeTab === 'DetailedReport') {
-      const { rows } = processData;
-      const dataToExport = rows.map((r, i) => ({
-        'STT': i + 1,
-        'Team': r.team,
-        'Tên': r.name,
-        'CPQC': r.cpqc,
-        'Số Mess': r.mess,
-        'Số Đơn': r.orders,
-        'DS Chốt': r.dsChot,
-        'Tỉ lệ chốt (%)': r.tiLeChot ? r.tiLeChot.toFixed(2) : 0,
-        'Giá Mess': r.giaMess,
-        'CPS': r.cps,
-        '%CP/DS': r.cp_ds ? r.cp_ds.toFixed(2) : 0,
-        'Giá TB Đơn': r.giaTBDon,
-        'Số Đơn (TT)': r.ordersTT,
-        'Số Đơn Hủy': r.soDonHuyTT,
-        'DS Chốt (TT)': r.dsChotTT,
-        'DS Hủy': r.dsHuyTT,
-        'Tỉ lệ chốt TT (%)': r.tiLeChotTT ? r.tiLeChotTT.toFixed(2) : 0
-      }));
-
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(dataToExport);
-
-      // Widths
-      const wscols = [
-        { wch: 5 }, { wch: 10 }, { wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 15 },
-        { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 10 }
-      ];
-      ws['!cols'] = wscols;
-
-      XLSX.utils.book_append_sheet(wb, ws, "BaoCaoTongHop");
-      XLSX.writeFile(wb, `BaoCaoMKT_TongHop_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    } else {
-      alert("Chức năng xuất Excel hiện tại chỉ hỗ trợ tab 'Báo cáo chi tiết'.");
-    }
-  };
-
-  const handleImportExcel = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (!window.confirm("Bạn có chắc chắn muốn nhập dữ liệu? Hệ thống sẽ cập nhật nếu tìm thấy ID, hoặc thêm mới.")) return;
-
-    setLoading(true);
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const wb = XLSX.read(arrayBuffer);
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(ws);
-
-      if (jsonData.length === 0) {
-        alert("File không có dữ liệu!");
-        setLoading(false);
-        return;
-      }
-
-      // Map to detail_reports schema
-      // Map to detail_reports schema
-      const mappedData = jsonData.map(item => {
-        // Parse helper
-        const parseNum = (v) => {
-          if (v === undefined || v === null || String(v).trim() === '') return undefined;
-          return parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0;
-        };
-
-        return {
-          id: item['id'] || item['ID'] || undefined, // Use existing ID if present for update
-          'Ngày': parseExcelDate(item['Ngày'] || item['Date']) || (item['id'] ? undefined : new Date().toISOString().split('T')[0]),
-          'Team': item['Team'] || 'MKT',
-          'Tên': item['Tên'] || item['Name'] || undefined,
-          'Sản_phẩm': item['Sản_phẩm'] || item['Product'] || undefined,
-          'Thị_trường': item['Thị_trường'] || item['Market'] || undefined,
-          'CPQC': parseNum(item['CPQC']),
-          'Số_Mess_Cmt': parseNum(item['Số_Mess_Cmt'] || item['Số Mess']),
-          'Số đơn': parseNum(item['Số đơn'] || item['Orders']),
-          'Doanh số': parseNum(item['Doanh số'] || item['Revenue']),
-          'Số đơn thực tế': parseNum(item['Số đơn thực tế']),
-          'Doanh thu chốt thực tế': parseNum(item['Doanh thu chốt thực tế'] || item['DS Chốt (TT)']),
-          'Số đơn hoàn hủy thực tế': parseNum(item['Số đơn hoàn hủy thực tế'] || item['Số Đơn Hủy']),
-          'Doanh số hoàn hủy thực tế': parseNum(item['Doanh số hoàn hủy thực tế'] || item['DS Hủy']),
-          'Doanh số sau ship': parseNum(item['Doanh số sau ship']),
-          'Doanh số TC': parseNum(item['Doanh số TC'])
-          // Add other fields as necessary
-        };
-      });
-
-      // Upsert
-      const { error } = await supabase
-        .from('detail_reports')
-        .upsert(mappedData, { onConflict: 'id' }); // Assuming 'id' is the primary key
-
-      if (error) throw error;
-
-      alert(`✅ Đã nhập thành công ${mappedData.length} dòng!`);
-      fetchData();
-
-    } catch (err) {
-      console.error("Import Error:", err);
-      alert("❌ Lỗi nhập file: " + err.message);
-    } finally {
-      e.target.value = ''; // Reset input
-      setLoading(false);
-    }
-  };
-
-  // --- END EXCEL HANDLERS ---
 
   // Format Helper
   const fmtNum = (n) => n ? Math.round(n).toLocaleString('vi-VN') : '0';
@@ -806,19 +684,7 @@ export default function XemBaoCaoMKT() {
                 marginTop: '19px'
               }}>Áp dụng</button>
 
-              <button
-                onClick={handleExportExcel}
-                className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800 transition-colors mt-[19px] h-fit border-none cursor-pointer font-medium"
-              >
-                <Download size={16} /> Xuất Excel
-              </button>
 
-              <label
-                className="flex items-center gap-2 px-4 py-2 bg-blue-700 text-white rounded hover:bg-blue-800 transition-colors mt-[19px] h-fit border-none cursor-pointer font-medium"
-              >
-                <Upload size={16} /> Nhập Excel
-                <input type="file" accept=".xlsx, .xls" onChange={handleImportExcel} style={{ display: 'none' }} />
-              </label>
             </div>
           </div>
         </>

@@ -618,52 +618,7 @@ export default function DonChiaCSKH() {
     }
   };
 
-  // Export to CSV
-  const exportToCSV = () => {
-    if (!filteredData.length) {
-      alert('Không có dữ liệu để xuất!');
-      return;
-    }
 
-    const headers = [
-      'STT', 'Mã đơn hàng', 'Ngày lên đơn', 'Name*', 'Phone*', 'Add',
-      'Nhân viên Sale', 'CSKH', 'Mặt hàng', 'Khu vực',
-      'Tổng tiền VNĐ', 'Phí ship', 'Tiền Việt đã đối soát', 'Trạng thái cuối cùng'
-    ];
-
-    const csvContent = [
-      headers.join(','),
-      ...filteredData.map((row, index) => {
-        return [
-          index + 1,
-          `"${getRowValue(row, 'Mã_đơn_hàng', 'Mã đơn hàng') || ''}"`,
-          `"${formatDate(getRowValue(row, 'Ngày_lên_đơn', 'Ngày lên đơn', 'Thời gian lên đơn'))}"`,
-          `"${(getRowValue(row, 'Name', 'Name*', 'Tên lên đơn') || '').replace(/"/g, '""')}"`,
-          `"${(getRowValue(row, 'Phone', 'Phone*', 'phone', 'phone*') || '').replace(/"/g, '""')}"`,
-          `"${(getRowValue(row, 'Add', 'add', 'Địa chỉ', 'Địa_chỉ') || '').replace(/"/g, '""')}"`,
-          `"${getRowValue(row, 'Nhân_viên_Sale', 'Nhân viên Sale') || ''}"`,
-          `"${getRowValue(row, 'CSKH', 'NV_CSKH', 'NV CSKH') || ''}"`,
-          `"${(getRowValue(row, 'Mặt_hàng', 'Mặt hàng') || '').replace(/"/g, '""')}"`,
-          `"${getRowValue(row, 'Khu_vực', 'Khu vực') || ''}"`,
-          parseMoney(getRowValue(row, 'Tổng_tiền_VNĐ', 'Tổng tiền VNĐ', 'Tổng_tiền_VND')),
-          parseMoney(getRowValue(row, 'Phí_ship', 'Phí ship')),
-          parseMoney(getRowValue(row, 'Tiền_Việt_đã_đối_soát', 'Tiền Việt đã đối soát')),
-          `"${getRowValue(row, 'Thời_gian_cutoff', 'Thời gian cutoff') || ''}"`
-        ].join(',');
-      })
-    ].join('\n');
-
-    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    const now = new Date();
-    const fileName = `F3_Data_${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}.csv`;
-    link.setAttribute("href", url);
-    link.setAttribute("download", fileName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   if (loading) {
     return (
@@ -772,9 +727,7 @@ export default function DonChiaCSKH() {
             <button onClick={loadF3Data} className="px-3 py-2 bg-green-600 text-white rounded text-sm font-semibold hover:bg-green-700">
               <RefreshCw className="w-4 h-4 inline mr-1" /> Làm mới
             </button>
-            <button onClick={exportToCSV} className="px-3 py-2 bg-gray-600 text-white rounded text-sm font-semibold hover:bg-gray-700">
-              📥 Xuất Excel (CSV)
-            </button>
+
           </div>
         </div>
 
