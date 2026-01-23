@@ -37,7 +37,7 @@ DECLARE
   current_role text;
   user_id text; 
 BEGIN
-  -- Get current user ID (handle both Supabase auth and mapped custom IDs if needed, usually auth.uid())
+  -- Get current user ID
   user_id := auth.uid()::text;
 
   -- 1. Get role from public.users
@@ -51,15 +51,13 @@ BEGIN
   END IF;
 
   -- 2. Admin / Leader Bypass
-  -- 'admin' and 'leader' typically have full access, or at least 'leader' often has widespread access.
-  -- You can adjust this list as needed.
-  IF current_role IN ('admin', 'leader') THEN
+  -- 'admin' always has full permission access (they can see all pages).
+  -- 'leader' also typically has access to team pages.
+  IF current_role IN ('admin', 'director', 'manager') THEN
     RETURN true;
   END IF;
 
   -- 3. Check app_page_permissions
-  -- access allowed if ANY of the required_page_codes match a permission record
-  -- where the specific action (view/edit/delete) is true.
   RETURN EXISTS (
     SELECT 1
     FROM app_page_permissions
@@ -75,72 +73,149 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ==============================================================================
+-- 1b. Create Helper Function `check_hierarchical_access` (NEW)
+-- Enforces: Staff sees own data, Leader sees team data, Admin sees all.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.check_hierarchical_access(
+  row_team_value text,
+  row_owners_names text[],
+  row_owners_emails text[]
+)
+RETURNS boolean AS $$
+DECLARE
+  u_role text;
+  u_team text;
+  u_email text;
+  u_name text;
+  owner_name text;
+BEGIN
+  -- Fetch current user details from public.users
+  -- Use COALESCE to fallback to username if name column doesn't exist or is NULL
+  SELECT lower(role), team, email, COALESCE(name, username) as user_name
+  INTO u_role, u_team, u_email, u_name
+  FROM public.users
+  WHERE id = auth.uid()::text;
+
+  -- 1. Admin/Director/Manager Access (View All)
+  IF u_role IN ('admin', 'director', 'manager', 'super_admin') THEN
+    RETURN true;
+  END IF;
+
+  -- 2. Leader Access (Team Match)
+  IF u_role = 'leader' THEN
+     -- Check if User Team matches Row Team (Case Insensitive)
+     IF row_team_value IS NOT NULL AND u_team IS NOT NULL AND lower(row_team_value) = lower(u_team) THEN
+       RETURN true;
+     END IF;
+  END IF;
+
+  -- 3. Staff Access (Ownership Match)
+  -- Check Name match (Case Insensitive)
+  IF row_owners_names IS NOT NULL AND u_name IS NOT NULL THEN
+    FOREACH owner_name IN ARRAY row_owners_names
+    LOOP
+       IF owner_name IS NOT NULL AND lower(owner_name) = lower(u_name) THEN
+          RETURN true;
+       END IF;
+    END LOOP;
+  END IF;
+
+  -- Check Email match (Case Insensitive)
+  IF row_owners_emails IS NOT NULL AND u_email IS NOT NULL THEN
+    IF lower(u_email) = ANY(SELECT lower(x) FROM unnest(row_owners_emails) x) THEN
+       RETURN true;
+    END IF;
+  END IF;
+
+  -- 4. Implicit Access (Self)
+  -- If checking 'users' table, and id matches, allow? 
+  -- (This function is generic for data tables, not users table strictly, but checking email covers self-data).
+
+  RETURN false;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ==============================================================================
 -- 2. Apply RLS to `orders` Table
 -- Maps to: SALE, ORDERS (Delivery), CSKH, RND (duplicates), MKT (duplicates)
 -- ==============================================================================
 
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
--- Drop existing loose policies
+-- Drop existing policies
 DROP POLICY IF EXISTS "Allow all access" ON public.orders;
 DROP POLICY IF EXISTS "Allow all read access" ON public.orders;
 DROP POLICY IF EXISTS "Allow all insert" ON public.orders;
 DROP POLICY IF EXISTS "Allow all update" ON public.orders;
 DROP POLICY IF EXISTS "Allow all delete" ON public.orders;
-
--- Drop previous Matrix policies (to allow re-run)
 DROP POLICY IF EXISTS "Matrix View Orders" ON public.orders;
 DROP POLICY IF EXISTS "Matrix Insert Orders" ON public.orders;
 DROP POLICY IF EXISTS "Matrix Update Orders" ON public.orders;
 DROP POLICY IF EXISTS "Matrix Delete Orders" ON public.orders;
 
--- SELECT: Needs VIEW permission on ANY relevant module page
+-- SELECT: Needs (View Permission) AND (Hierarchical Access)
 CREATE POLICY "Matrix View Orders" ON public.orders FOR SELECT
 USING (
   has_permission(ARRAY[
-    'SALE_ORDERS', 'SALE_VIEW',   -- Sale
-    'ORDERS_LIST', 'ORDERS_HISTORY', 'ORDERS_REPORT', -- Delivery
-    'CSKH_LIST', 'CSKH_VIEW',     -- CSKH
-    'MKT_ORDERS',                 -- Marketing (View Orders)
-    'RND_ORDERS',                 -- R&D (View Orders)
-    'FINANCE_KPI', 'FINANCE_DASHBOARD', -- Finance
-    'ORDERS_FFM'                  -- FFM Team
+    'SALE_ORDERS', 'SALE_VIEW',
+    'ORDERS_LIST', 'ORDERS_HISTORY', 'ORDERS_REPORT',
+    'CSKH_LIST', 'CSKH_VIEW',
+    'MKT_ORDERS',
+    'RND_ORDERS',
+    'FINANCE_KPI', 'FINANCE_DASHBOARD',
+    'ORDERS_FFM'
   ], 'view')
+  AND
+  check_hierarchical_access(
+    team, 
+    ARRAY[sale_staff, marketing_staff, cskh, created_by], 
+    NULL -- No email column in orders reliably known yet
+  )
 );
 
--- INSERT: Needs EDIT permission (usually implies creation) 
--- Checking 'NEW_ORDER' pages specifically where available, or generic INPUT
+-- INSERT: Needs Edit Permission (Creation)
+-- Usually users can insert their own data. RLS for INSERT with CHECK ensures they own it?
+-- Or just check permission code.
 CREATE POLICY "Matrix Insert Orders" ON public.orders FOR INSERT
 WITH CHECK (
   has_permission(ARRAY[
-    'SALE_NEW_ORDER', 
-    'CSKH_NEW_ORDER', 
-    'RND_NEW_ORDER',
-    'ORDERS_NEW' -- Assuming this code exists or falls back to ORDERS_LIST/UPDATE
+    'SALE_NEW_ORDER', 'CSKH_NEW_ORDER', 'RND_NEW_ORDER', 'ORDERS_NEW'
   ], 'edit')
 );
 
--- UPDATE: Needs EDIT psemission
+-- UPDATE: Needs (Edit Permission) AND (Hierarchical Access)
 CREATE POLICY "Matrix Update Orders" ON public.orders FOR UPDATE
 USING (
   has_permission(ARRAY[
-    'SALE_ORDERS', 'SALE_INPUT',  -- Sale can update their orders/reports
-    'ORDERS_LIST', 'ORDERS_UPDATE', 'ORDERS_FFM', -- Delivery
-    'CSKH_LIST', 'CSKH_INPUT',    -- CSKH
-    'MKT_ORDERS',                 -- Marketing
-    'RND_ORDERS'                  -- R&D
+    'SALE_ORDERS', 'SALE_INPUT', 
+    'ORDERS_LIST', 'ORDERS_UPDATE', 'ORDERS_FFM',
+    'CSKH_LIST', 'CSKH_INPUT',
+    'MKT_ORDERS',
+    'RND_ORDERS'
   ], 'edit')
+  AND
+  check_hierarchical_access(
+    team, 
+    ARRAY[sale_staff, marketing_staff, cskh, created_by], 
+    NULL
+  )
 );
 
--- DELETE: Needs DELETE permission
+-- DELETE: Needs (Delete Permission) AND (Hierarchical Access)
 CREATE POLICY "Matrix Delete Orders" ON public.orders FOR DELETE
 USING (
   has_permission(ARRAY[
-    'SALE_NEW_ORDER', -- Usually delete allowed where creation is allowed, or specific DELETE flag
+    'SALE_NEW_ORDER',
     'SALE_ORDERS',
     'CSKH_NEW_ORDER',
     'RND_NEW_ORDER'
   ], 'delete')
+  AND
+  check_hierarchical_access(
+    team, 
+    ARRAY[sale_staff, marketing_staff, cskh, created_by], 
+    NULL
+  )
 );
 
 -- ==============================================================================
@@ -155,31 +230,43 @@ DROP POLICY IF EXISTS "Allow all read access" ON public.detail_reports;
 DROP POLICY IF EXISTS "Allow all insert" ON public.detail_reports;
 DROP POLICY IF EXISTS "Allow all update" ON public.detail_reports;
 DROP POLICY IF EXISTS "Allow all delete" ON public.detail_reports;
-
--- Drop previous Matrix policies
 DROP POLICY IF EXISTS "Matrix View Reports" ON public.detail_reports;
 DROP POLICY IF EXISTS "Matrix Insert Reports" ON public.detail_reports;
 DROP POLICY IF EXISTS "Matrix Update Reports" ON public.detail_reports;
 DROP POLICY IF EXISTS "Matrix Delete Reports" ON public.detail_reports;
 
+-- SELECT
 CREATE POLICY "Matrix View Reports" ON public.detail_reports FOR SELECT
 USING (
   has_permission(ARRAY['MKT_VIEW', 'MKT_INPUT', 'MKT_MANUAL', 'RND_VIEW', 'RND_INPUT', 'RND_MANUAL', 'FINANCE_KPI'], 'view')
+  AND
+  check_hierarchical_access(
+    department, -- Maps to team
+    ARRAY[name], -- Assumes 'name' column exists
+    ARRAY[email] -- Assumes 'email' column exists
+  )
 );
 
+-- INSERT
 CREATE POLICY "Matrix Insert Reports" ON public.detail_reports FOR INSERT
 WITH CHECK (
   has_permission(ARRAY['MKT_INPUT', 'RND_INPUT'], 'edit')
 );
 
+-- UPDATE
 CREATE POLICY "Matrix Update Reports" ON public.detail_reports FOR UPDATE
 USING (
   has_permission(ARRAY['MKT_INPUT', 'RND_INPUT'], 'edit')
+  AND
+  check_hierarchical_access(department, ARRAY[name], ARRAY[email])
 );
 
+-- DELETE
 CREATE POLICY "Matrix Delete Reports" ON public.detail_reports FOR DELETE
 USING (
   has_permission(ARRAY['MKT_INPUT', 'RND_INPUT'], 'delete')
+  AND
+  check_hierarchical_access(department, ARRAY[name], ARRAY[email])
 );
 
 -- ==============================================================================
@@ -194,42 +281,44 @@ DROP POLICY IF EXISTS "Allow all read" ON public.marketing_pages;
 DROP POLICY IF EXISTS "Allow all insert" ON public.marketing_pages;
 DROP POLICY IF EXISTS "Allow all update" ON public.marketing_pages;
 DROP POLICY IF EXISTS "Allow all delete" ON public.marketing_pages;
-
--- Drop previous Matrix policies
 DROP POLICY IF EXISTS "Matrix View Pages" ON public.marketing_pages;
 DROP POLICY IF EXISTS "Matrix Modify Pages" ON public.marketing_pages;
 DROP POLICY IF EXISTS "Matrix Insert Update Pages" ON public.marketing_pages;
 DROP POLICY IF EXISTS "Matrix Update Pages" ON public.marketing_pages;
 DROP POLICY IF EXISTS "Matrix Delete Pages" ON public.marketing_pages;
 
+-- SELECT
 CREATE POLICY "Matrix View Pages" ON public.marketing_pages FOR SELECT
 USING (
   has_permission(ARRAY['MKT_PAGES', 'RND_PAGES'], 'view')
+  AND
+  check_hierarchical_access(
+    NULL, -- Pages might not have 'Team' column? schema says: mkt_staff, product, market. No team explicit?
+          -- If no team column, pass NULL. Leaders might not see pages unless they own them?
+          -- Or we assume pages are global for the team context.
+          -- Schema has 'mkt_staff'.
+    ARRAY[mkt_staff], 
+    NULL
+  )
 );
 
-CREATE POLICY "Matrix Modify Pages" ON public.marketing_pages FOR ALL
-USING (
-  has_permission(ARRAY['MKT_PAGES', 'RND_PAGES'], 'edit')
-)
-WITH CHECK (
-  has_permission(ARRAY['MKT_PAGES', 'RND_PAGES'], 'edit')
-);
-
--- For Delete specifically if needed, logic above covers ALL, but to be safe for Delete:
--- RLS 'ALL' covers SELECT, INSERT, UPDATE, DELETE unless overridden. 
--- However, we want strict DELETE check?
--- The function checks 'edit' for ALL. Let's refine.
-
-DROP POLICY "Matrix Modify Pages" ON public.marketing_pages;
-
+-- INSERT/UPDATE/DELETE handled by specific permissions, AND hierarchy
 CREATE POLICY "Matrix Insert Update Pages" ON public.marketing_pages FOR INSERT
 WITH CHECK ( has_permission(ARRAY['MKT_PAGES', 'RND_PAGES'], 'edit') );
 
 CREATE POLICY "Matrix Update Pages" ON public.marketing_pages FOR UPDATE
-USING ( has_permission(ARRAY['MKT_PAGES', 'RND_PAGES'], 'edit') );
+USING (
+  has_permission(ARRAY['MKT_PAGES', 'RND_PAGES'], 'edit')
+  AND
+  check_hierarchical_access(NULL, ARRAY[mkt_staff], NULL) -- Only owner or Admin
+);
 
 CREATE POLICY "Matrix Delete Pages" ON public.marketing_pages FOR DELETE
-USING ( has_permission(ARRAY['MKT_PAGES', 'RND_PAGES'], 'delete') );
+USING (
+  has_permission(ARRAY['MKT_PAGES', 'RND_PAGES'], 'delete')
+  AND
+  check_hierarchical_access(NULL, ARRAY[mkt_staff], NULL)
+);
 
 
 -- ==============================================================================
@@ -244,8 +333,6 @@ DROP POLICY IF EXISTS "Allow all read access" ON public.human_resources;
 DROP POLICY IF EXISTS "Allow all insert" ON public.human_resources;
 DROP POLICY IF EXISTS "Allow all update" ON public.human_resources;
 DROP POLICY IF EXISTS "Allow all delete" ON public.human_resources;
-
--- Drop previous Matrix policies
 DROP POLICY IF EXISTS "Matrix View HR" ON public.human_resources;
 DROP POLICY IF EXISTS "Matrix Modify HR" ON public.human_resources;
 
@@ -274,24 +361,16 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all access" ON public.users;
 DROP POLICY IF EXISTS "Allow all read" ON public.users;
 DROP POLICY IF EXISTS "Allow all modify" ON public.users;
-
--- Drop previous Matrix policies
 DROP POLICY IF EXISTS "Matrix View Users" ON public.users;
 DROP POLICY IF EXISTS "Matrix Modify Users" ON public.users;
 
--- VIEW: HR Manager, Leaders (their team?), Admin, or Self
+-- VIEW
 CREATE POLICY "Matrix View Users" ON public.users FOR SELECT
 USING (
   has_permission(ARRAY['HR_LIST'], 'view') OR -- HR/Admin
   (auth.uid()::text = id) OR                  -- Self
-  (role = 'leader')                           -- Leader (needs logic to see own team? Current UI handles filtering but we can open list to leaders)
+  (role = 'leader')                           -- Leader
 );
--- Note: 'leader' check above is simplistic. Ideally strict RLS: 
--- (has_permission(...) OR id=uid OR (role='leader' AND team=...))
--- But complex logic in SQL. For now, allowing Leaders to 'Select' rows is safer than blocking, 
--- or we rely on 'HR_LIST' being assigned to Leader if they check 'View HR'. 
--- But usually Leaders don't have HR permission. They have 'View Team'.
--- Let's stick to HR_LIST for full view. Self view is minimal.
 
 -- MODIFY: HR Only (and Admin)
 CREATE POLICY "Matrix Modify Users" ON public.users FOR ALL
@@ -351,5 +430,3 @@ CREATE POLICY "Legacy Read" ON app_permissions FOR SELECT USING (has_permission(
 ALTER TABLE app_user_roles ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Legacy Read" ON app_user_roles;
 CREATE POLICY "Legacy Read" ON app_user_roles FOR SELECT USING (has_permission(ARRAY['ADMIN_TOOLS'], 'view'));
-
-

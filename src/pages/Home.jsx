@@ -123,7 +123,6 @@ function Home() {
       label: "CSKH & CRM",
       icon: <Users className="w-5 h-5" />,
       path: "#",
-      path: "#",
       // permission: 'MODULE_CSKH', // Optional: Hide entire group if no child is visible
       subItems: [
         {
@@ -174,7 +173,6 @@ function Home() {
       id: "sale",
       label: "Quản lý Sale",
       icon: <ShoppingCart className="w-5 h-5" />,
-      path: "#",
       path: "#",
       subItems: [
         {
@@ -227,7 +225,6 @@ function Home() {
       label: "Quản lý giao hàng",
       icon: <Package className="w-5 h-5" />,
       path: "#",
-
       subItems: [
         {
           id: "delivery-list",
@@ -263,7 +260,6 @@ function Home() {
       id: "marketing",
       label: "Quản lý Marketing",
       icon: <Megaphone className="w-5 h-5" />,
-      path: "#",
       path: "#",
       subItems: [
         {
@@ -307,7 +303,6 @@ function Home() {
       id: "rnd",
       label: "Quản lý R&D",
       icon: <Activity className="w-5 h-5" />,
-      path: "#",
       path: "#",
       subItems: [
         {
@@ -365,7 +360,6 @@ function Home() {
       id: "hr",
       label: "Quản lý nhân sự",
       icon: <Users className="w-5 h-5" />,
-      path: "#",
       path: "#",
       subItems: [
         {
@@ -447,7 +441,6 @@ function Home() {
       label: "Quản lý tài chính",
       icon: <DollarSign className="w-5 h-5" />,
       path: "#",
-      path: "#",
       subItems: [
         {
           id: "finance-master",
@@ -478,7 +471,6 @@ function Home() {
           label: "Sổ quỹ & Dòng tiền",
           icon: <DollarSign className="w-4 h-4" />,
           path: "https://lumi-finance-manager.vercel.app/#/ledger",
-          path: "https://lumi-finance-manager.vercel.app/#/ledger",
           isExternal: true,
           permission: 'FINANCE_DASHBOARD',
         },
@@ -487,7 +479,6 @@ function Home() {
           label: "Báo cáo quản trị",
           icon: <BarChart3 className="w-4 h-4" />,
           path: "https://lumi-finance-manager.vercel.app/#/management-reports",
-          path: "https://lumi-finance-manager.vercel.app/#/management-reports",
           isExternal: true,
           permission: 'FINANCE_DASHBOARD',
         },
@@ -495,7 +486,6 @@ function Home() {
           id: "finance-f3",
           label: "Dữ liệu F3",
           icon: <Menu className="w-4 h-4" />,
-          path: "https://lumi-finance-manager.vercel.app/#/f3-datasheet",
           path: "https://lumi-finance-manager.vercel.app/#/f3-datasheet",
           isExternal: true,
           permission: 'FINANCE_DASHBOARD',

@@ -13,8 +13,13 @@ function BaoCaoChiTiet() {
     const teamFilter = searchParams.get('team'); // 'RD' or null
 
     // Permission Logic
-    const { canView } = usePermissions();
+    const { canView, role } = usePermissions();
     const permissionCode = teamFilter === 'RD' ? 'RND_ORDERS' : 'MKT_ORDERS';
+
+    // Get User Name for filtering
+    const userJson = localStorage.getItem("user");
+    const user = userJson ? JSON.parse(userJson) : null;
+    const userName = localStorage.getItem("username") || user?.['Họ_và_tên'] || user?.['Họ và tên'] || user?.['Tên'] || user?.username || user?.name || "";
 
 
 
@@ -171,6 +176,18 @@ function BaoCaoChiTiet() {
             // 1. Fetch Supabase Data
             let query = supabase.from('orders').select('*');
 
+            // --- USER FILTER (Re-applied) ---
+            // Only Admin/Director/Manager sees all. Staff sees only their own.
+            // checking role for 'admin', 'director', 'manager'
+            const isManager = ['admin', 'director', 'manager', 'super_admin'].includes((role || '').toLowerCase());
+
+            if (!isManager && userName) {
+                // Filter by marketing_staff
+                query = query.ilike('marketing_staff', userName);
+            }
+
+
+
             if (startDate && endDate) {
                 query = query
                     .gte('order_date', startDate)
@@ -200,7 +217,7 @@ function BaoCaoChiTiet() {
 
     useEffect(() => {
         loadData();
-    }, [startDate, endDate]);
+    }, [startDate, endDate, role, userName]);
 
     // Get unique values for filters
     const uniqueMarkets = useMemo(() => {

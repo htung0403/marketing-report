@@ -30,7 +30,7 @@ export default function BaoCaoSale() {
     const teamFilter = searchParams.get('team'); // Context: 'RD' or null
 
     // Permission Logic
-    const { canView } = usePermissions();
+    const { canView, role } = usePermissions();
     const permissionCode = teamFilter === 'RD' ? 'RND_VIEW' : 'SALE_VIEW';
 
 
@@ -280,6 +280,7 @@ export default function BaoCaoSale() {
             let userInfo = null;
 
             if (idFromUrl) {
+                // Existing logic for URL params...
                 const currentUserRecord = employeeData.find(record => record['id'] === idFromUrl && record['Email']);
                 if (currentUserRecord) {
                     setIsRestrictedView(true);
@@ -318,8 +319,54 @@ export default function BaoCaoSale() {
                     newPermissions.title = 'KHÔNG TÌM THẤY DỮ LIỆU NGƯỜI DÙNG';
                 }
             } else {
-                setIsRestrictedView(false);
-                newPermissions.title = 'DỮ LIỆU TỔNG HỢP';
+                // NEW: Automatic Restriction based on logged-in user
+                const userJson = localStorage.getItem("user");
+                const user = userJson ? JSON.parse(userJson) : null;
+                const userName = localStorage.getItem("username") || user?.['Họ_và_tên'] || user?.['Họ và tên'] || user?.['Tên'] || user?.username || user?.name || "";
+
+                const isManager = ['admin', 'director', 'manager', 'super_admin'].includes((role || '').toLowerCase());
+
+                if (!isManager && userName) {
+                    setIsRestrictedView(true);
+                    // Determine if Leader or Staff based on role/info (simplified)
+                    // If we have employeeData matching userName, use it.
+                    const matchedEmployee = employeeData.find(e =>
+                        (e['Họ Và Tên'] || '').toLowerCase() === userName.toLowerCase() ||
+                        (e['Email'] || '').toLowerCase() === (user?.email || '').toLowerCase()
+                    );
+
+                    if (matchedEmployee) {
+                        const userRole = (matchedEmployee['Chức vụ'] || '').trim();
+                        const userTeam = (matchedEmployee['Team'] || '').trim();
+
+                        if (userRole.includes('Leader')) {
+                            newPermissions = {
+                                allowedBranch: null,
+                                allowedTeam: userTeam,
+                                allowedNames: [],
+                                title: `DỮ LIỆU TEAM - ${userTeam}`
+                            };
+                        } else {
+                            newPermissions = {
+                                allowedBranch: null,
+                                allowedTeam: null,
+                                allowedNames: [matchedEmployee['Họ Và Tên']],
+                                title: `DỮ LIỆU CÁ NHÂN - ${matchedEmployee['Họ Và Tên']}`
+                            };
+                        }
+                    } else {
+                        // Fallback: Filter by name only
+                        newPermissions = {
+                            allowedBranch: null,
+                            allowedTeam: null,
+                            allowedNames: [userName],
+                            title: `DỮ LIỆU CÁ NHÂN - ${userName}`
+                        };
+                    }
+                } else {
+                    setIsRestrictedView(false);
+                    newPermissions.title = 'DỮ LIỆU TỔNG HỢP';
+                }
             }
             setPermissions(newPermissions);
 

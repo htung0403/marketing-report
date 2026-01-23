@@ -9,7 +9,7 @@ import { COLUMN_MAPPING, PRIMARY_KEY_COLUMN } from '../types';
 
 function QuanLyCSKH() {
   const navigate = useNavigate(); // Add hook for navigation if needed, or just use Link
-  const { canView, canEdit, canDelete } = usePermissions();
+  const { canView, canEdit, canDelete, role } = usePermissions();
 
 
 
@@ -144,6 +144,7 @@ function QuanLyCSKH() {
       const ADMIN_MAIL = "admin@marketing.com";
       const isAdmin = userEmail === ADMIN_MAIL || boPhan === 'admin';
       const isLeader = viTri.includes('leader') || viTri.includes('quản lý') || boPhan.includes('manager');
+      const isManager = isAdmin || isLeader || role === 'ADMIN' || role === 'SUPER_ADMIN';
 
       let query = supabase.from('orders').select('*');
 
@@ -158,15 +159,12 @@ function QuanLyCSKH() {
 
       query = query.order('order_date', { ascending: false });
 
-      // if (!isAdmin && !isLeader) {
-      //   if (userName) {
-      //     query = query.eq('cskh', userName);
-      //   } else {
-      //     console.warn("Restricted view but no UserName found. Showing empty.");
-      //     // Use a nil UUID which is syntactically valid but won't match any real record
-      //     query = query.eq('id', '00000000-0000-0000-0000-000000000000');
-      //   }
-      // }
+      // --- USER ISOLATION FILTER (CSKH) ---
+      // If not Admin/Manager, filter by 'cskh' column matching userName
+      if (!isManager && userName) {
+        // Use ilike for case-insensitive match
+        query = query.ilike('cskh', userName);
+      }
 
       const { data, error } = await query;
 
@@ -203,7 +201,7 @@ function QuanLyCSKH() {
 
   useEffect(() => {
     loadData();
-  }, [startDate, endDate]);
+  }, [startDate, endDate, role]);
 
 
 

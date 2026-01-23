@@ -26,7 +26,7 @@ const UPDATE_DELAY = 500;
 const BULK_THRESHOLD = 1;
 
 function VanDon() {
-  const { canView } = usePermissions();
+  const { canView, role } = usePermissions();
   if (!canView('ORDERS_LIST')) {
     return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (ORDERS_LIST).</div>;
   }
@@ -235,7 +235,34 @@ function VanDon() {
         }
       } else {
         // Fallback: Load all data (old way)
-        const data = await API.fetchOrders();
+        let data = await API.fetchOrders();
+
+        // --- USER ISOLATION FILTER ---
+        const userJson = localStorage.getItem("user");
+        const user = userJson ? JSON.parse(userJson) : null;
+        const userName = localStorage.getItem("username") || user?.['Họ_và_tên'] || user?.['Họ và tên'] || user?.['Tên'] || user?.username || user?.name || "";
+        const isManager = ['admin', 'director', 'manager', 'super_admin'].includes((role || '').toLowerCase());
+
+        if (!isManager && userName) {
+          // For Delivery/VanDon, who is the owner? 'delivery_staff'? or 'sale_staff' too?
+          // User said "tai khoan sale van don" (Sale & Delivery accounts).
+          // If I am Delivery Staff, I should see orders where I am 'NV Vận đơn' (delivery_staff).
+          // If I am Sale, I might see if I am 'sale_staff'.
+          // This page is 'VanDon'. Logic:
+          // - If I am Sale: 'sale_staff' == me
+          // - If I am Delivery: 'delivery_staff' == me
+          // - If I am MKT: 'marketing_staff' (unlikely to use VanDon but possible)
+          // Robust approach: Check ALL staff columns.
+
+          data = data.filter(row => {
+            const s = (row.sale_staff || '').toLowerCase();
+            const d = (row.delivery_staff || '').toLowerCase();
+            const m = (row.marketing_staff || '').toLowerCase();
+            const u = userName.toLowerCase();
+            return s.includes(u) || d.includes(u) || m.includes(u);
+          });
+        }
+
         setAllData(data);
         setTotalRecords(data.length);
 

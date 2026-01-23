@@ -92,9 +92,7 @@ export default function NhapDonMoi({ isEdit = false }) {
         return canView('SALE_NEW_ORDER') || canView('CSKH_NEW_ORDER') || canView('ORDERS_NEW') || canView('RND_NEW_ORDER');
     }, [canView, teamFilter]);
 
-    if (!hasAccess) {
-        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này.</div>;
-    }
+
 
     // -------------------------------------------------------------------------
     // 0. USER INFO (Extracted early for state initialization)
@@ -885,6 +883,10 @@ export default function NhapDonMoi({ isEdit = false }) {
         setBlacklistInfo(null);
         setBlacklistItems([]); // Optional: keep items or clear? Better keep to save fetch? Actually keep items is better, but clear status is must
     };
+
+    if (!hasAccess) {
+        return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này.</div>;
+    }
 
     return (
         <div className="min-h-screen bg-gray-50 p-6">

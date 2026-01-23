@@ -9,7 +9,7 @@ export default function BaoCaoMarketing() {
   const teamFilter = searchParams.get('team'); // 'RD' or null
 
   // Permission Logic
-  const { canView } = usePermissions();
+  const { canView, role } = usePermissions();
   const permissionCode = teamFilter === 'RD' ? 'RND_INPUT' : 'MKT_INPUT';
 
 
@@ -216,6 +216,31 @@ export default function BaoCaoMarketing() {
       }
     }
 
+    // --- LOCK USER FIELDS FOR NON-ADMINS ---
+    const userJson = localStorage.getItem("user");
+    const user = userJson ? JSON.parse(userJson) : null;
+    const userName = localStorage.getItem("username") || user?.['Họ_và_tên'] || user?.['Họ và tên'] || user?.['Tên'] || user?.username || user?.name || "";
+    const isManager = ['admin', 'director', 'manager', 'super_admin'].includes((role || '').toLowerCase());
+
+    if (!isManager && userEmail) { // userEmail is set from localStorage/URL in useEffect
+      // Check if userEmail matches logged in user.
+      // Actually, relying on `userEmail` state which came from localStorage is fine.
+      // Force them:
+      data['Email'] = userEmail;
+      data['Tên'] = userName || data['Tên']; // if userName found
+
+      // Try to fill other fields if employeeToUse was null but now we forced email
+      if (!employeeToUse) {
+        const forcedEmp = employees?.find((emp) => emp.email?.toLowerCase() === userEmail.toLowerCase());
+        if (forcedEmp) {
+          data['Tên'] = forcedEmp.name;
+          data['Team'] = forcedEmp.team;
+          data['id_NS'] = forcedEmp.id_ns;
+          data['Chi nhánh'] = forcedEmp.branch;
+        }
+      }
+    }
+
     return {
       id: crypto.randomUUID(),
       data,
@@ -251,6 +276,23 @@ export default function BaoCaoMarketing() {
   };
 
   const handleRowChange = (index, field, value) => {
+    // Prevent editing Email/Name if restricted
+    const isManager = ['admin', 'director', 'manager', 'super_admin'].includes((role || '').toLowerCase());
+    if (!isManager && (field === 'Email' || field === 'Tên')) {
+      // Allow ONLY if it matches their own (or allow clearing? No, block change)
+      // Actually, just return early is safer if they try to change it.
+      // But value comes from input.
+      // If they try to type something else, block it.
+      // EXCEPT if it matches their email/name?
+      // Simpler: Just block.
+      // But wait, what if it's empty initially? createRowData likely filled it.
+      // If they clear it, we might want to let them, but createRowData will refill it on new row.
+      // Let's just Block "Change" events for Email/Tên.
+      // But we need to handle "auto-fill" or initial render?
+      // Initial render uses createRowData. This is onChange.
+      return;
+    }
+
     const newRows = [...tableRows];
     newRows[index].data[field] = value;
 

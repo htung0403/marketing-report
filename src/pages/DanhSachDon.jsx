@@ -14,15 +14,12 @@ function DanhSachDon() {
   const teamFilter = searchParams.get('team'); // e.g. 'RD'
 
   // Permission Logic
-  const { canView, canEdit, canDelete } = usePermissions();
+  const { canView, canEdit, canDelete, role } = usePermissions();
   // Determine relevant page code based on team switch
   // If team=RD, we are in R&D context -> RND_ORDERS
   // Else (default), we are in Sale context -> SALE_ORDERS
   const permissionCode = teamFilter === 'RD' ? 'RND_ORDERS' : 'SALE_ORDERS';
 
-  if (!canView(permissionCode)) {
-    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
-  }
 
   const [allData, setAllData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -52,6 +49,8 @@ function DanhSachDon() {
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [syncing, setSyncing] = useState(false); // State for sync process
   const [selectedRowId, setSelectedRowId] = useState(null); // For copy feature
+
+
 
   const defaultColumns = [
     'Mã đơn hàng',
@@ -264,6 +263,21 @@ function DanhSachDon() {
         query = query.neq('team', 'RD');
       }
 
+      // --- USER FILTER ---
+      // Fix: Filter by account name as requested ("chỉ cần lọc tên tài khoản")
+      const userJson = localStorage.getItem("user");
+      const user = userJson ? JSON.parse(userJson) : null;
+      const userName = localStorage.getItem("username") || user?.['Họ_và_tên'] || user?.['Họ và tên'] || user?.['Tên'] || user?.username || user?.name || "";
+
+      const isManager = ['admin', 'director', 'manager', 'super_admin'].includes((role || '').toLowerCase());
+
+      if (!isManager && userName) {
+        // Filter by sale_staff
+        // Note: In BaoCaoChiTiet (MKT), we filtered marketing_staff.
+        // Here (DanhSachDon -> Sales List), we filter sale_staff.
+        query = query.ilike('sale_staff', userName);
+      }
+
       if (startDate) {
         query = query.gte('order_date', startDate);
       }
@@ -306,7 +320,7 @@ function DanhSachDon() {
 
   useEffect(() => {
     loadData();
-  }, [startDate, endDate]); // Reload when dates change
+  }, [startDate, endDate, role]); // Reload when dates change
 
   // Get unique values for filters
   const uniqueMarkets = useMemo(() => {
@@ -911,6 +925,10 @@ function DanhSachDon() {
     });
     setVisibleColumns(defaultCols);
   };
+
+  if (!canView(permissionCode)) {
+    return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
