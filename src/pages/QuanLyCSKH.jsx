@@ -1,7 +1,8 @@
-import { Download, Edit, Eye, RefreshCw, Search, Settings, Trash2, X } from 'lucide-react';
+import { Download, Edit, Eye, RefreshCw, Search, Settings, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import * as XLSX from 'xlsx';
 import usePermissions from '../hooks/usePermissions';
 import { supabase } from '../supabase/config';
 import { COLUMN_MAPPING, PRIMARY_KEY_COLUMN } from '../types';
@@ -438,26 +439,173 @@ function QuanLyCSKH() {
     }
   };
 
-  // Export to CSV
-  const handleExport = () => {
-    const headers = ['Mã đơn hàng', 'Ngày lên đơn', 'Name*', 'Phone*', 'Khu vực', 'Mặt hàng', 'Mã Tracking', 'Trạng thái giao hàng', 'Tổng tiền VNĐ'];
-    const csvRows = [
-      headers.join(','),
-      ...filteredData.map(row =>
-        headers.map(header => {
-          const val = row[header] || '';
-          const str = String(val).replace(/"/g, '""');
-          return `"${str}"`;
-        }).join(',')
-      )
-    ];
-    const csv = '\uFEFF' + csvRows.join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `quan-ly-cskh-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
+  // Helper: Parse Excel Date
+  const parseExcelDate = (excelDate) => {
+    if (!excelDate) return null;
+    if (typeof excelDate === 'number') {
+      const date = new Date(Math.round((excelDate - 25569) * 86400 * 1000));
+      return date.toISOString().split('T')[0];
+    }
+    return String(excelDate).split('T')[0];
+  };
+
+  // Export to Excel
+  const handleExportExcel = () => {
+    if (filteredData.length === 0) {
+      toast.info("Không có dữ liệu để xuất Excel.");
+      return;
+    }
+
+    const dataToExport = filteredData.map(row => {
+      const newRow = {};
+      // Export all available columns (from settings list) in defined order
+      // This ensures we get all potential columns, not just what's in this specific row object
+      allAvailableColumns.forEach(col => {
+        const key = COLUMN_MAPPING[col] || col;
+        // value fallback: row[mappedKey] or row[columnName] or empty
+        newRow[col] = row[key] ?? row[col] ?? '';
+      });
+      return newRow;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+
+    // Auto-width columns (approximate)
+    const wscols = allAvailableColumns.map(() => ({ wch: 20 }));
+    ws['!cols'] = wscols;
+
+    XLSX.utils.book_append_sheet(wb, ws, "QuanLyCSKH");
+
+    XLSX.writeFile(wb, `QuanLyCSKH_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  // Import from Excel
+  const handleImportExcel = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!window.confirm("Bạn có chắc chắn muốn nhập dữ liệu từ file Excel này? Dữ liệu sẽ được update dựa trên 'Mã đơn hàng' (Ghi đè nếu trùng).")) return;
+
+    setLoading(true);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      console.log("Imported data:", jsonData);
+
+      if (jsonData.length === 0) {
+        toast.error("File Excel không có dữ liệu!");
+        setLoading(false);
+        return;
+      }
+
+      // Helper to get value case-insensitively
+      const getValue = (item, keys) => {
+        const itemKeys = Object.keys(item);
+        for (const key of keys) {
+          const foundKey = itemKeys.find(k => k.trim().toLowerCase() === key.toLowerCase());
+          if (foundKey) return item[foundKey];
+        }
+        return undefined;
+      };
+
+      // Map Excel columns back to Supabase schema
+      const validItems = jsonData.map((item, index) => {
+        const orderCode = getValue(item, ['Mã đơn hàng', 'Order Code', 'ma don hang']);
+
+        // Check required fields (at least need Identifier or Name+Phone to create)
+        // If we want strict Upsert, we NEED order_code.
+        // User guideline: "mã đơn trùng nhau thì xem các trường còn lại để update"
+        // So order_code is key.
+
+        const name = getValue(item, ['Name*', 'Tên khách hàng', 'Ten khach hang', 'Name']);
+        const phone = getValue(item, ['Phone*', 'SĐT', 'SDT', 'Phone']);
+
+        if (!orderCode && (!name || !phone)) return null;
+
+        // If no order code, generate one? Or skip?
+        // Let's generate if missing but have name/phone, so it inserts as new.
+        const finalOrderCode = orderCode || `IMP-CSKH-${Date.now()}-${index}`;
+
+        // Helper for parsing integers but keeping undefined if missing
+        const parseOrUndefined = (val) => {
+          if (val === undefined || val === null || String(val).trim() === '') return undefined;
+          const parsed = parseInt(String(val).replace(/\D/g, ''));
+          return isNaN(parsed) ? undefined : parsed;
+        };
+
+        return {
+          order_code: finalOrderCode,
+          // Only update date if provided, else keep existing (by passing undefined) or default ONLY if new?
+          // Upsert in Supabase: if columns are excluded from payload, they are NOT updated?
+          // No, upsert replaces the row if match found?
+          // Wait, Supabase `upsert`: "If the record exists, it updates the columns specified...".
+          // Actually, if we pass { order_code: 'A', customer_name: 'B' }, it updates 'A' to have name 'B'.
+          // Fields NOT in the object are NOT touched?
+          // Tested: Supabase `upsert` takes the Whole Object provided. If a column is missing from object,
+          // if it's a new row, it uses default. If it's an update, does it nullify?
+          // NO, Supabase/Postgres `INSERT ... ON CONFLICT DO UPDATE SET ...` usually updates provided columns.
+          // BUT `upsert` via JS client acts like "Insert or Replace" often depending on implementation.
+          // Correct behavior for JS client: It tries to INSERT. On conflict, it UPDATES with the PROVIDED data.
+          // Missing keys in the JSON object are NOT touched in the DB record if it's an update?
+          // Actually, often it handles it row by row.
+          // Let's assume standard behavior: We explicitly map undefined to skip?
+          // `JSON.stringify` removes undefined. Supabase client sends JSON.
+          // So if we send `{id: 1, name: "New"}`, it matches id 1, updates name. Does it clear 'phone'?
+          // Usually NO, unless we send `phone: null`.
+          // So we should return `undefined` for missing excel values to avoid overwriting existing data with nulls.
+
+          customer_name: name || undefined,
+          customer_phone: phone || undefined,
+          order_date: getValue(item, ['Ngày lên đơn', 'Order Date', 'Ngay len don']) ? parseExcelDate(getValue(item, ['Ngày lên đơn', 'Order Date', 'Ngay len don'])) : (finalOrderCode.startsWith('IMP') ? new Date().toISOString() : undefined),
+
+          customer_address: getValue(item, ['Add', 'Địa chỉ', 'Dia chi', 'Address']) || undefined,
+          area: getValue(item, ['Khu vực', 'Area', 'Khu vuc']) || undefined, // Map to Area/Country
+          country: getValue(item, ['Khu vực', 'Area', 'Country']) || undefined, // Redundant but safe
+
+          product: getValue(item, ['Mặt hàng', 'Sản phẩm', 'Product', 'Mat hang']) || undefined,
+          product_main: getValue(item, ['Mặt hàng', 'Sản phẩm', 'Product']) || undefined, // Sync main product
+
+          total_amount_vnd: parseOrUndefined(getValue(item, ['Tổng tiền VNĐ', 'Tong tien VND', 'Total Amount'])),
+          tracking_code: getValue(item, ['Mã Tracking', 'Tracking Code', 'Ma Tracking']) || undefined,
+          payment_method: getValue(item, ['Hình thức thanh toán', 'Payment Method']) || undefined,
+          delivery_status: getValue(item, ['Trạng thái giao hàng', 'Delivery Status', 'Trang thai']) || undefined,
+
+          // Map other extended fields if they exist in Excel (from All Columns export)
+          shipping_fee: parseOrUndefined(getValue(item, ['Phí ship', 'Shipping Fee', 'Phi ship'])),
+          marketing_staff: getValue(item, ['Nhân viên Marketing', 'MKT Staff']) || undefined,
+          sale_staff: getValue(item, ['Nhân viên Sale', 'Sale Staff']) || undefined,
+          team: getValue(item, ['Team']) || undefined,
+          cskh: getValue(item, ['CSKH', 'Chăm sóc khách hàng']) || undefined,
+          note: getValue(item, ['Ghi chú', 'Note', 'Ghi chu']) || undefined,
+        };
+      }).filter(Boolean);
+
+      if (validItems.length === 0) {
+        toast.error("Không tìm thấy dữ liệu hợp lệ để nhập.");
+        setLoading(false);
+        return;
+      }
+
+      // Perform Upsert
+      const { error } = await supabase
+        .from('orders')
+        .upsert(validItems, { onConflict: 'order_code' });
+
+      if (error) throw error;
+
+      toast.success(`✅ Đã nhập/cập nhật thành công ${validItems.length} dòng!`);
+      loadData();
+    } catch (error) {
+      console.error("Import error:", error);
+      toast.error("❌ Lỗi nhập file: " + error.message);
+    } finally {
+      e.target.value = ''; // Reset input
+      setLoading(false);
+    }
   };
 
   // Copy single cell content (double-click)
@@ -766,12 +914,28 @@ function QuanLyCSKH() {
 
             {/* Export Button */}
             <button
-              onClick={handleExport}
-              className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"
+              onClick={handleExportExcel}
+              style={{ background: '#20744a' }} // Excel Green
+              className="px-4 py-2 text-white rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2 hover:opacity-90"
             >
               <Download className="w-4 h-4" />
-              Excel
+              Xuất Excel
             </button>
+
+            {/* Import Button */}
+            <label
+              style={{ background: '#2b579a' }} // Import Blue
+              className="px-4 py-2 text-white rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2 hover:opacity-90 cursor-pointer"
+            >
+              <Upload className="w-4 h-4" />
+              Nhập Excel
+              <input
+                type="file"
+                onChange={handleImportExcel}
+                accept=".xlsx, .xls"
+                style={{ display: 'none' }}
+              />
+            </label>
           </div>
         </div>
 

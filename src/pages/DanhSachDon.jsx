@@ -732,50 +732,31 @@ function DanhSachDon() {
 
   // Export to Excel
   const handleExportExcel = () => {
+    if (filteredData.length === 0) {
+      alert("Không có dữ liệu để xuất Excel.");
+      return;
+    }
+
     const dataToExport = filteredData.map(row => {
-      // Create a clean object for export based on display columns or all columns
-      // Here using a standard set for better readability in Excel
-      return {
-        'Mã đơn hàng': row['Mã đơn hàng'],
-        'Ngày lên đơn': row['Ngày lên đơn'],
-        'Khách hàng': row['Name*'],
-        'SĐT': row['Phone*'],
-        'Địa chỉ': row['Add'],
-        'Khu vực': row['Khu vực'],
-        'Mặt hàng': row['Mặt hàng'],
-        'Mã Tracking': row['Mã Tracking'],
-        'Trạng thái': row['Trạng thái giao hàng'],
-        'Tổng tiền': row['Tổng tiền VNĐ'],
-        'Phí ship': row['Phí ship'],
-        'Đơn vị VC': row['Đơn vị vận chuyển'],
-        'Ghi chú': row['Ghi chú'],
-        'Team': row['Team'],
-        'Sale': row['Nhân viên Sale'],
-        'MKT': row['Nhân viên Marketing']
-      };
+      const newRow = {};
+      // Export all available columns (from settings list) in defined order
+      // This ensures we get all potential columns, not just what's in this specific row object
+      allAvailableColumns.forEach(col => {
+        const key = COLUMN_MAPPING[col] || col;
+        // value fallback: row[mappedKey] or row[columnName] or empty
+        newRow[col] = row[key] ?? row[col] ?? '';
+      });
+      return newRow;
     });
 
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "DanhSachDon");
 
-    // Auto-width columns (simple approximation)
-    const colWidths = [
-      { wch: 15 }, // Mã đơn
-      { wch: 12 }, // Ngày
-      { wch: 20 }, // Tên
-      { wch: 12 }, // SĐT
-      { wch: 30 }, // Địa chỉ
-      { wch: 15 }, // Khu vực
-      { wch: 20 }, // Mặt hàng
-      { wch: 15 }, // Tracking
-      { wch: 15 }, // Status
-      { wch: 12 }, // Tiền
-      { wch: 10 }, // Ship
-      { wch: 15 }, // DVVC
-      { wch: 20 }, // Note
-    ];
-    ws['!cols'] = colWidths;
+    // Auto-width columns (approximate)
+    const wscols = allAvailableColumns.map(() => ({ wch: 20 }));
+    ws['!cols'] = wscols;
+
+    XLSX.utils.book_append_sheet(wb, ws, "DanhSachDon");
 
     XLSX.writeFile(wb, `DanhSachDon_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
