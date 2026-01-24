@@ -277,10 +277,10 @@ function ReportFormCSKH() {
                                     <th className="p-3 min-w-[120px]">Ca <span className="text-red-500">*</span></th>
                                     <th className="p-3 min-w-[160px]">Sản phẩm <span className="text-red-500">*</span></th>
                                     <th className="p-3 min-w-[140px]">Thị trường <span className="text-red-500">*</span></th>
-                                    <th className="p-3 min-w-[100px]">Data <span className="text-red-500">*</span></th>
+                                    <th className="p-3 min-w-[100px]">Số mess <span className="text-red-500">*</span></th>
                                     <th className="p-3 min-w-[100px]">Phản hồi <span className="text-red-500">*</span></th>
-                                    <th className="p-3 min-w-[100px]">Đơn chốt <span className="text-red-500">*</span></th>
-                                    <th className="p-3 min-w-[140px]">Doanh thu <span className="text-red-500">*</span></th>
+                                    <th className="p-3 min-w-[100px]">Số đơn <span className="text-red-500">*</span></th>
+                                    <th className="p-3 min-w-[140px]">Doanh số <span className="text-red-500">*</span></th>
                                     <th className="p-3 w-16 text-center">Xóa</th>
                                 </tr>
                             </thead>
@@ -325,10 +325,8 @@ function ReportFormCSKH() {
                                                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm transition-all ${errors[`${idx}-shift`] ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                                             >
                                                 <option value="">Chọn ca</option>
-                                                <option value="Sáng">Sáng</option>
-                                                <option value="Chiều">Chiều</option>
-                                                <option value="Tối">Tối</option>
                                                 <option value="Hết ca">Hết ca</option>
+                                                <option value="Giữa ca">Giữa ca</option>
                                             </select>
                                         </td>
                                         <td className="p-3">

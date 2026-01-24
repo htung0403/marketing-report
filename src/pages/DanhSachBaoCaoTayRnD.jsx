@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import usePermissions from '../hooks/usePermissions'; // Added missing import
 import { supabase } from '../supabase/config';
 import './BaoCaoSale.css'; // Reusing styles for consistency
 
@@ -22,6 +23,13 @@ export default function DanhSachBaoCaoTayRnD() {
         endDate: ''
     });
 
+    // Edit State
+    const [editingReport, setEditingReport] = useState(null);
+    const [editForm, setEditForm] = useState({});
+    const [saving, setSaving] = useState(false);
+
+    const { canView } = usePermissions();
+
     // Initialize Dates
     useEffect(() => {
         const today = new Date();
@@ -36,35 +44,84 @@ export default function DanhSachBaoCaoTayRnD() {
     }, []);
 
     // Fetch Data
+    const fetchData = async () => {
+        if (!filters.startDate || !filters.endDate) return;
+        setLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('detail_reports')
+                .select('*')
+                .eq('department', 'RD')
+                .gte('date', filters.startDate)
+                .lte('date', filters.endDate)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            setManualReports(data || []);
+        } catch (error) {
+            console.error('Error fetching R&D manual reports:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            if (!filters.startDate || !filters.endDate) return;
-            setLoading(true);
-            try {
-                const { data, error } = await supabase
-                    .from('detail_reports')
-                    .select('*')
-                    .eq('department', 'RD')
-                    .gte('date', filters.startDate)
-                    .lte('date', filters.endDate)
-                    .order('created_at', { ascending: false });
-
-                if (error) throw error;
-                setManualReports(data || []);
-            } catch (error) {
-                console.error('Error fetching R&D manual reports:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchData();
     }, [filters.startDate, filters.endDate]);
 
-    const { canView } = usePermissions();
     if (!canView('RND_MANUAL')) {
         return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này (RND_MANUAL).</div>;
     }
+
+    const handleEditClick = (report) => {
+        setEditingReport(report);
+        setEditForm({
+            mess_count: report.mess_count,
+            response_count: report.response_count,
+            order_count: report.order_count,
+            revenue_mess: report.revenue_mess
+        });
+    };
+
+    const handleCloseModal = () => {
+        setEditingReport(null);
+        setEditForm({});
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingReport) return;
+        setSaving(true);
+        try {
+            const { error } = await supabase
+                .from('detail_reports')
+                .update({
+                    mess_count: Number(editForm.mess_count),
+                    response_count: Number(editForm.response_count),
+                    order_count: Number(editForm.order_count),
+                    revenue_mess: Number(editForm.revenue_mess)
+                })
+                .eq('id', editingReport.id);
+
+            if (error) throw error;
+
+            alert('Cập nhật thành công!');
+            handleCloseModal();
+            fetchData(); // Refresh list
+        } catch (error) {
+            console.error('Error updating report:', error);
+            alert('Lỗi cập nhật: ' + error.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setEditForm(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
 
     return (
         <div className="bao-cao-sale-container">
@@ -100,16 +157,17 @@ export default function DanhSachBaoCaoTayRnD() {
                                     <th>Team</th>
                                     <th>Sản phẩm</th>
                                     <th>Thị trường</th>
-                                    <th>Số Mess</th>
+                                    <th>Số mess</th>
                                     <th>Phản hồi</th>
-                                    <th>Số Đơn (Mess)</th>
-                                    <th>Doanh số (Mess)</th>
+                                    <th>Số đơn</th>
+                                    <th>Doanh số</th>
+                                    <th>Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {manualReports.length === 0 ? (
                                     <tr>
-                                        <td colSpan="11" className="text-center">{loading ? 'Đang tải...' : 'Không có dữ liệu trong khoảng thời gian này.'}</td>
+                                        <td colSpan="12" className="text-center">{loading ? 'Đang tải...' : 'Không có dữ liệu trong khoảng thời gian này.'}</td>
                                     </tr>
                                 ) : (
                                     manualReports.map((item, index) => (
@@ -125,6 +183,14 @@ export default function DanhSachBaoCaoTayRnD() {
                                             <td>{formatNumber(item.response_count)}</td>
                                             <td>{formatNumber(item.order_count)}</td>
                                             <td>{formatCurrency(item.revenue_mess)}</td>
+                                            <td className="text-center">
+                                                <button
+                                                    className="px-2 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-xs transition"
+                                                    onClick={() => handleEditClick(item)}
+                                                >
+                                                    Sửa
+                                                </button>
+                                            </td>
                                         </tr>
                                     ))
                                 )}
@@ -133,6 +199,81 @@ export default function DanhSachBaoCaoTayRnD() {
                     </div>
                 </div>
             </div>
+
+            {/* Edit Modal */}
+            {editingReport && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-lg w-96 shadow-xl relative">
+                        <h3 className="text-lg font-bold mb-4 text-pink-600 border-b pb-2">Sửa Báo Cáo</h3>
+
+                        <div className="mb-4 text-sm text-gray-600">
+                            <p><strong>Ngày:</strong> {formatDate(editingReport.date)} - <strong>Ca:</strong> {editingReport.shift}</p>
+                            <p><strong>Nhân viên:</strong> {editingReport.name}</p>
+                            <p><strong>SP:</strong> {editingReport.product} - <strong>TT:</strong> {editingReport.market}</p>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Số mess:</label>
+                                <input
+                                    type="number"
+                                    name="mess_count"
+                                    value={editForm.mess_count}
+                                    onChange={handleInputChange}
+                                    className="w-full border rounded px-2 py-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Phản hồi:</label>
+                                <input
+                                    type="number"
+                                    name="response_count"
+                                    value={editForm.response_count}
+                                    onChange={handleInputChange}
+                                    className="w-full border rounded px-2 py-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Số đơn:</label>
+                                <input
+                                    type="number"
+                                    name="order_count"
+                                    value={editForm.order_count}
+                                    onChange={handleInputChange}
+                                    className="w-full border rounded px-2 py-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Doanh số:</label>
+                                <input
+                                    type="number"
+                                    name="revenue_mess"
+                                    value={editForm.revenue_mess}
+                                    onChange={handleInputChange}
+                                    className="w-full border rounded px-2 py-1"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button
+                                onClick={handleCloseModal}
+                                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded text-sm text-gray-800"
+                                disabled={saving}
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                onClick={handleSaveEdit}
+                                className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded text-sm font-semibold"
+                                disabled={saving}
+                            >
+                                {saving ? 'Đang lưu...' : 'Lưu Thay Đổi'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

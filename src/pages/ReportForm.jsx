@@ -272,10 +272,10 @@ function ReportForm() {
                   <th className="p-3 min-w-[120px]">Ca <span className="text-red-500">*</span></th>
                   <th className="p-3 min-w-[160px]">Sản phẩm <span className="text-red-500">*</span></th>
                   <th className="p-3 min-w-[140px]">Thị trường <span className="text-red-500">*</span></th>
-                  <th className="p-3 min-w-[100px]">Data <span className="text-red-500">*</span></th>
+                  <th className="p-3 min-w-[100px]">Số mess <span className="text-red-500">*</span></th>
                   <th className="p-3 min-w-[100px]">Phản hồi <span className="text-red-500">*</span></th>
-                  <th className="p-3 min-w-[100px]">Đơn chốt <span className="text-red-500">*</span></th>
-                  <th className="p-3 min-w-[140px]">Doanh thu <span className="text-red-500">*</span></th>
+                  <th className="p-3 min-w-[100px]">Số đơn <span className="text-red-500">*</span></th>
+                  <th className="p-3 min-w-[140px]">Doanh số <span className="text-red-500">*</span></th>
                   <th className="p-3 w-16 text-center">Xóa</th>
                 </tr>
               </thead>

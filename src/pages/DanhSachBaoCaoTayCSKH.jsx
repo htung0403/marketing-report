@@ -102,10 +102,10 @@ export default function DanhSachBaoCaoTayCSKH() {
                                     <th>Nhân viên</th>
                                     <th>Sản phẩm</th>
                                     <th>Thị trường</th>
-                                    <th>Tiếp nhận</th>
+                                    <th>Số mess</th>
                                     <th>Phản hồi</th>
-                                    <th>Đơn chốt</th>
-                                    <th>Doanh số chốt</th>
+                                    <th>Số đơn</th>
+                                    <th>Doanh số</th>
                                 </tr>
                             </thead>
                             <tbody>

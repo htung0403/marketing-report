@@ -24,12 +24,7 @@ export default function DanhSachBaoCaoTayMKT() {
 
     // Permission Logic
     const { canView } = usePermissions();
-    // Assuming MKT_REPORT_LIST is the specific permission for MKT manual lists if it exists, 
-    // otherwise MKT_VIEW or similar. Dynamic based on context.
-    // Let's stick to standard naming: RND_REPORT_LIST for R&D context, MKT_REPORT_LIST for MKT.
     const permissionCode = teamFilter === 'RD' ? 'RND_MANUAL' : 'MKT_MANUAL';
-
-
 
     const [loading, setLoading] = useState(true);
     const [manualReports, setManualReports] = useState([]);
@@ -37,6 +32,11 @@ export default function DanhSachBaoCaoTayMKT() {
         startDate: '',
         endDate: ''
     });
+
+    // Edit State
+    const [editingReport, setEditingReport] = useState(null);
+    const [editForm, setEditForm] = useState({});
+    const [saving, setSaving] = useState(false);
 
     // Initialize Dates
     useEffect(() => {
@@ -52,35 +52,80 @@ export default function DanhSachBaoCaoTayMKT() {
     }, []);
 
     // Fetch Data
+    const fetchData = async () => {
+        if (!filters.startDate || !filters.endDate) return;
+        setLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('detail_reports')
+                .select('*')
+                .gte('Ngày', filters.startDate)
+                .lte('Ngày', filters.endDate)
+                .order('Ngày', { ascending: false });
+
+            if (error) throw error;
+            setManualReports(data || []);
+        } catch (error) {
+            console.error('Error fetching MKT reports:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            if (!filters.startDate || !filters.endDate) return;
-            setLoading(true);
-            try {
-                // Determine table name. Based on BaoCaoMarketing.jsx, it writes to 'detail_reports'
-                const { data, error } = await supabase
-                    .from('detail_reports')
-                    .select('*')
-                    .gte('Ngày', filters.startDate)
-                    .lte('Ngày', filters.endDate)
-                    // Trying to order by date, assuming 'Ngày' is the column
-                    .order('Ngày', { ascending: false });
-
-                if (error) throw error;
-                setManualReports(data || []);
-            } catch (error) {
-                console.error('Error fetching MKT reports:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchData();
     }, [filters.startDate, filters.endDate]);
 
     if (!canView(permissionCode)) {
         return <div className="p-8 text-center text-red-600 font-bold">Bạn không có quyền truy cập trang này ({permissionCode}).</div>;
     }
+
+    // Edit Handlers
+    const handleEditClick = (report) => {
+        setEditingReport(report);
+        setEditForm({
+            cpqc: report['CPQC'] || 0,
+            mess_cmt: report['Số_Mess_Cmt'] || 0,
+            orders: report['Số đơn'] || 0,
+            revenue: report['Doanh số'] || 0
+        });
+    };
+
+    const handleCloseModal = () => {
+        setEditingReport(null);
+        setEditForm({});
+    };
+
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setEditForm(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingReport) return;
+        setSaving(true);
+        try {
+            const { error } = await supabase
+                .from('detail_reports')
+                .update({
+                    'CPQC': Number(editForm.cpqc),
+                    'Số_Mess_Cmt': Number(editForm.mess_cmt),
+                    'Số đơn': Number(editForm.orders),
+                    'Doanh số': Number(editForm.revenue)
+                })
+                .eq('id', editingReport.id);
+
+            if (error) throw error;
+            alert('Cập nhật thành công!');
+            handleCloseModal();
+            fetchData();
+        } catch (error) {
+            console.error('Error updating:', error);
+            alert('Lỗi cập nhật: ' + error.message);
+        } finally {
+            setSaving(false);
+        }
+    };
 
     return (
         <div className="bao-cao-sale-container">
@@ -117,15 +162,16 @@ export default function DanhSachBaoCaoTayMKT() {
                                     <th>Sản phẩm</th>
                                     <th>Thị trường</th>
                                     <th>CPQC</th>
-                                    <th>Số Mess</th>
-                                    <th>Số Đơn</th>
+                                    <th>Số mess</th>
+                                    <th>Số đơn</th>
                                     <th>Doanh số</th>
+                                    <th>Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {manualReports.length === 0 ? (
                                     <tr>
-                                        <td colSpan="11" className="text-center">{loading ? 'Đang tải...' : 'Không có dữ liệu trong khoảng thời gian này.'}</td>
+                                        <td colSpan="12" className="text-center">{loading ? 'Đang tải...' : 'Không có dữ liệu trong khoảng thời gian này.'}</td>
                                     </tr>
                                 ) : (
                                     manualReports.map((item, index) => (
@@ -141,6 +187,14 @@ export default function DanhSachBaoCaoTayMKT() {
                                             <td>{formatNumber(item['Số_Mess_Cmt'])}</td>
                                             <td>{formatNumber(item['Số đơn'])}</td>
                                             <td>{formatCurrency(item['Doanh số'])}</td>
+                                            <td className="text-center">
+                                                <button
+                                                    className="px-2 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-xs transition"
+                                                    onClick={() => handleEditClick(item)}
+                                                >
+                                                    Sửa
+                                                </button>
+                                            </td>
                                         </tr>
                                     ))
                                 )}
@@ -149,6 +203,81 @@ export default function DanhSachBaoCaoTayMKT() {
                     </div>
                 </div>
             </div>
+
+            {/* Edit Modal */}
+            {editingReport && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-lg w-96 shadow-xl relative">
+                        <h3 className="text-lg font-bold mb-4 text-blue-600 border-b pb-2">Sửa Báo Cáo MKT</h3>
+
+                        <div className="mb-4 text-sm text-gray-600">
+                            <p><strong>Ngày:</strong> {formatDate(editingReport['Ngày'])} - <strong>Ca:</strong> {editingReport['ca']}</p>
+                            <p><strong>Nhân viên:</strong> {editingReport['Tên']}</p>
+                            <p><strong>SP:</strong> {editingReport['Sản_phẩm']} - <strong>TT:</strong> {editingReport['Thị_trường']}</p>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">CPQC:</label>
+                                <input
+                                    type="number"
+                                    name="cpqc"
+                                    value={editForm.cpqc}
+                                    onChange={handleInputChange}
+                                    className="w-full border rounded px-2 py-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Số mess:</label>
+                                <input
+                                    type="number"
+                                    name="mess_cmt"
+                                    value={editForm.mess_cmt}
+                                    onChange={handleInputChange}
+                                    className="w-full border rounded px-2 py-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Số đơn:</label>
+                                <input
+                                    type="number"
+                                    name="orders"
+                                    value={editForm.orders}
+                                    onChange={handleInputChange}
+                                    className="w-full border rounded px-2 py-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Doanh số:</label>
+                                <input
+                                    type="number"
+                                    name="revenue"
+                                    value={editForm.revenue}
+                                    onChange={handleInputChange}
+                                    className="w-full border rounded px-2 py-1"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button
+                                onClick={handleCloseModal}
+                                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded text-sm text-gray-800"
+                                disabled={saving}
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                onClick={handleSaveEdit}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold"
+                                disabled={saving}
+                            >
+                                {saving ? 'Đang lưu...' : 'Lưu Thay Đổi'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

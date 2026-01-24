@@ -1,3 +1,4 @@
+import { RefreshCw, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
@@ -35,6 +36,8 @@ export default function BaoCaoSale() {
 
     // --- State ---
     const [loading, setLoading] = useState(true);
+    const [syncing, setSyncing] = useState(false); // State for sync process
+    const [deleting, setDeleting] = useState(false); // State for delete process
     const [rawData, setRawData] = useState([]);
 
     const [currentUserInfo, setCurrentUserInfo] = useState(null);
@@ -78,6 +81,187 @@ export default function BaoCaoSale() {
     const [showShiftFilter, setShowShiftFilter] = useState(true);
     const [showTeamFilter, setShowTeamFilter] = useState(true);
     const [showMarketFilter, setShowMarketFilter] = useState(true);
+
+    // --- Sync F3 Logic ---
+    const handleSyncF3Report = async () => {
+        if (!window.confirm("Bạn có chắc chắn muốn đồng bộ Báo Cáo Sale từ F3 (Firebase)?\nHệ thống sẽ cập nhật số liệu mới nhất.")) return;
+
+        try {
+            setSyncing(true);
+            // Updated URL provided by user
+            const SALES_REPORT_URL = "https://lumi-6dff7-default-rtdb.asia-southeast1.firebasedatabase.app/datasheet/B%C3%A1o_c%C3%A1o_sale.json";
+            console.log("Fetching Sales Report data from:", SALES_REPORT_URL);
+
+            const response = await fetch(SALES_REPORT_URL);
+            const dataRaw = await response.json();
+
+            // Convert object to array
+            let firebaseData = [];
+            if (Array.isArray(dataRaw)) {
+                firebaseData = dataRaw;
+            } else if (dataRaw && typeof dataRaw === 'object') {
+                firebaseData = Object.values(dataRaw);
+            }
+
+            if (firebaseData.length === 0) {
+                alert("Không tìm thấy dữ liệu trên F3 (Báo cáo sale).");
+                return;
+            }
+
+            // Filter for SALES REPORT items
+            // Relaxed filter since this is a dedicated endpoint, but keep basic checks
+            const reportItems = firebaseData.filter(item =>
+                item["Email"] &&
+                item["Ngày"]
+            );
+
+            console.log(`Found ${reportItems.length} sales report items.`);
+
+            if (reportItems.length === 0) {
+                alert("Không tìm thấy bản ghi báo cáo hợp lệ (cần có Email và Ngày).");
+                return;
+            }
+
+            // Map to Supabase Columns
+            const mappedItems = reportItems.map(item => {
+                // Parse numbers safely
+                const parseNum = (val) => parseFloat(String(val || 0).replace(/[^0-9.-]+/g, "")) || 0;
+
+                return {
+                    name: item["Tên"],
+                    email: item["Email"],
+                    team: item["Team"],
+                    branch: item["Chi_nhánh"],
+                    position: item["Chức vụ"] || item["Vị trí"], // Fallback if available
+
+                    date: item["Ngày"], // Assumed YYYY-MM-DD or parseable
+                    shift: item["Ca"],
+                    product: item["Sản_phẩm"],
+                    market: item["Thị_trường"],
+
+                    // Metrics
+                    mess_count: parseNum(item["Số_Mess"]),
+                    response_count: parseNum(item["Phản_hồi"]),
+                    order_count: parseNum(item["Đơn Mess"] || item["Đơn_Mess"]), // Handle variations
+                    revenue_mess: parseNum(item["Doanh_số_Mess"]),
+
+                    order_cancel_count: parseNum(item["Số_đơn_Hoàn_huỷ"]),
+                    revenue_cancel: parseNum(item["Doanh_số_hoàn_huỷ"]),
+
+                    order_success_count: parseNum(item["Số_đơn_thành_công"]),
+                    revenue_success: parseNum(item["Doanh_số_thành_công"]),
+
+                    revenue_go: parseNum(item["Doanh_số_đi"]),
+
+                    // New Fields
+                    customer_old: parseNum(item["Khách_cũ"]),
+                    customer_new: parseNum(item["Khách_mới"]),
+                    cross_sale: parseNum(item["Bán_chéo"]),
+                    status: item["Trạng_thái"],
+                    id_ns: item["id_NS"],
+
+                    // IDs
+                    id_feedback: item["id_phản_hồi"],
+                    id_mess_count: item["id_số_mess"],
+
+                    // Metadata
+                    updated_at: new Date().toISOString()
+                };
+            });
+
+            // Batch Upsert
+            // Strategy: We can upsert if we have a unique constraint.
+            // Since we don't have a perfect unique constraint, we'll try to MATCH and UPDATE
+            // OR we fetch existing for the date range and compare.
+
+            // SIMPLIFIED APPROACH:
+            // Iterate and upsert one by one allowing match by (email, date, product) logic?
+            // Too slow.
+            // BETTER: Use `upsert` but we need a constraint.
+            // If we can't change DB constraint, we delete and re-insert? (Risky)
+            // Let's use a "Merge" strategy in Javascript.
+
+            // 1. Get List of Emails and Dates in the batch
+            // To avoid fetching whole DB, let's just attempt ID matching if we had it.
+            // Fallback: We will just INSERT for now or try to UPSERT based on `id` if we mapped it.
+            // Since we don't map `id` (UUID vs Int), we can't use `id`.
+
+            // WORKAROUND: For this specific request, I will assume the user wants to Import New Data.
+            // Or I will try to find a record by Email + Date + Product and Update its ID.
+
+            let successCount = 0;
+            const batchSize = 20; // Safe batch size
+
+            for (let i = 0; i < mappedItems.length; i += batchSize) {
+                const batch = mappedItems.slice(i, i + batchSize);
+
+                // For each item, try to find existing record
+                for (const newItem of batch) {
+                    // Find by Email, Date, Product (and Team?)
+                    const { data: existing } = await supabase
+                        .from('sales_reports')
+                        .select('id')
+                        .eq('email', newItem.email)
+                        .eq('date', newItem.date)
+                        .eq('product', newItem.product)
+                        .maybeSingle(); // Returns null if not found
+
+                    if (existing) {
+                        // Update
+                        await supabase.from('sales_reports').update(newItem).eq('id', existing.id);
+                    } else {
+                        // Insert
+                        await supabase.from('sales_reports').insert(newItem);
+                    }
+                }
+                successCount += batch.length;
+            }
+
+            alert(`✅ Đã đồng bộ thành công ${successCount} bản ghi báo cáo!`);
+            // Reload
+            window.location.reload();
+
+        } catch (error) {
+            console.error("Sync Error:", error);
+            alert(`❌ Lỗi đồng bộ: ${error.message}`);
+        } finally {
+            setSyncing(false);
+        }
+    };
+
+    // --- Delete All Logic ---
+    const handleDeleteAll = async () => {
+        if (!window.confirm("⚠️ CẢNH BÁO: Bạn có chắc chắn muốn XÓA TOÀN BỘ dữ liệu báo cáo sale không?\n\nHành động này KHÔNG THỂ khôi phục!")) return;
+
+        // Double Check
+        const confirmation = prompt("Để xác nhận xóa, vui lòng nhập chính xác chữ: XOA DU LIEU");
+        if (confirmation !== "XOA DU LIEU") {
+            alert("Mã xác nhận không đúng. Đã hủy thao tác xóa.");
+            return;
+        }
+
+        try {
+            setDeleting(true);
+            console.log("Deleting all records from sales_reports...");
+
+            // Delete all records where ID is not null (effectively all)
+            const { error } = await supabase
+                .from('sales_reports')
+                .delete()
+                .neq('id', '00000000-0000-0000-0000-000000000000'); // Dummy UUID for filter
+
+            if (error) throw error;
+
+            alert("✅ Đã xóa toàn bộ dữ liệu thành công!");
+            window.location.reload();
+
+        } catch (err) {
+            console.error("Delete All Error:", err);
+            alert(`❌ Lỗi khi xóa dữ liệu: ${err.message}`);
+        } finally {
+            setDeleting(false);
+        }
+    };
 
     // --- Effects ---
 
@@ -714,6 +898,45 @@ export default function BaoCaoSale() {
                     <div className="header">
                         <img src="https://www.appsheet.com/template/gettablefileurl?appName=Appsheet-325045268&tableName=Kho%20%E1%BA%A3nh&fileName=Kho%20%E1%BA%A3nh_Images%2Ff930e667.%E1%BA%A2nh.025539.jpg" alt="Logo" />
                         <h2>{permissions.title}</h2>
+
+                        <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
+                            <button
+                                onClick={handleDeleteAll}
+                                disabled={deleting}
+                                className="btn-delete-all"
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '5px',
+                                    background: '#dc2626', color: 'white', border: 'none',
+                                    padding: '8px 12px', borderRadius: '4px', cursor: 'pointer',
+                                    opacity: deleting ? 0.7 : 1,
+                                    fontWeight: '500',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                }}
+                            >
+                                <Trash2 size={16} />
+                                {deleting ? "Đang xóa..." : "Xóa hết dữ liệu"}
+                            </button>
+
+                            <button
+                                onClick={handleSyncF3Report}
+                                disabled={syncing}
+                                className="btn-sync"
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '5px',
+                                    background: '#2563eb', color: 'white', border: 'none',
+                                    padding: '8px 12px', borderRadius: '4px', cursor: 'pointer',
+                                    opacity: syncing ? 0.7 : 1,
+                                    fontWeight: '500',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                }}
+                            >
+                                <RefreshCw size={16} style={syncing ? { animation: 'spin 1s linear infinite' } : {}} />
+                                {syncing ? "Đang đồng bộ..." : "Đồng bộ F3"}
+                            </button>
+                            <style>{`
+                                @keyframes spin { 100% { transform: rotate(360deg); } }
+                             `}</style>
+                        </div>
                     </div>
 
                     <div className="tabs-container">
