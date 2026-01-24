@@ -379,7 +379,19 @@ export default function NhapDonMoi({ isEdit = false }) {
             if (boPhan) {
                 const userDep = boPhan.toString().trim().toLowerCase();
                 if ((userDep === 'mkt' || userDep === 'marketing') && !selectedMkt) {
-                    setSelectedMkt(userName);
+                    // Check if userName exists in uniqueMktNames (which we already derived)
+                    const exactMatch = uniqueMktNames.find(n => n === userName);
+                    const looseMatch = uniqueMktNames.find(n => n.toLowerCase() === userName.toLowerCase());
+
+                    if (exactMatch) {
+                        setSelectedMkt(exactMatch);
+                    } else if (looseMatch) {
+                        setSelectedMkt(looseMatch);
+                    } else {
+                        // Do NOT auto-set if no match found. 
+                        // This prevents filtering out all pages.
+                        console.warn(`User ${userName} is MKT but not found in marketing_pages staff list. Skipping auto-select.`);
+                    }
                 }
             }
 
@@ -417,11 +429,13 @@ export default function NhapDonMoi({ isEdit = false }) {
     useEffect(() => {
         const product = formData.productMain || "";
         let name1 = product;
-        let name2 = product;
+        let name2 = ""; // Default empty for single products
 
         if (product === "Bakuchiol Retinol") {
+            name1 = "Bakuchiol Retinol - Serum";
             name2 = "Bakuchiol Retinol - Cream";
         } else if (product === "ComboGold24k") {
+            name1 = "Serum Gold 24k";
             name2 = "Cream Sâm";
         }
 
@@ -574,11 +588,8 @@ export default function NhapDonMoi({ isEdit = false }) {
     // -------------------------------------------------------------------------
     const filteredPages = pages.filter(p => {
         const matchesSearch = !pageSearch || (p.page_name || "").toLowerCase().includes(pageSearch.toLowerCase());
-        const matchesMkt = !selectedMkt || (p.mkt_staff === selectedMkt);
-
-        // If searching, show all matches. If not searching but MKT selected, show MKT's pages.
-        if (pageSearch) return matchesSearch;
-        return matchesMkt;
+        // REMOVED dependency on selectedMkt to allow switching to any page/staff
+        return matchesSearch;
     });
 
 
@@ -588,6 +599,14 @@ export default function NhapDonMoi({ isEdit = false }) {
     // -------------------------------------------------------------------------
     const handleInputChange = (e) => {
         const { id, value } = e.target;
+        if (id === 'phone') {
+            // Only allow numbers
+            const regex = /^[0-9]*$/;
+            if (regex.test(value)) {
+                setFormData(prev => ({ ...prev, [id]: value }));
+            }
+            return;
+        }
         setFormData(prev => ({ ...prev, [id]: value }));
     };
 
@@ -786,6 +805,7 @@ export default function NhapDonMoi({ isEdit = false }) {
 
                 // Defaults / System
                 delivery_status: isEdit ? undefined : "Chờ xử lý", // Don't overwrite status on edit
+                check_result: isEdit ? undefined : "OK", // Default to OK for new orders to show in VanDon
                 // User Info
                 cskh: userName,
                 // Don't overwrite created_by on edit ideally, but here we just send it if new
@@ -1000,60 +1020,13 @@ export default function NhapDonMoi({ isEdit = false }) {
                                             </div>
                                             <div className="space-y-2">
                                                 <Label htmlFor="nv-mkt">Nhân viên marketing</Label>
-                                                <Popover open={isMktOpen} onOpenChange={setIsMktOpen}>
-                                                    <div className="relative" ref={mktRef}>
-                                                        <PopoverAnchor asChild>
-                                                            <div className="relative">
-                                                                <Input
-                                                                    placeholder="Chọn nhân viên..."
-                                                                    value={selectedMkt}
-                                                                    onChange={(e) => {
-                                                                        setSelectedMkt(e.target.value);
-                                                                        setIsMktOpen(true);
-                                                                    }}
-                                                                    onFocus={() => {
-                                                                        if (mktRef.current) setMktPopoverWidth(mktRef.current.offsetWidth);
-                                                                    }}
-                                                                    onClick={() => {
-                                                                        if (mktRef.current) setMktPopoverWidth(mktRef.current.offsetWidth);
-                                                                        setIsMktOpen(true);
-                                                                    }}
-                                                                    className="pr-8 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2d7c2d]"
-                                                                />
-                                                                <ChevronDown className="absolute right-3 top-3 h-4 w-4 opacity-50 pointer-events-none" />
-                                                            </div>
-                                                        </PopoverAnchor>
-                                                        {isMktOpen && (
-                                                            <PopoverContent
-                                                                className="p-0 bg-white"
-                                                                align="start"
-                                                                style={{ width: mktPopoverWidth }}
-                                                                onOpenAutoFocus={(e) => e.preventDefault()}
-                                                            >
-                                                                <div className="max-h-[300px] overflow-y-auto p-1">
-                                                                    {filteredMktEmployees.length === 0 ? (
-                                                                        <div className="p-2 text-sm text-gray-500">Không tìm thấy kết quả.</div>
-                                                                    ) : (
-                                                                        filteredMktEmployees.map((e, idx) => {
-                                                                            const empName = e['Họ_và_tên'] || e['Họ và tên'] || `NV ${idx}`;
-                                                                            const isSelected = selectedMkt === empName;
-                                                                            return (
-                                                                                <div
-                                                                                    key={idx}
-                                                                                    className={cn("flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-gray-100", isSelected && "bg-gray-100 font-medium")}
-                                                                                    onClick={() => { setSelectedMkt(empName); setIsMktOpen(false); }}
-                                                                                >
-                                                                                    <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
-                                                                                    <span className="truncate">{empName}</span>
-                                                                                </div>
-                                                                            );
-                                                                        })
-                                                                    )}
-                                                                </div>
-                                                            </PopoverContent>
-                                                        )}
-                                                    </div>
-                                                </Popover>
+                                                <Input
+                                                    id="nv-mkt"
+                                                    value={selectedMkt}
+                                                    readOnly
+                                                    className="bg-gray-100 cursor-not-allowed text-gray-700 font-medium"
+                                                    placeholder="Tự động theo Page..."
+                                                />
                                             </div>
                                             <div className="space-y-2">
                                                 <div className="flex items-center justify-between">
@@ -1102,9 +1075,12 @@ export default function NhapDonMoi({ isEdit = false }) {
                                                                             const isSelected = selectedPage === pageName;
                                                                             return (
                                                                                 <div key={idx} className={cn("flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-gray-100", isSelected && "bg-gray-100 font-medium")} onClick={() => {
+                                                                                    console.log("DEBUG: Selecting page:", p);
                                                                                     setSelectedPage(pageName);
                                                                                     // Always update MKT: Set to staff name if exists, else clear it
-                                                                                    setSelectedMkt(p.mkt_staff ? p.mkt_staff.toString().trim() : "");
+                                                                                    const mktStaff = p.mkt_staff || p.Mkt_staff || "";
+                                                                                    console.log("DEBUG: Setting MKT Staff to:", mktStaff);
+                                                                                    setSelectedMkt(mktStaff.toString().trim());
                                                                                     setIsPageOpen(false);
                                                                                     setPageSearch("");
                                                                                 }}>
@@ -1351,7 +1327,7 @@ export default function NhapDonMoi({ isEdit = false }) {
                                                     </CardTitle>
                                                 </CardHeader>
                                                 <CardContent className="text-xs space-y-2 text-yellow-800">
-                                                    <p>
+                                                    <div>
                                                         • Cảnh báo danh sách hạn chế:
                                                         {blacklistStatus === 'warning' ? (
                                                             <>
@@ -1371,7 +1347,7 @@ export default function NhapDonMoi({ isEdit = false }) {
                                                         ) : (
                                                             <span className="text-gray-400 ml-1">...</span>
                                                         )}
-                                                    </p>
+                                                    </div>
                                                     <p>• Trùng đơn: <span className="font-semibold text-green-600">Không phát hiện</span></p>
 
                                                     {/* Toggle Blacklist View */}

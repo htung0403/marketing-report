@@ -5,11 +5,14 @@ export const parseSmartDate = (dateString) => {
     const str = String(dateString).trim();
     if (!str) return null;
 
-    let date = null;
-
-    // Check YYYY-MM-DD (ISO)
-    if (/^\d{4}-\d{1,2}-\d{1,2}/.test(str)) {
-        const d = new Date(str);
+    // Check YYYY-MM-DD (ISO) - Parse as LOCAL time components to avoid UTC shifts
+    // e.g. "2023-10-25" -> new Date(2023, 9, 25) -> Midnight Local
+    const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) {
+        const year = parseInt(isoMatch[1], 10);
+        const month = parseInt(isoMatch[2], 10) - 1;
+        const day = parseInt(isoMatch[3], 10);
+        const d = new Date(year, month, day);
         if (!isNaN(d.getTime())) return d;
     }
 
@@ -30,7 +33,7 @@ export const parseSmartDate = (dateString) => {
         }
     }
 
-    // Fallback to normal Date parse
+    // Fallback to normal Date parse (for other formats like ISO with time)
     const fallback = new Date(str);
     if (!isNaN(fallback.getTime())) return fallback;
 

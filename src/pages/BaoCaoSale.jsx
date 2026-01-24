@@ -84,7 +84,7 @@ export default function BaoCaoSale() {
 
     // --- Sync F3 Logic ---
     const handleSyncF3Report = async () => {
-        if (!window.confirm("Bạn có chắc chắn muốn đồng bộ Báo Cáo Sale từ F3 (Firebase)?\nHệ thống sẽ cập nhật số liệu mới nhất.")) return;
+        if (!window.confirm(`Bạn có chắc chắn muốn đồng bộ TOÀN BỘ dữ liệu Báo Cáo Sale từ F3?\n\n(Quá trình này có thể mất một chút thời gian nếu dữ liệu lớn)`)) return;
 
         try {
             setSyncing(true);
@@ -109,13 +109,13 @@ export default function BaoCaoSale() {
             }
 
             // Filter for SALES REPORT items
-            // Relaxed filter since this is a dedicated endpoint, but keep basic checks
+            // Reverted Optimization: Sync ALL items as requested by user
             const reportItems = firebaseData.filter(item =>
                 item["Email"] &&
                 item["Ngày"]
             );
 
-            console.log(`Found ${reportItems.length} sales report items.`);
+            console.log(`Found ${reportItems.length} sales report items (Full Sync).`);
 
             if (reportItems.length === 0) {
                 alert("Không tìm thấy bản ghi báo cáo hợp lệ (cần có Email và Ngày).");
@@ -128,6 +128,9 @@ export default function BaoCaoSale() {
                 const parseNum = (val) => parseFloat(String(val || 0).replace(/[^0-9.-]+/g, "")) || 0;
 
                 return {
+                    // NEW: Map Firebase ID
+                    firebase_id: String(item["id"] || ""), // Ensure string
+
                     name: item["Tên"],
                     email: item["Email"],
                     team: item["Team"],
@@ -140,85 +143,87 @@ export default function BaoCaoSale() {
                     market: item["Thị_trường"],
 
                     // Metrics
-                    mess_count: parseNum(item["Số_Mess"]),
-                    response_count: parseNum(item["Phản_hồi"]),
-                    order_count: parseNum(item["Đơn Mess"] || item["Đơn_Mess"]), // Handle variations
-                    revenue_mess: parseNum(item["Doanh_số_Mess"]),
+                    mess_count: parseNum(item["Số_Mess"] || item["Số mess"] || item["mess_count"]),
+                    response_count: parseNum(item["Phản_hồi"] || item["Phản hồi"] || item["response_count"]),
+                    order_count: parseNum(item["Đơn Mess"] || item["Đơn_Mess"] || item["order_count"]),
+                    revenue_mess: parseNum(item["Doanh_số_Mess"] || item["Doanh số Mess"] || item["revenue_mess"]),
 
-                    order_cancel_count: parseNum(item["Số_đơn_Hoàn_huỷ"]),
-                    revenue_cancel: parseNum(item["Doanh_số_hoàn_huỷ"]),
+                    order_cancel_count: parseNum(item["Số_đơn_Hoàn_huỷ"] || item["Số đơn hoàn hủy"]),
+                    revenue_cancel: parseNum(item["Doanh_số_hoàn_huỷ"] || item["Doanh số hoàn hủy"]),
 
-                    order_success_count: parseNum(item["Số_đơn_thành_công"]),
-                    revenue_success: parseNum(item["Doanh_số_thành_công"]),
+                    order_success_count: parseNum(item["Số_đơn_thành_công"] || item["Số đơn thành công"]),
+                    revenue_success: parseNum(item["Doanh_số_thành_công"] || item["Doanh số thành công"]),
 
-                    revenue_go: parseNum(item["Doanh_số_đi"]),
+                    revenue_go: parseNum(item["Doanh_số_đi"] || item["Doanh số đi"]),
+
+                    // ACTUAL METRICS (Correctly mapped)
+                    order_count_actual: parseNum(item["Số_đơn_thực_tế"] || item["Số đơn thực tế"]),
+                    revenue_actual: parseNum(item["Doanh_thu_chốt_thực_tế"] || item["Doanh thu chốt thực tế"]),
+
+                    order_cancel_count_actual: parseNum(item["Số_đơn_hoàn_hủy_thực_tế"] || item["Số_đơn_hoàn_huỷ_thực_tế"]),
+                    revenue_cancel_actual: parseNum(item["Doanh_số_hoàn_hủy_thực_tế"] || item["Doanh_số_hoàn_huỷ_thực_tế"]),
+
+                    revenue_after_cancel_actual: parseNum(item["Doanh_số_sau_hoàn_hủy_thực_tế"]),
+                    revenue_go_actual: parseNum(item["Doanh_số_đi_thực_tế"]),
 
                     // New Fields
                     customer_old: parseNum(item["Khách_cũ"]),
                     customer_new: parseNum(item["Khách_mới"]),
                     cross_sale: parseNum(item["Bán_chéo"]),
                     status: item["Trạng_thái"],
-                    id_ns: item["id_NS"],
+                    id_ns: item["id_NS"] || item["id_ns"],
 
                     // IDs
-                    id_feedback: item["id_phản_hồi"],
-                    id_mess_count: item["id_số_mess"],
+                    id_feedback: item["id_phản_hồi"] || item["id_phan_hoi"],
+                    id_mess_count: item["id_số_mess"] || item["id_so_mess"],
 
                     // Metadata
                     updated_at: new Date().toISOString()
                 };
             });
 
-            // Batch Upsert
-            // Strategy: We can upsert if we have a unique constraint.
-            // Since we don't have a perfect unique constraint, we'll try to MATCH and UPDATE
-            // OR we fetch existing for the date range and compare.
+            // --- OPTIMIZED SYNC STRATEGY WITH UNIQUE ID ---
 
-            // SIMPLIFIED APPROACH:
-            // Iterate and upsert one by one allowing match by (email, date, product) logic?
-            // Too slow.
-            // BETTER: Use `upsert` but we need a constraint.
-            // If we can't change DB constraint, we delete and re-insert? (Risky)
-            // Let's use a "Merge" strategy in Javascript.
+            // 0. DEDUPLICATION (Prioritize Firebase ID)
+            const uniqueItemsMap = new Map();
+            mappedItems.forEach(item => {
+                if (item.firebase_id) {
+                    uniqueItemsMap.set(item.firebase_id, item);
+                } else {
+                    // Fallback for items without ID
+                    const key = `${item.email}|${item.date}|${item.product}`.toLowerCase();
+                    uniqueItemsMap.set(key, item);
+                }
+            });
+            const dedupedItems = Array.from(uniqueItemsMap.values());
+            console.log(`Deduplication: Reduced from ${mappedItems.length} to ${dedupedItems.length} unique items.`);
 
-            // 1. Get List of Emails and Dates in the batch
-            // To avoid fetching whole DB, let's just attempt ID matching if we had it.
-            // Fallback: We will just INSERT for now or try to UPSERT based on `id` if we mapped it.
-            // Since we don't map `id` (UUID vs Int), we can't use `id`.
-
-            // WORKAROUND: For this specific request, I will assume the user wants to Import New Data.
-            // Or I will try to find a record by Email + Date + Product and Update its ID.
-
+            // 5. Execute Operations (Bulk Upsert directly on firebase_id)
             let successCount = 0;
-            const batchSize = 20; // Safe batch size
+            const BATCH_SIZE = 500;
 
-            for (let i = 0; i < mappedItems.length; i += batchSize) {
-                const batch = mappedItems.slice(i, i + batchSize);
+            for (let i = 0; i < dedupedItems.length; i += BATCH_SIZE) {
+                const batch = dedupedItems.slice(i, i + BATCH_SIZE);
 
-                // For each item, try to find existing record
-                for (const newItem of batch) {
-                    // Find by Email, Date, Product (and Team?)
-                    const { data: existing } = await supabase
-                        .from('sales_reports')
-                        .select('id')
-                        .eq('email', newItem.email)
-                        .eq('date', newItem.date)
-                        .eq('product', newItem.product)
-                        .maybeSingle(); // Returns null if not found
+                // Using firebase_id as the conflict target.
+                const { error: upsertError } = await supabase
+                    .from('sales_reports')
+                    .upsert(batch, { onConflict: 'firebase_id', ignoreDuplicates: false });
 
-                    if (existing) {
-                        // Update
-                        await supabase.from('sales_reports').update(newItem).eq('id', existing.id);
-                    } else {
-                        // Insert
-                        await supabase.from('sales_reports').insert(newItem);
+                if (upsertError) {
+                    console.error("Bulk Upsert Error:", upsertError);
+                    if (upsertError.code === '42703') { // Undefined column
+                        throw new Error("Cột 'firebase_id' chưa tồn tại. Vui lòng chạy script 'add_firebase_id_column.sql'.");
                     }
+                    if (upsertError.code === '42P10') { // Invalid conflict target
+                        throw new Error("Chưa có Unique Index cho 'firebase_id'. Vui lòng chạy script cập nhật.");
+                    }
+                    throw upsertError;
                 }
                 successCount += batch.length;
             }
 
-            alert(`✅ Đã đồng bộ thành công ${successCount} bản ghi báo cáo!`);
-            // Reload
+            alert(`✅ Đã đồng bộ xong! (Tổng: ${dedupedItems.length} bản ghi)`);
             window.location.reload();
 
         } catch (error) {
@@ -507,7 +512,11 @@ export default function BaoCaoSale() {
                 const user = userJson ? JSON.parse(userJson) : null;
                 const userName = localStorage.getItem("username") || user?.['Họ_và_tên'] || user?.['Họ và tên'] || user?.['Tên'] || user?.username || user?.name || "";
 
-                const isManager = ['admin', 'director', 'manager', 'super_admin'].includes((role || '').toLowerCase());
+                // Broader check: ANY role containing 'admin' or Manager/Director titles
+                const userRole = (role || '').toLowerCase();
+                const isManager = userRole.includes('admin') ||
+                    ['director', 'manager'].includes(userRole) ||
+                    String(userName || '').toLowerCase().includes('admin');
 
                 if (!isManager && userName) {
                     setIsRestrictedView(true);
@@ -900,6 +909,9 @@ export default function BaoCaoSale() {
                         <h2>{permissions.title}</h2>
 
                         <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
+                            {/* <button className="btn-excel">
+                                <FileSpreadsheet size={16} /> Xuất Excel
+                            </button> */}
                             <button
                                 onClick={handleDeleteAll}
                                 disabled={deleting}
@@ -931,7 +943,7 @@ export default function BaoCaoSale() {
                                 }}
                             >
                                 <RefreshCw size={16} style={syncing ? { animation: 'spin 1s linear infinite' } : {}} />
-                                {syncing ? "Đang đồng bộ..." : "Đồng bộ F3"}
+                                {syncing ? "Đang đồng bộ..." : "Đồng bộ Sale"}
                             </button>
                             <style>{`
                                 @keyframes spin { 100% { transform: rotate(360deg); } }
