@@ -1,3 +1,4 @@
+import JSZip from 'jszip';
 import { Activity, AlertCircle, AlertTriangle, ArrowLeft, CheckCircle, Clock, Database, Download, FileJson, GitCompare, Globe, RefreshCw, Save, Search, Settings, Shield, Table, Tag, Trash2, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -143,12 +144,22 @@ const AdminTools = () => {
             if (dateFrom || dateTo) {
                 // Determine date column based on table
                 let dateCol = 'created_at';
-                if (tableName === 'orders') dateCol = 'order_date'; // Use business date for orders
-                if (tableName === 'sales_reports') dateCol = 'date';
-                if (tableName === 'detail_reports') dateCol = 'date';
+                if (tableName === 'orders') {
+                    // EXCLUDE R&D DATA for Admin Tools/General Reporting
+                    query = query.neq('team', 'RD');
 
-                if (dateFrom) query = query.gte(dateCol, dateFrom);
-                if (dateTo) query = query.lte(dateCol, dateTo);
+                    if (dateFrom) query = query.gte('order_date', dateFrom);
+                    if (dateTo) query = query.lte('order_date', dateTo);
+                } else if (tableName === 'sales_reports') {
+                    if (dateFrom) query = query.gte('date', dateFrom);
+                    if (dateTo) query = query.lte('date', dateTo);
+                } else if (tableName === 'detail_reports') {
+                    if (dateFrom) query = query.gte('Ngày', dateFrom);
+                    if (dateTo) query = query.lte('Ngày', dateTo);
+                } else {
+                    if (dateFrom) query = query.gte('created_at', dateFrom);
+                    if (dateTo) query = query.lte('created_at', dateTo);
+                }
             } else {
                 // Default limit if no filter
                 query = query.limit(10000);
@@ -162,7 +173,9 @@ const AdminTools = () => {
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `${tableName}_${new Date().toISOString().slice(0, 10)}.json`;
+            const tableInfo = AVAILABLE_TABLES.find(t => t.id === tableId);
+            const fileName = tableInfo ? tableInfo.name.replace(/\//g, '-') : tableId;
+            link.download = `${fileName}_${new Date().toISOString().slice(0, 10)}.json`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -171,6 +184,69 @@ const AdminTools = () => {
         } catch (err) {
             console.error(err);
             toast.error(`Lỗi tải bảng ${tableName}: ${err.message}`);
+        }
+    };
+
+    const handleDownloadAll = async () => {
+        let confirmMsg = "Bạn có muốn tải toàn bộ dữ liệu (Backup) không?";
+        if (dateFrom || dateTo) {
+            confirmMsg += `\n(Bộ lọc ngày: ${dateFrom || '...'} đến ${dateTo || '...'})`;
+        }
+        confirmMsg += "\n\nHệ thống sẽ tạo 1 file ZIP chứa các file riêng biệt với tên Tiếng Việt tương ứng (Ví dụ: Danh sách đơn (Sale).json...).";
+
+        if (!window.confirm(confirmMsg)) return;
+
+        try {
+            toast.info("Đang tổng hợp và nén dữ liệu...");
+
+            const zip = new JSZip();
+
+            // Loop through ALL defined cards in AVAILABLE_TABLES to simulate distinct downloads
+            for (const card of AVAILABLE_TABLES) {
+                const tableId = card.id;
+                const tableName = getRealTableName(tableId);
+
+                let query = supabase.from(tableName).select('*');
+
+                // Reuse query logic from handleDownloadTable
+                if (tableName === 'orders') {
+                    query = query.neq('team', 'RD');
+                    if (dateFrom) query = query.gte('order_date', dateFrom);
+                    if (dateTo) query = query.lte('order_date', dateTo);
+                } else {
+                    let dateCol = 'created_at';
+                    if (tableName === 'sales_reports') dateCol = 'date';
+                    if (tableName === 'detail_reports') dateCol = 'Ngày';
+
+                    if (dateFrom) query = query.gte(dateCol, dateFrom);
+                    if (dateTo) query = query.lte(dateCol, dateTo);
+                }
+
+                const { data, error } = await query;
+                if (error) {
+                    console.error(`Error fetching ${tableId}`, error);
+                    continue; // Skip failed table but continue others
+                }
+
+                // Save file using Vietnamese Name (sanitized)
+                const safeName = card.name.replace(/\//g, '-');
+                zip.file(`${safeName}.json`, JSON.stringify(data, null, 2));
+            }
+
+            const content = await zip.generateAsync({ type: "blob" });
+            const url = URL.createObjectURL(content);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `SYSTEM_BACKUP_${new Date().toISOString().slice(0, 10)}.zip`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            toast.success("✅ Đã tải backup toàn bộ (ZIP) thành công!");
+        } catch (err) {
+            console.error("Download All Error:", err);
+            toast.error(`❌ Lỗi backup: ${err.message}`);
         }
     };
 
@@ -919,6 +995,16 @@ const AdminTools = () => {
                                         Xóa lọc
                                     </button>
                                 )}
+
+                                <div className="ml-auto">
+                                    <button
+                                        onClick={handleDownloadAll}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 font-medium transition-colors"
+                                    >
+                                        <Download size={18} />
+                                        Tải Tất Cả (Backup)
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
