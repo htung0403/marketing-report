@@ -95,6 +95,9 @@ const AdminTools = () => {
 
     const [downloadMode, setDownloadMode] = useState(false);
     const [uploadMode, setUploadMode] = useState(false);
+    // Initialize date filters: Default to current month or reasonable range
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
 
     useEffect(() => {
         // Load settings on mount
@@ -124,7 +127,11 @@ const AdminTools = () => {
     const handleDownloadTable = async (tableId) => {
         const tableName = getRealTableName(tableId);
 
-        if (!window.confirm(`Bạn có muốn tải dữ liệu [${tableId}] (Bảng gốc: ${tableName}) về không?`)) return;
+        let confirmMsg = `Bạn có muốn tải dữ liệu [${tableId}] về không?`;
+        if (dateFrom || dateTo) {
+            confirmMsg += `\n(Bộ lọc: ${dateFrom || '...'} đến ${dateTo || '...'})`;
+        }
+        if (!window.confirm(confirmMsg)) return;
 
         try {
             toast.info(`Đang tải dữ liệu [${tableId}]...`);
@@ -132,9 +139,20 @@ const AdminTools = () => {
             // Custom logic for filtered downloads can go here
             let query = supabase.from(tableName).select('*');
 
-            // Apply simple limits or filters if needed
-            // For now, we fetch a large chunk to ensure data sufficiency
-            query = query.limit(10000);
+            // --- DATE FILTER LOGIC ---
+            if (dateFrom || dateTo) {
+                // Determine date column based on table
+                let dateCol = 'created_at';
+                if (tableName === 'orders') dateCol = 'order_date'; // Use business date for orders
+                if (tableName === 'sales_reports') dateCol = 'date';
+                if (tableName === 'detail_reports') dateCol = 'date';
+
+                if (dateFrom) query = query.gte(dateCol, dateFrom);
+                if (dateTo) query = query.lte(dateCol, dateTo);
+            } else {
+                // Default limit if no filter
+                query = query.limit(10000);
+            }
 
             const { data, error } = await query;
             if (error) throw error;
@@ -869,6 +887,40 @@ const AdminTools = () => {
                                 <Table size={20} className="text-blue-600" />
                                 Chọn bảng dữ liệu cần tải về (JSON)
                             </h3>
+
+                            {/* DATE FILTER INPUTS */}
+                            <div className="flex flex-wrap items-center gap-4 mb-6 bg-blue-50 p-4 rounded-lg border border-blue-100">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-gray-700">Từ ngày:</span>
+                                    <input
+                                        type="date"
+                                        value={dateFrom}
+                                        onChange={(e) => setDateFrom(e.target.value)}
+                                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-gray-700">Đến ngày:</span>
+                                    <input
+                                        type="date"
+                                        value={dateTo}
+                                        onChange={(e) => setDateTo(e.target.value)}
+                                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+                                    />
+                                </div>
+                                <div className="text-xs text-gray-500 italic">
+                                    (Để trống để tải 10,000 dòng mới nhất)
+                                </div>
+                                {(dateFrom || dateTo) && (
+                                    <button
+                                        onClick={() => { setDateFrom(''); setDateTo(''); }}
+                                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                                    >
+                                        Xóa lọc
+                                    </button>
+                                )}
+                            </div>
+
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                                 {AVAILABLE_TABLES.map(table => (
                                     <div
